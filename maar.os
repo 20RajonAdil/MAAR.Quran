@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAAR OS 2026</title>
+<style>
+:root{
+  --bg:#0b1220; --panel:#111827; --accent:#2563eb; --text:#e5e7eb; --glass:rgba(2,6,23,.75);
+}
+*{box-sizing:border-box;font-family:Segoe UI,system-ui,sans-serif;}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);}
+#desktop{position:absolute;inset:0;background:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80') center/cover;}
+#icons{display:flex;gap:22px;padding:22px;}
+.icon{width:80px;text-align:center;cursor:pointer;border-radius:12px;transition:.2s ease;display:flex;flex-direction:column;align-items:center;gap:8px;}
+.icon img{width:48px;}
+.icon:hover{transform:translateY(-6px) scale(1.05);filter:drop-shadow(0 0 6px #0ff);}
+#taskbar{position:absolute;bottom:0;left:0;right:0;height:48px;background:var(--glass);display:flex;align-items:center;gap:8px;padding:0 10px;backdrop-filter:blur(12px);}
+#startBtn{background:linear-gradient(90deg,var(--accent),#4f46e5);border:none;color:white;padding:6px 14px;border-radius:8px;cursor:pointer;transition:.2s;}
+#startBtn:hover{box-shadow:0 0 12px #0ff;}
+.task-icon{width:28px;height:28px;cursor:pointer;}
+.task-icon:hover{transform:scale(1.2);filter:drop-shadow(0 0 6px #0ff);}
+#tray{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:13px;}
+#startMenu{position:absolute;bottom:56px;left:10px;width:260px;background:var(--panel);border-radius:14px;padding:12px;display:none;}
+#startMenu h3{text-align:center;margin:6px 0 12px;font-size:16px;background:linear-gradient(90deg,#ff6bd6,#5ee7df,#ff6bd6);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:gradientMove 4s linear infinite;}
+.start-app{padding:10px;border-radius:10px;cursor:pointer;opacity:0;transform:translateX(-10px);transition:all .3s ease;}
+#startMenu.open .start-app{opacity:1;transform:translateX(0);}
+.start-app:hover{background:#1f2937;}
+@keyframes gradientMove{0%{background-position:0% 50%}100%{background-position:200% 50%}}
+.window{position:absolute;width:480px;height:360px;background:var(--panel);border-radius:12px;box-shadow:0 25px 70px #0008;display:none;flex-direction:column;overflow:hidden;border:2px solid transparent;transition:all .3s ease;opacity:0;transform:scale(0.9);}
+.window.open{opacity:1;transform:scale(1);animation:starPulse 3s infinite;}
+@keyframes starPulse{0%,100%{box-shadow:0 0 8px #0ff,0 0 12px #0ff inset;border-color:#0ff;}50%{box-shadow:0 0 20px #0ff,0 0 28px #0ff inset;border-color:#0ff;}}
+.titlebar{height:34px;background:#020617;display:flex;align-items:center;justify-content:space-between;padding:0 10px;cursor:move;}
+.controls span{display:inline-block;width:14px;height:14px;border-radius:50%;margin-left:6px;cursor:pointer;}
+.controls .close{background:#ef4444;}
+.controls .min{background:#f59e0b;}
+.controls .max{background:#22c55e;}
+.content{flex:1;padding:10px;overflow:auto;background:#020617;display:flex;flex-direction:column;}
+footer{position:absolute;right:12px;bottom:60px;font-size:12px;opacity:.7;}
+button,input,textarea,select{background:#111827;color:var(--text);border:1px solid #1f2937;border-radius:6px;padding:6px;transition:.2s;}
+button:hover,input:hover,textarea:hover,select:hover{box-shadow:0 0 8px #0ff;}
+.calc-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;}
+.calc-grid button{height:40px;font-size:14px;cursor:pointer;transition:.2s;}
+.calc-grid button:hover{transform:translateY(-4px);box-shadow:0 0 12px #0ff;}
+#frame, #gameFrame, #otherGamesFrame{flex:1;width:100%;border:none;}
+textarea{flex:1;width:100%;resize:none;}
+#profileCardContainer img{width:200px;height:200px;border-radius:50%;object-fit:cover;border:3px solid var(--accent);}
+@media(max-width:700px){.window{width:92%;height:65%;left:4%;top:8%;}#icons{padding:12px;gap:10px;}}
+</style>
+</head>
+<body>
+
+<div id="desktop">
+  <div id="icons">
+    <div class="icon" data-app="calc"><img src="https://img.icons8.com/color/96/calculator.png"><div>Calc</div></div>
+    <div class="icon" data-app="notes"><img src="https://img.icons8.com/color/96/notepad.png"><div>Notes</div></div>
+    <div class="icon" data-app="browser"><img src="https://img.icons8.com/color/96/internet.png"><div>Browser</div></div>
+    <div class="icon" data-app="quran"><div style="font-size:48px;line-height:48px;">📖</div><div>Quran</div></div>
+    <div class="icon" data-app="about"><img src="https://img.icons8.com/color/96/about.png"><div>About</div></div>
+    <div class="icon" data-app="game"><img src="https://img.icons8.com/color/96/car.png"><div>Racing Horizon</div></div>
+    <div class="icon" data-app="otherGames"><div style="font-size:48px;">🎮</div><div>Other Games</div></div>
+  </div>
+</div>
+
+<div id="taskbar">
+  <button id="startBtn">MAAR</button>
+  <img class="task-icon" src="https://img.icons8.com/color/48/calculator.png" data-app="calc">
+  <img class="task-icon" src="https://img.icons8.com/color/48/notepad.png" data-app="notes">
+  <img class="task-icon" src="https://img.icons8.com/color/48/internet.png" data-app="browser">
+  <img class="task-icon" src="https://img.icons8.com/color/48/car.png" data-app="game">
+  <div id="tray"><span id="weather"></span><span id="clock"></span></div>
+</div>
+
+<div id="startMenu">
+  <h3>MAAR OS</h3>
+  <div class="start-app" data-app="calc">Calculator</div>
+  <div class="start-app" data-app="notes">Notes</div>
+  <div class="start-app" data-app="browser">Browser</div>
+  <div class="start-app" data-app="quran">Quran</div>
+  <div class="start-app" data-app="about">About</div>
+  <div class="start-app" data-app="game">Racing Horizon</div>
+  <div class="start-app" data-app="otherGames">Other Games</div>
+</div>
+
+<!-- WINDOWS -->
+
+<!-- Calculator -->
+<div class="window" id="calc">
+  <div class="titlebar"><span>Scientific Calculator</span>
+    <div class="controls"><span class="min"></span><span class="max"></span><span class="close"></span></div>
+  </div>
+  <div class="content">
+    <input id="calcInput" readonly style="width:100%;margin-bottom:8px">
+    <div class="calc-grid" id="calcBtns"></div>
+  </div>
+</div>
+
+<!-- Notes -->
+<div class="window" id="notes">
+  <div class="titlebar"><span>Notes</span>
+    <div class="controls"><span class="min"></span><span class="max"></span><span class="close"></span></div>
+  </div>
+  <div class="content"><textarea id="noteArea"></textarea></div>
+</div>
+
+<!-- Browser -->
+<div class="window" id="browser">
+  <div class="titlebar"><span>Browser</span>
+    <div class="controls"><span class="min"></span><span class="max"></span><span class="close"></span></div>
+  </div>
+  <div class="content">
+    <input id="url" value="https://www.microsoft.com" placeholder="Enter URL">
+    <iframe id="frame"></iframe>
+  </div>
+</div>
+
+<!-- Quran -->
+<div class="window" id="quran">
+  <div class="titlebar"><span>Quran</span>
+    <div class="controls"><span class="min"></span><span class="max"></span><span class="close"></span></div>
+  </div>
+  <div class="content">
+    <select id="surah"></select>
+    <div id="ayahs" style="margin-top:10px;line-height:1.8;font-size:15px"></div>
+  </div>
+</div>
+
+<!-- About -->
+<div class="window" id="about">
+  <div class="titlebar"><span>About Me</span>
+    <div class="controls"><span class="min"></span><span class="max"></span><span class="close"></span></div>
+  </div>
+  <div class="content">
+    <!-- Profile Card -->
+    <div id="profileCardContainer" style="display:flex;justify-content:center;margin-bottom:12px;">
+      <div class="profile-card">
+        <img src="MAAR.OS.jpg" 
+             alt="MAAR.OS">
+        <h3 style="text-align:center;margin:8px 0 4px;">MAAR.OS</h3>
+      </div>
+    </div>
+
+    <h3>Md Adil Ahmed Rajon</h3>
+    <p>College student interested in tech and web development.</p>
+    <p>MAAR OS 2026 - Personal Browser & Utilities</p>
+    <p>Email: 20rajona@gmail.com</p>
+    <p>Phone: 07440445929</p>
+    <p>Passionate about coding, learning, and exploring digital tools.</p>
+  </div>
+</div>
+
+<!-- Racing Horizon Game -->
+<div class="window" id="game">
+  <div class="titlebar"><span>Racing Horizon</span>
+    <div class="controls"><span class="min"></span><span class="max"></span><span class="close"></span></div>
+  </div>
+  <div class="content">
+    <iframe id="gameFrame" src="https://cargamesonline.io/racing-horizon" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>
+  </div>
+</div>
+
+<!-- Other Games -->
+<div class="window" id="otherGames">
+  <div class="titlebar"><span>Other Games</span>
+    <div class="controls"><span class="min"></span><span class="max"></span><span class="close"></span></div>
+  </div>
+  <div class="content">
+    <iframe id="otherGamesFrame" src="https://www.jopi.com/" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>
+  </div>
+</div>
+
+<footer>© Md Adil Ahmed Rajon 2026</footer>
+
+<script>
+// CLOCK
+const clock=document.getElementById('clock');
+setInterval(()=>{clock.textContent=new Date().toLocaleTimeString();},1000);
+
+// WEATHER
+const weather=document.getElementById('weather');
+if(navigator.geolocation){navigator.geolocation.getCurrentPosition(pos=>{
+fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&current_weather=true`).then(r=>r.json()).then(d=>{if(d.current_weather)weather.textContent=Math.round(d.current_weather.temperature)+'°C';}).catch(()=>{});});}
+
+// OPEN APP
+let zIndex=1;
+function openApp(id){
+  const w=document.getElementById(id);
+  if(!w) return;
+  w.style.display='flex';
+  w.classList.add('open');
+  w.style.zIndex=++zIndex;
+  if(!w.style.top) w.style.top='90px',w.style.left='120px';
+}
+
+// ICONS & TASKBAR
+document.querySelectorAll('[data-app]').forEach(el=>el.addEventListener('click',()=>openApp(el.dataset.app)));
+
+// START MENU
+const startBtnElement = document.getElementById('startBtn');
+const startMenuElement = document.getElementById('startMenu');
+startBtnElement.addEventListener('click', e=>{
+  e.stopPropagation();
+  startMenuElement.style.display = startMenuElement.style.display === 'block' ? 'none' : 'block';
+  const apps = startMenuElement.querySelectorAll('.start-app');
+  apps.forEach((app,i)=>{app.style.transitionDelay=`${i*0.05}s`;app.style.opacity='1';app.style.transform='translateX(0)';});
+});
+document.addEventListener('click', e=>{
+  if(!startMenuElement.contains(e.target) && e.target!==startBtnElement){
+    startMenuElement.style.display='none';
+    const apps=startMenuElement.querySelectorAll('.start-app');
+    apps.forEach(app=>{app.style.opacity='0';app.style.transform='translateX(-10px)';app.style.transitionDelay='0s';});
+  }
+});
+
+// CALCULATOR
+const calcInput=document.getElementById('calcInput');
+const calcBtns=document.getElementById('calcBtns');
+const buttons=['1','2','3','4','5','6','7','8','9','0','/','sin','cos','tan','*','log','√','-','^','(',')','.','=','+','C'];
+buttons.forEach(b=>{
+  const btn=document.createElement('button'); btn.textContent=b;
+  btn.onclick=()=>{
+    if(b==='C'){calcInput.value='';return;}
+    if(b==='='){try{calcInput.value=evalScientific(calcInput.value);}catch{calcInput.value='Error';}return;}
+    calcInput.value+=b;
+  };
+  calcBtns.appendChild(btn);
+});
+function evalScientific(expr){
+  expr=expr.replace(/sin/g,'Math.sin').replace(/cos/g,'Math.cos').replace(/tan/g,'Math.tan').replace(/log/g,'Math.log10').replace(/√/g,'Math.sqrt').replace(/\^/g,'**');
+  return eval(expr);
+}
+
+// NOTES
+const noteArea=document.getElementById('noteArea');
+noteArea.value=localStorage.getItem('maar_notes')||'';
+noteArea.oninput=()=>localStorage.setItem('maar_notes',noteArea.value);
+
+// BROWSER
+const urlInput=document.getElementById('url');
+const frame=document.getElementById('frame');
+frame.src=urlInput.value;
+urlInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    let url=urlInput.value.trim();
+    if(!url.startsWith('http')) url='https://'+url;
+    frame.src=url;
+  }
+});
+
+// QURAN
+const surahSelect=document.getElementById('surah');
+fetch('https://api.alquran.cloud/v1/surah')
+.then(r=>r.json())
+.then(data=>{
+  data.data.forEach(s=>{
+    let opt=document.createElement('option'); opt.value=s.number; opt.textContent=s.number+'. '+s.englishName;
+    surahSelect.appendChild(opt);
+  });
+  loadSurah(1);
+});
+function loadSurah(n){
+  const ayahDiv=document.getElementById('ayahs');
+  ayahDiv.textContent='Loading...';
+  fetch(`https://api.alquran.cloud/v1/surah/${n}/en.asad`).then(r=>r.json()).then(d=>{
+    ayahDiv.innerHTML='';
+    d.data.ayahs.forEach(a=>{
+      let div=document.createElement('div');
+      div.textContent=a.numberInSurah+'. '+a.text;
+      ayahDiv.appendChild(div);
+    });
+  }).catch(()=>ayahDiv.textContent='Failed to load surah.');
+}
+surahSelect.addEventListener('change',()=>loadSurah(surahSelect.value));
+
+// DRAG & CONTROLS
+document.querySelectorAll('.window').forEach(w=>{
+  const bar=w.querySelector('.titlebar');
+  const [minBtn,maxBtn,closeBtn]=w.querySelectorAll('.controls span');
+  closeBtn.onclick=()=>{w.style.display='none'; w.classList.remove('open');};
+  minBtn.onclick=()=>{w.style.display='none';};
+  maxBtn.onclick=()=>{if(w.dataset.max==='1'){w.style.width='480px';w.style.height='360px';w.style.top='90px';w.style.left='120px'; w.dataset.max='';}else{w.style.top='0';w.style.left='0';w.style.width='100%';w.style.height='calc(100% - 48px)';w.dataset.max='1';}};
+  bar.onmousedown=e=>{
+    if(w.dataset.max==='1') return;
+    let ox=e.clientX-w.offsetLeft, oy=e.clientY-w.offsetTop; w.style.zIndex=++zIndex;
+    function move(e){w.style.left=(e.clientX-ox)+'px'; w.style.top=(e.clientY-oy)+'px';}
+    function up(){document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up);}
+    document.addEventListener('mousemove',move); 
+    document.addEventListener('mouseup',up);
+  };
+});
+</script>
+</body>
+</html>
