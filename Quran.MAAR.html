@@ -8,14 +8,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.177/pdf.min.js"></script>
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+  window.supabase = createClient(
+    'https://ackefhtirpxisbwgaebu.supabase.co',
+    'sb_publishable_DdDBiyPfQD8lg9I0Cb9l_Q_KDuGKCnq'
+  );
+</script>
 
 <style>
 :root{
   --bg1:#001f2d; --bg2:#004d40; --panel:#022c38;
   --accent:#00e5ff; --accent2:#00ff9d;
   --text:#e6eef8; --muted:#9aa4b2; --radius:14px;
-  --sun-color:#facc15; --moon-base:#0a0f1c; --moon-color:#f0f0f0;
+  --sun-color:#facc15;
+  --moon-base:#0a0f1c; --moon-color:#f0f0f0;
 }
+
 *{box-sizing:border-box;}
 body{margin:0;min-height:100vh;font-family:'Noto Sans',system-ui;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--text);}
 header{position:sticky;top:0;z-index:10;backdrop-filter:blur(10px);background:rgba(2,6,23,.6);border-bottom:1px solid rgba(255,255,255,.05);}
@@ -26,7 +35,7 @@ header{position:sticky;top:0;z-index:10;backdrop-filter:blur(10px);background:rg
 .tab{padding:8px 14px;border-radius:999px;cursor:pointer;color:var(--muted);transition:0.3s;}
 .tab:hover{color:var(--accent2);}
 .tab.active{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#041024;font-weight:700;}
-button{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#041024;font-weight:700;border-radius:8px;padding:6px 12px;cursor:pointer;margin:4px;}
+.google-login-btn{margin-left:10px;padding:6px 12px;border-radius:8px;background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#041024;font-weight:700;cursor:pointer;}
 main{padding:20px;max-width:1200px;margin:auto;}
 .panel{background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);border:1px solid rgba(255,255,255,.05);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
 .page{display:none;animation:fade .4s ease;}
@@ -34,11 +43,18 @@ main{padding:20px;max-width:1200px;margin:auto;}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
 .arabic{font-family:'Noto Naskh Arabic','Amiri',serif;font-size:26px;text-align:right;}
 .small{color:var(--muted);font-size:13px;}
+button,select{background:transparent;color:var(--text);border:1px solid rgba(255,255,255,.1);padding:8px;border-radius:8px;}
+button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#041024;border:none;font-weight:700;cursor:pointer;}
 .list{max-height:500px;overflow-y:auto;}
 .list div{padding:8px;cursor:pointer;border-radius:8px;transition:0.2s;}
 .list div:hover{background:rgba(255,255,255,.05);}
 .clock-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;}
 .clock-box{padding:8px;border-radius:8px;background:rgba(255,255,255,.05);min-width:140px;text-align:center;}
+#prayerTicker{display:flex;white-space:nowrap;animation:scrollTicker 20s linear infinite;}
+#prayerTicker div{display:inline-block;padding-right:24px;}
+.highlight{color:var(--accent);font-weight:700;text-shadow:0 0 8px var(--accent),0 0 16px var(--accent2);animation:pulse 1.5s infinite;}
+@keyframes pulse{0% {text-shadow:0 0 4px var(--accent),0 0 8px var(--accent2)} 50% {text-shadow:0 0 12px var(--accent),0 0 24px var(--accent2)} 100% {text-shadow:0 0 4px var(--accent),0 0 8px var(--accent2)}}
+@keyframes scrollTicker{0%{transform:translateX(100%);}100%{transform:translateX(-100%);}}
 .moon-wrapper{display:flex;justify-content:center;align-items:center;margin-top:20px;}
 .moon{width:130px;height:130px;border-radius:50%;background:var(--moon-base);position:relative;overflow:hidden;box-shadow:0 0 40px rgba(255,255,255,.2);animation:floatMoon 6s ease-in-out infinite;}
 .moon-light{position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;background:var(--moon-color);}
@@ -65,65 +81,63 @@ main{padding:20px;max-width:1200px;margin:auto;}
     <div class="tab active" data-tab="home">Home</div>
     <div class="tab" data-tab="quran">Qur’an</div>
     <div class="tab" data-tab="about">About</div>
+    <button class="google-login-btn" id="googleLoginBtn">Google Login</button>
   </div>
 </div>
 </header>
 
 <main>
-<!-- HOME -->
 <section id="home" class="page active">
 <div class="panel">
-  <div style="font-weight:800">Prayer Times</div>
-  <div style="overflow:hidden;margin-top:6px;border-radius:8px;border:1px solid rgba(255,255,255,.1);">
-    <div id="prayerTicker">Loading...</div>
-  </div>
-  <div id="countdown" class="small" style="margin-top:6px">Next prayer: --:--:--</div>
+<div style="font-weight:800">Prayer Times</div>
+<div style="overflow:hidden;margin-top:6px;border-radius:8px;border:1px solid rgba(255,255,255,.1);">
+  <div id="prayerTicker">Loading...</div>
+</div>
+<div id="countdown" class="small" style="margin-top:6px">Next prayer: --:--:--</div>
 
-  <div class="clock-row">
-    <div class="clock-box"><div id="englishTime">00:00:00</div><div class="small">English Time</div></div>
-    <div class="clock-box"><div id="arabicTime">٠٠:٠٠:٠٠</div><div class="small">Arabic Time</div></div>
-    <div class="clock-box"><div id="gregorian">--</div><div class="small">Gregorian</div></div>
-    <div class="clock-box"><div id="hijri">--</div><div class="small">Hijri</div></div>
-  </div>
+<div class="clock-row">
+<div class="clock-box"><div id="englishTime">00:00:00</div><div class="small">English Time</div></div>
+<div class="clock-box"><div id="arabicTime">٠٠:٠٠:٠٠</div><div class="small">Arabic Time</div></div>
+<div class="clock-box"><div id="gregorian">--</div><div class="small">Gregorian</div></div>
+<div class="clock-box"><div id="hijri">--</div><div class="small">Hijri</div></div>
+</div>
 
-  <div class="moon-wrapper"><div class="moon"><div class="moon-light" id="moonLight"></div></div></div>
-  <div class="sky"><div class="sun-dot" id="sunDot"></div></div>
-  <div class="small" id="moonInfo" style="text-align:center;margin-top:10px">Loading moon data...</div>
-  <div id="moonCompass"><div id="compassArrow"></div></div>
-  <div class="small" style="text-align:center;margin-top:4px;">Moon Direction</div>
+<div class="moon-wrapper"><div class="moon"><div class="moon-light" id="moonLight"></div></div></div>
+<div class="sky"><div class="sun-dot" id="sunDot"></div></div>
+<div class="small" id="moonInfo" style="text-align:center;margin-top:10px">Loading moon data...</div>
+<div id="moonCompass"><div id="compassArrow"></div></div>
+<div class="small" style="text-align:center;margin-top:4px;">Moon Direction</div>
 </div>
 </section>
 
-<!-- QURAN -->
 <section id="quran" class="page">
-<div class="panel" style="display:flex;flex-direction:column;gap:8px">
-  <div style="display:flex;align-items:center;gap:8px;">
-    <label class="small" for="lang">Language:</label>
-    <select id="lang">
-      <option value="arabic" selected>Arabic</option>
-      <option value="english">English</option>
-      <option value="bangla">Bangla</option>
-    </select>
-  </div>
-  <div style="display:flex;justify-content:center;gap:8px;margin-bottom:4px;">
-    <button onclick="prevPage()">Prev</button>
-    <span class="small" id="pageInfo">Page 1</span>
-    <button onclick="nextPage()">Next</button>
-  </div>
-  <div id="quranContainer" style="height:70vh;overflow:auto;border-radius:12px;border:1px solid rgba(255,255,255,.15);position:relative;">
-    <canvas id="pdfCanvas" style="width:100%;"></canvas>
-  </div>
+<div class="panel" style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:center;gap:8px;">
+<label class="small" for="lang">Language:</label>
+<select id="lang">
+<option value="arabic" selected>Arabic</option>
+<option value="english">English</option>
+<option value="bangla">Bangla</option>
+</select>
+<span id="pageInfo" class="small" style="margin-left:8px;"></span>
+</div>
+
+<div id="quranContainer" style="height:70vh;overflow:auto;border-radius:12px;border:1px solid rgba(255,255,255,.15);position:relative;">
+  <canvas id="pdfCanvas" style="width:100%;"></canvas>
+  <div style="position:absolute;top:0;left:0;width:100%;height:100%;" oncontextmenu="return false;" onmousedown="return false;"></div>
+</div>
 </div>
 </section>
 
-<!-- ABOUT -->
 <section id="about" class="page">
 <div class="panel" style="text-align:center">
   <div class="profile-card">
-    <div class="profile-image"><img src="Quran.Maar.jpg" alt="Quran.Maar"></div>
+    <div class="profile-image">
+      <img src="Quran.Maar.jpg" alt="Quran.Maar">
+    </div>
     <div class="profile-info">
       <h3>Quran.Maar</h3>
-      <p class="small">Quran Maar offers Qur’an reading in Arabic, English, Bangla with prayer times, Hijri calendar, and simple UI.</p>
+      <p class="small">Quran Maar is a modern Islamic learning platform that offers Qur’an reading in Arabic, English, and Bangla, accurate prayer times with live countdowns, and a Hijri calendar. Designed for simplicity and clarity, it helps learners explore the Qur’an and Islamic practices in an interactive and respectful way.</p>
       <p class="small">© 2026 Md Adil Ahmed Rajon</p>
     </div>
   </div>
@@ -132,13 +146,20 @@ main{padding:20px;max-width:1200px;margin:auto;}
 </main>
 
 <script>
-/* TABS */
+/* ---------- TABS ---------- */
 document.querySelectorAll('.tab').forEach(t=>{
-  t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');openTab(t.dataset.tab);}
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    openTab(t.dataset.tab);
+  }
 });
-function openTab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function openTab(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
 
-/* CLOCKS */
+/* ---------- CLOCKS ---------- */
 function two(n){return String(n).padStart(2,'0')}
 const arabicMap={'0':'٠','1':'١','2':'٢','3':'٣','4':'٤','5':'٥','6':'٦','7':'٧','8':'٨','9':'٩',':':':'}
 function toArabic(s){return String(s).split('').map(c=>arabicMap[c]||c).join('')}
@@ -149,85 +170,132 @@ function updateClock(){
   document.getElementById('englishTime').textContent = eng;
   document.getElementById('arabicTime').textContent = arb;
   document.getElementById('gregorian').textContent = now.toLocaleDateString('en-GB',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
-  try{document.getElementById('hijri').textContent=new Intl.DateTimeFormat('en-u-ca-islamic',{day:'numeric',month:'long',year:'numeric',weekday:'long'}).format(now);}catch{document.getElementById('hijri').textContent='--'}
+  try{
+    const hijri = new Intl.DateTimeFormat('en-u-ca-islamic',{day:'numeric',month:'long',year:'numeric',weekday:'long'}).format(now);
+    document.getElementById('hijri').textContent = hijri;
+  }catch{document.getElementById('hijri').textContent='--'}
 }
-setInterval(updateClock,1000);updateClock();
+setInterval(updateClock,1000); updateClock();
 
-/* PRAYER TIMES */
+/* ---------- PRAYER TIMES ---------- */
 async function loadPrayer(){
   try{
     const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej));
     const {latitude,longitude}=pos.coords;
     const r=await fetch(`https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=3`);
-    const j=await r.json(); const t=j.data.timings;
+    const j=await r.json();
+    const t=j.data.timings;
     const prayerOrder=['Fajr','Dhuhr','Asr','Maghrib','Isha'];
 
     function updatePrayerDisplay(){
       const now=new Date();
       const currentMinutes = now.getHours()*60 + now.getMinutes();
-      let nextIndex = prayerOrder.findIndex(p=>{const [h,m]=t[p].split(':').map(Number);return h*60+m>currentMinutes;});
+      let nextIndex = prayerOrder.findIndex(p=>{
+        const [h,m] = t[p].split(':').map(Number);
+        return h*60 + m > currentMinutes;
+      });
       if(nextIndex===-1) nextIndex=0;
-      const ticker=prayerOrder.map((p,i)=>i===nextIndex?`<div class="highlight">${p} ${t[p]}</div>`:`<div>${p} ${t[p]}</div>`).join('');
+
+      const ticker=prayerOrder.map((p,i)=>{
+        let text=`${p} ${t[p]}`;
+        if(i===nextIndex) text=`<span class="highlight">${text}</span>`;
+        return `<div>${text}</div>`;
+      }).join('');
       document.getElementById('prayerTicker').innerHTML=ticker;
 
       const [nh,nm]=t[prayerOrder[nextIndex]].split(':').map(Number);
-      let next=new Date();next.setHours(nh,nm,0,0);
+      let next=new Date(); next.setHours(nh,nm,0,0);
       if(next<new Date()) next.setDate(next.getDate()+1);
       const diff=next-new Date();
-      const hrs=two(Math.floor(diff/1000/3600)),mins=two(Math.floor((diff/1000%3600)/60)),secs=two(Math.floor((diff/1000)%60));
+      const hrs=two(Math.floor(diff/1000/3600));
+      const mins=two(Math.floor((diff/1000%3600)/60));
+      const secs=two(Math.floor((diff/1000)%60));
       document.getElementById('countdown').textContent=`Next prayer: ${prayerOrder[nextIndex]} in ${hrs}:${mins}:${secs}`;
     }
+
     updatePrayerDisplay();
     setInterval(updatePrayerDisplay,1000);
-  }catch{document.getElementById('prayerTicker').innerHTML='<div>Location permission needed</div>';document.getElementById('countdown').textContent='Next prayer: --:--:--'}
+  }catch{
+    document.getElementById('prayerTicker').innerHTML='<div>Location permission needed</div>';
+    document.getElementById('countdown').textContent='Next prayer: --:--:--';
+  }
 }
 loadPrayer();
 
-/* PDF.JS */
-const pdfFiles={arabic:'Quran.Arabic.pdf',english:'Quran.English.pdf',bangla:'Quran.Bangla.pdf'};
-let pdfDoc=null,pageNum=1,totalPages=1;
-const canvas=document.getElementById('pdfCanvas'),ctx=canvas.getContext('2d');
+/* ---------- QURAN PDF ---------- */
+const pdfFiles = { arabic:'Quran.Arabic.pdf', english:'Quran.English.pdf', bangla:'Quran.Bangla.pdf' };
+let pdfDoc = null, pageNum = 1, totalPages = 1;
+const canvas = document.getElementById('pdfCanvas');
+const ctx = canvas.getContext('2d');
 
 async function loadPDF(lang){
-  pageNum=1;
-  const loadingTask=pdfjsLib.getDocument(pdfFiles[lang]);
-  pdfDoc=await loadingTask.promise;
-  totalPages=pdfDoc.numPages;
+  pageNum = 1;
+  const loadingTask = pdfjsLib.getDocument(pdfFiles[lang]);
+  pdfDoc = await loadingTask.promise;
+  totalPages = pdfDoc.numPages;
   renderPage(pageNum);
 }
 
 async function renderPage(num){
-  const page=await pdfDoc.getPage(num);
-  const viewport=page.getViewport({scale:canvas.clientWidth/page.getViewport({scale:1}).width});
-  canvas.height=viewport.height;
-  await page.render({canvasContext:ctx,viewport}).promise;
-  document.getElementById('pageInfo').textContent=`Page ${pageNum} / ${totalPages}`;
+  const page = await pdfDoc.getPage(num);
+  const viewport = page.getViewport({ scale: canvas.clientWidth / page.getViewport({ scale:1 }).width });
+  canvas.height = viewport.height;
+  await page.render({canvasContext: ctx, viewport}).promise;
+  const pageInfo = document.getElementById('pageInfo');
+  if(pageInfo) pageInfo.textContent = `Page ${pageNum} / ${totalPages}`;
 }
 
-function nextPage(){if(pageNum<totalPages){pageNum++;renderPage(pageNum);}}
-function prevPage(){if(pageNum>1){pageNum--;renderPage(pageNum);}}
-document.getElementById('lang').onchange=e=>loadPDF(e.target.value);
+document.getElementById('lang').onchange = e => loadPDF(e.target.value);
 loadPDF('arabic');
 
-/* MOON + SUN */
+/* ---------- MOON + SUN ---------- */
 function updateMoonAndSun(){
   const now=new Date();
   navigator.geolocation.getCurrentPosition(pos=>{
-    const lat=pos.coords.latitude,lon=pos.coords.longitude;
-    const moonPos=SunCalc.getMoonPosition(now,lat,lon),moonIll=SunCalc.getMoonIllumination(now),moonTimes=SunCalc.getMoonTimes(now,lat,lon);
-    const moonAlt=(moonPos.altitude*180/Math.PI).toFixed(2),moonAz=((moonPos.azimuth*180/Math.PI)+180).toFixed(2),moonIllum=(moonIll.fraction*100).toFixed(1);
+    const lat=pos.coords.latitude;
+    const lon=pos.coords.longitude;
+
+    const moonPos=SunCalc.getMoonPosition(now,lat,lon);
+    const moonIll=SunCalc.getMoonIllumination(now);
+    const moonTimes=SunCalc.getMoonTimes(now,lat,lon);
+
+    const moonAlt=(moonPos.altitude*180/Math.PI).toFixed(2);
+    const moonAz=((moonPos.azimuth*180/Math.PI)+180).toFixed(2);
+    const moonIllum=(moonIll.fraction*100).toFixed(1);
+
     const light=document.getElementById("moonLight");
     light.style.width=`${moonIll.fraction*100}%`;
     light.style.clipPath=`inset(0 ${moonIll.phase*100}% 0 0 round 50%)`;
-    document.getElementById("moonInfo").innerHTML=`Illumination: ${moonIllum}%<br>Altitude: ${moonAlt}°<br>Azimuth: ${moonAz}°<br>Moonrise: ${moonTimes.rise?moonTimes.rise.toLocaleTimeString():"--"}<br>Moonset: ${moonTimes.set?moonTimes.set.toLocaleTimeString():"--"}`;
-    const arrow=document.getElementById("compassArrow");if(arrow)arrow.style.transform=`rotate(${moonAz}deg)`;
-    const sunPos=SunCalc.getPosition(now,lat,lon),sunAlt=(sunPos.altitude*180/Math.PI).toFixed(2),sunAz=((sunPos.azimuth*180/Math.PI)+180).toFixed(2);
-    const dotS=document.getElementById("sunDot"),skyWidth=dotS.parentElement.offsetWidth;
-    dotS.style.left=(sunAz/360*skyWidth)+"px";dotS.style.bottom=Math.max(0,sunAlt/90*dotS.parentElement.offsetHeight)+"px";
+
+    document.getElementById("moonInfo").innerHTML=`
+      Illumination: ${moonIllum}%<br>
+      Altitude: ${moonAlt}°<br>
+      Azimuth: ${moonAz}°<br>
+      Moonrise: ${moonTimes.rise?moonTimes.rise.toLocaleTimeString():"--"}<br>
+      Moonset: ${moonTimes.set?moonTimes.set.toLocaleTimeString():"--"}
+    `;
+
+    const arrow=document.getElementById("compassArrow");
+    if(arrow){arrow.style.transform=`rotate(${moonAz}deg)`;}
+
+    const sunPos=SunCalc.getPosition(now,lat,lon);
+    const sunAlt=(sunPos.altitude*180/Math.PI).toFixed(2);
+    const sunAz=((sunPos.azimuth*180/Math.PI)+180).toFixed(2);
+    const dotS=document.getElementById("sunDot");
+    const skyWidth=dotS.parentElement.offsetWidth;
+    dotS.style.left=(sunAz/360*skyWidth)+"px";
+    dotS.style.bottom=Math.max(0, sunAlt/90*dotS.parentElement.offsetHeight)+"px";
   });
 }
 updateMoonAndSun();
 setInterval(updateMoonAndSun,60000);
+
+/* ---------- GOOGLE LOGIN ---------- */
+document.getElementById('googleLoginBtn').onclick = async ()=>{
+  const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+  if(error) alert('Login failed: '+error.message);
+  else if(data.url) window.location.href = data.url;
+};
 </script>
 </body>
 </html>
