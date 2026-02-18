@@ -71,13 +71,24 @@ button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));co
 #moonCompass{position:relative;width:150px;height:150px;margin:auto;border:2px solid rgba(255,255,255,.3);border-radius:50%;margin-top:16px;}
 #compassArrow{position:absolute;top:50%;left:50%;width:4px;height:60px;background:var(--sun-color);transform-origin:bottom center;transform:rotate(0deg);border-radius:2px;box-shadow:0 0 8px var(--sun-color);transition:transform 1s ease;}
 
-/* Profile Card */
+/* Profile Card Fix — UPDATED: removed extra height and keep card near top */
+.about-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start; /* keep card at top instead of centering vertically */
+  align-items: center;
+  /* min-height removed to avoid extra vertical space */
+  text-align: center;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
 .profile-card{
-  display:inline-block;
+  width:280px;
+  max-width:90%;
+  margin:auto;
   background:rgba(255,255,255,.05);
   border-radius:16px;
   padding:16px;
-  max-width:280px;
   box-shadow:0 8px 24px rgba(0,0,0,.4);
   backdrop-filter:blur(8px);
 }
@@ -108,7 +119,12 @@ button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));co
   margin-top:4px;
 }
 
-@media(max-width:768px){.panel{flex-direction:column;}.list{width:100% !important;}}
+@media(max-width:768px){
+  .panel{flex-direction:column;}
+  .list{width:100% !important;}
+  .clock-row{flex-direction:column;}
+  .clock-box{min-width:auto;width:100%;}
+}
 </style>
 </head>
 <body>
@@ -166,17 +182,9 @@ button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));co
 </div>
 </div>
 </section>
-<!-- PDF.js Viewer -->
-<div id="quranContainer" style="height:70vh;overflow:auto;border-radius:12px;border:1px solid rgba(255,255,255,.15);position:relative;">
-  <canvas id="pdfCanvas" style="width:100%;"></canvas>
-  <div style="position:absolute;top:0;left:0;width:100%;height:100%;" oncontextmenu="return false;" onmousedown="return false;"></div>
-</div>
-</div>
-</section>
-
 <!-- ABOUT -->
 <section id="about" class="page">
-<div class="panel" style="text-align:center">
+<div class="panel about-panel">
   <div class="profile-card">
     <div class="profile-image">
       <img src="Quran.Maar.jpg" alt="Quran.Maar">
@@ -270,42 +278,50 @@ async function loadPrayer(){
 }
 loadPrayer();
 
-/* ---------- QURAN PDF.JS ---------- */
-const pdfFiles = {
-  arabic: 'Quran.Arabic.pdf',
-  english: 'Quran.English.pdf',
-  bangla: 'Quran.Bangla.pdf'
-};
+/* ---------- PDF.js ---------- */
+const pdfFiles = { arabic:'Quran.Arabic.pdf', english:'Quran.English.pdf', bangla:'Quran.Bangla.pdf' };
 let pdfDoc = null, pageNum = 1;
 const canvas = document.getElementById('pdfCanvas');
 const ctx = canvas.getContext('2d');
 
-async function loadPDF(lang) {
-  const loadingTask = pdfjsLib.getDocument(pdfFiles[lang]);
-  pdfDoc = await loadingTask.promise;
-  pageNum = 1;
-  renderPage(pageNum);
-}
-
-async function renderPage(num) {
+function renderPage(num){
   if(!pdfDoc) return;
-  const page = await pdfDoc.getPage(num);
-  const scale = canvas.clientWidth / page.getViewport({ scale:1 }).width;
-  const viewport = page.getViewport({ scale });
-  canvas.height = viewport.height;
-  await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+  pdfDoc.getPage(num).then(page=>{
+    const scale = canvas.clientWidth / page.getViewport({scale:1}).width;
+    const viewport = page.getViewport({scale});
+    canvas.height = viewport.height;
+    page.render({canvasContext:ctx,viewport}).promise;
+  });
 }
 
-document.getElementById('lang').onchange = e => loadPDF(e.target.value);
+function loadPDF(lang){
+  pdfjsLib.getDocument(pdfFiles[lang]).promise.then(doc=>{
+    pdfDoc=doc; pageNum=1;
+    const bookmarks = JSON.parse(localStorage.getItem('bookmarks')||'{}');
+    if(bookmarks[lang]) pageNum = bookmarks[lang];
+    renderPage(pageNum);
+  });
+}
+
+function goToPage(num){
+  if(!pdfDoc) return;
+  if(num<1) num=1;
+  if(num>pdfDoc.numPages) num=pdfDoc.numPages;
+  pageNum=num; renderPage(pageNum);
+  const lang=document.getElementById('lang').value;
+  const bookmarks = JSON.parse(localStorage.getItem('bookmarks')||'{}');
+  bookmarks[lang]=pageNum;
+  localStorage.setItem('bookmarks',JSON.stringify(bookmarks));
+}
+
+document.getElementById('lang').onchange=e=>loadPDF(e.target.value);
 loadPDF('arabic');
 
-/* ---------- MOON + SUN ---------- */
+/* ---------- Moon + Sun ---------- */
 function updateMoonAndSun(){
   const now=new Date();
   navigator.geolocation.getCurrentPosition(pos=>{
-    const lat=pos.coords.latitude;
-    const lon=pos.coords.longitude;
-
+    const lat=pos.coords.latitude, lon=pos.coords.longitude;
     const moonPos=SunCalc.getMoonPosition(now,lat,lon);
     const moonIll=SunCalc.getMoonIllumination(now);
     const moonTimes=SunCalc.getMoonTimes(now,lat,lon);
@@ -341,12 +357,21 @@ function updateMoonAndSun(){
 updateMoonAndSun();
 setInterval(updateMoonAndSun,60000);
 
-/* ---------- GOOGLE LOGIN ---------- */
+/* ---------- Google Login ---------- */
 document.getElementById('googleLoginBtn').onclick = async ()=>{
   const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
   if(error) alert('Login failed: '+error.message);
   else if(data.url) window.location.href = data.url;
 };
+
+/* ---------- Disable Right-Click & Shortcuts ---------- */
+document.addEventListener('contextmenu', e=>e.preventDefault());
+document.addEventListener('keydown', e=>{
+  if(e.ctrlKey && ['s','p'].includes(e.key.toLowerCase())) e.preventDefault();
+});
 </script>
 </body>
 </html>
+
+
+
