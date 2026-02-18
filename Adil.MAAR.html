@@ -82,12 +82,14 @@ button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));co
 /* Profile Card Fix — keep card near top (no extra height) */
 .about-panel {
   display: flex;
-  flex-direction: column;
-  justify-content: flex-start; /* keep card at top instead of centering vertically */
-  align-items: center;
+  flex-direction: row; /* side by side cards */
+  flex-wrap: wrap;     /* wrap on small screens */
+  justify-content: center; /* center horizontally */
+  align-items: flex-start;
   text-align: center;
   padding-top: 20px;
   padding-bottom: 20px;
+  gap: 20px; /* spacing between cards */
 }
 .profile-card{
   width:280px;
@@ -198,11 +200,27 @@ button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));co
       <img src="Quran.Maar.jpg" alt="Quran.Maar">
     </div>
     <div class="profile-info">
-      <h3>Quran.Maar</h3>
+      <h3>Md Adil Ahmed Rajon</h3>
       <p class="small">
-        Quran Maar is a modern Islamic learning platform that offers Qur’an reading in Arabic, English, and Bangla, accurate prayer times with live countdowns, and a Hijri calendar. Designed for simplicity and clarity, it helps learners explore the Qur’an and Islamic practices in an interactive and respectful way.
+   I am Md Adil Ahmed Rajon. I created this modern Islamic learning platform to help you read the Qur’an in Arabic, English, and Bangla, check accurate prayer times with live countdowns, and follow a Hijri calendar. I designed it for simplicity and clarity, so you can explore the Qur’an and Islamic practices in an interactive and respectful way.
       </p>
+      <p class="small">
+      To collaborate or work with me, you can call me at +44 07440445929 or email me at <a href="mailto:www.20rajona@gmail.com" style="color:var(--accent2); text-decoration:underline;">www.20rajona@gmail.com</a>.
+    </p>
       <p class="small">© 2026 Md Adil Ahmed Rajon</p>
+    </div>
+  </div>
+
+  <!-- NEW SECOND PROFILE CARD -->
+  <div class="profile-card">
+    <div class="profile-image">
+      <img src="Quran.Maar2.jpg" alt="Second Profile">
+    </div>
+    <div class="profile-info">
+      <h3>Adil Hasan</h3>
+      <p class="small">
+        Hi! I'm Adil Hasan. I helped build this website by taking the pictures and media that were needed to make it complete. I’m glad I could contribute and help bring this project to life.
+      </p>
     </div>
   </div>
 </div>
