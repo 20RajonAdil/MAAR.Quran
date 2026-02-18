@@ -176,28 +176,19 @@ button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));co
 <!-- QURAN -->
 <section id="quran" class="page">
 <div class="panel" style="display:flex;flex-direction:column;gap:12px">
-  <div style="display:flex;align-items:center;gap:8px;">
-    <label class="small" for="lang">Language:</label>
-    <select id="lang">
-      <option value="arabic" selected>Arabic</option>
-      <option value="english">English</option>
-      <option value="bangla">Bangla</option>
-    </select>
-  </div>
-
-  <!-- IFRAME viewer (original behavior kept) -->
-  <div style="height:70vh;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.15);position:relative">
-    <iframe id="quranFrame" src="Quran.Arabic.pdf" style="width:100%;height:100%;border:none"></iframe>
-
-    <!-- PDF.js canvas kept too (so nothing is missing). It's hidden visually but available if desired.
-         If you prefer PDF.js viewer visible, remove display:none. -->
-    <canvas id="pdfCanvas" style="width:100%;height:100%;display:none"></canvas>
-
-    <!-- overlay to prevent context menu and mouse drag inside PDF area -->
-    <div style="position:absolute;top:0;left:0;width:100%;height:100%;" oncontextmenu="return false;" onmousedown="return false;"></div>
-  </div>
+<div style="display:flex;align-items:center;gap:8px;">
+<label class="small" for="lang">Language:</label>
+<select id="lang">
+<option value="arabic" selected>Arabic</option>
+<option value="english">English</option>
+<option value="bangla">Bangla</option>
+</select>
 </div>
-</section>
+<div style="height:70vh;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.15)">
+<iframe id="quranFrame" src="Quran.Arabic.pdf" style="width:100%;height:100%;border:none"></iframe>
+</div>
+</div>
+</section> 
 
 <!-- ABOUT -->
 <section id="about" class="page">
