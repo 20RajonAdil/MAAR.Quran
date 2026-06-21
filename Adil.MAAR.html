@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Quran Maar</title>
 <link rel="icon" id="favicon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%2322d3ee%22/></svg>">
+<script>
+  // If a real logo.png has been uploaded to the repo, use it as the favicon too.
+  // This is a one-way check only — it can never write or change the file, just
+  // detect whether it exists and, if so, point the tab icon at it.
+  (function(){
+    const probe = new Image();
+    probe.onload = function(){
+      document.getElementById('favicon').setAttribute('href', 'logo.png');
+    };
+    probe.onerror = function(){ /* logo.png not present yet — keep the default icon */ };
+    probe.src = 'logo.png';
+  })();
+</script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Noto+Sans+Bengali:wght@400;600&display=swap" rel="stylesheet">
@@ -60,7 +73,7 @@ header{position:sticky;top:0;z-index:30;backdrop-filter:blur(16px);background:rg
 .nav{display:flex;align-items:center;padding:12px 22px;gap:18px;max-width:1280px;margin:0 auto;}
 
 /* ---- LOGO (picture-mode capable) ---- */
-.logo-wrap{display:flex;gap:12px;align-items:center;cursor:pointer;user-select:none;}
+.logo-wrap{display:flex;gap:12px;align-items:center;user-select:none;}
 .logo-mark{
   position:relative;width:46px;height:46px;border-radius:14px;flex:0 0 auto;
   background:linear-gradient(145deg,#0c1726,#0a121f);
@@ -71,21 +84,12 @@ header{position:sticky;top:0;z-index:30;backdrop-filter:blur(16px);background:rg
     inset 0 1px 0 rgba(255,255,255,.08),
     inset 0 -8px 14px rgba(0,0,0,.45),
     0 10px 22px -8px rgba(34,211,238,.35);
-  transition:transform .25s ease, box-shadow .25s ease;
 }
-.logo-wrap:hover .logo-mark{transform:translateY(-1px) scale(1.03);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 -8px 14px rgba(0,0,0,.45),0 14px 28px -8px rgba(34,211,238,.5);}
 .logo-mark img{width:100%;height:100%;object-fit:cover;}
 .logo-mark svg{width:68%;height:68%;}
-.logo-edit-hint{
-  position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;font-size:8px;font-weight:600;
-  display:flex;align-items:center;justify-content:center;text-align:center;opacity:0;transition:opacity .2s;
-  letter-spacing:.04em;text-transform:uppercase;
-}
-.logo-mark:hover .logo-edit-hint{opacity:1;}
 .logo-text{display:flex;flex-direction:column;line-height:1.05;}
 .logo-text b{font-family:'Cormorant Garamond';font-size:22px;font-weight:700;background:linear-gradient(90deg,#fff,var(--accent) 70%);-webkit-background-clip:text;background-clip:text;color:transparent;}
 .logo-text span{font-size:10px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;}
-#logoFileInput{display:none;}
 
 .tabs{display:flex;gap:6px;margin-left:auto;align-items:center;}
 .tab{padding:9px 16px;border-radius:999px;cursor:pointer;color:var(--muted);font-size:14px;font-weight:500;transition:.25s;position:relative;}
@@ -304,9 +308,11 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 
 <header>
   <div class="nav">
-    <div class="logo-wrap" id="logoWrap" title="Click to set your own logo picture">
+    <div class="logo-wrap">
       <div class="logo-mark" id="logoMark">
-        <svg viewBox="0 0 100 100" id="defaultLogoSvg">
+        <img src="logo.png" alt="Quran Maar logo" id="logoImg"
+             onerror="this.style.display='none'; document.getElementById('defaultLogoSvg').style.display='block';">
+        <svg viewBox="0 0 100 100" id="defaultLogoSvg" style="display:none;">
           <defs>
             <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stop-color="#22d3ee"/>
@@ -316,9 +322,7 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
           <path d="M62 12a38 38 0 1 0 26 26 30 30 0 0 1-26-26z" fill="url(#lg1)"/>
           <circle cx="74" cy="22" r="5" fill="#fbbf24"/>
         </svg>
-        <div class="logo-edit-hint">Set<br>Logo</div>
       </div>
-      <input type="file" id="logoFileInput" accept="image/*">
       <div class="logo-text"><b>Quran Maar</b><span>Light · Time · Guidance</span></div>
     </div>
     <div class="tabs">
@@ -518,39 +522,6 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 const QM_NAMESPACE = (location.pathname.split('/').filter(Boolean)[0] || 'quran-maar') + '::';
 function qmStorageGet(key){ return localStorage.getItem(QM_NAMESPACE + key); }
 function qmStorageSet(key, value){ localStorage.setItem(QM_NAMESPACE + key, value); }
-
-/* ================= LOGO PICTURE MODE ================= */
-const logoMark = document.getElementById('logoMark');
-const logoFileInput = document.getElementById('logoFileInput');
-const defaultLogoSvg = document.getElementById('defaultLogoSvg');
-
-function applyStoredLogo(){
-  const saved = qmStorageGet('qm_logo_image');
-  if(saved){
-    let img = logoMark.querySelector('img');
-    if(!img){
-      img = document.createElement('img');
-      logoMark.insertBefore(img, logoMark.firstChild);
-    }
-    img.src = saved;
-    if(defaultLogoSvg) defaultLogoSvg.style.display='none';
-    document.getElementById('favicon').href = saved;
-  }
-}
-applyStoredLogo();
-
-document.getElementById('logoWrap').addEventListener('click', ()=> logoFileInput.click());
-logoFileInput.addEventListener('change', (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  if(!file.type.startsWith('image/')){ alert('Please choose an image file.'); return; }
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    qmStorageSet('qm_logo_image', reader.result);
-    applyStoredLogo();
-  };
-  reader.readAsDataURL(file);
-});
 
 /* ================= TABS ================= */
 document.querySelectorAll('.tab').forEach(t=>{
