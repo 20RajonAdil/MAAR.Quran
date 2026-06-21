@@ -4,6 +4,7 @@
 
 🔗 **Live Website:**  
 Old site: https://20rajonadil.github.io/MAAR.Quran/old.Adil.MAAR.html
+
 New site: https://20rajonadil.github.io/MAAR.Quran/Adil.MAAR.html
 
 ## ✨ Features
