@@ -3,9 +3,8 @@
 **MAAR Quran** is a modern Islamic learning website designed to help users read and explore the Holy Qur’an with clarity, simplicity, and respect. The project focuses on accessibility, accurate information, and a clean user experience.
 
 🔗 **Live Website:**  
-https://20rajonadil.github.io/MAAR.Quran/Adil.MAAR.html
-
----
+Old site: https://20rajonadil.github.io/MAAR.Quran/old.Adil.MAAR.html
+New site: https://20rajonadil.github.io/MAAR.Quran/Adil.MAAR.html
 
 ## ✨ Features
 
