@@ -324,6 +324,7 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
     <div class="tabs">
       <div class="tab active" data-tab="home">Home</div>
       <div class="tab" data-tab="quran">Qur'an</div>
+      <div class="tab" data-tab="hadith">Hadith</div>
       <div class="tab" data-tab="about">About</div>
       <button class="google-login-btn" id="googleLoginBtn">Google Login</button>
     </div>
@@ -410,6 +411,42 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
     </div>
   </section>
 
+  <!-- HADITH -->
+  <section id="hadith" class="page">
+    <div class="panel">
+      <div class="eyebrow">Read</div>
+      <h2 style="font-size:22px;margin-top:4px;margin-bottom:14px;">Hadith Collections</h2>
+
+      <div class="quran-toolbar">
+        <div class="grow">
+          <label class="small" for="hadithCollectionSelect">Collection:</label>
+          <select id="hadithCollectionSelect" style="width:100%;"></select>
+        </div>
+        <label class="small" for="hadithLangSelect">Language:</label>
+        <select id="hadithLangSelect"></select>
+      </div>
+
+      <div class="quran-toolbar">
+        <div class="grow">
+          <input type="text" id="hadithJumpInput" placeholder="Jump to hadith number…" style="width:100%;">
+        </div>
+        <button class="primary" id="hadithJumpBtn">Go</button>
+      </div>
+
+      <div id="hadithCollectionInfo" class="small" style="margin-bottom:10px;"></div>
+
+      <div id="hadithList" class="reader">
+        <div class="reader-loading">Choose a collection to begin reading.</div>
+      </div>
+
+      <div id="hadithPager" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+        <button class="ghost" id="hadithPrevBtn">← Previous</button>
+        <div class="small" id="hadithPageInfo"></div>
+        <button class="ghost" id="hadithNextBtn">Next →</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ABOUT -->
   <section id="about" class="page">
     <div class="panel about-panel">
@@ -471,13 +508,24 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
   host.innerHTML = html;
 })();
 
+/* ================= STORAGE NAMESPACING ================= */
+// GitHub Pages serves every repo under the SAME domain (e.g. yourname.github.io),
+// and browser localStorage is scoped to the whole domain, not the folder — so without
+// this, data from this project could collide with any other project hosted on the
+// same github.io account if both ever used a similar key name. We derive a namespace
+// from this page's own folder path so every key is automatically unique to this exact
+// project, no matter what else is hosted alongside it.
+const QM_NAMESPACE = (location.pathname.split('/').filter(Boolean)[0] || 'quran-maar') + '::';
+function qmStorageGet(key){ return localStorage.getItem(QM_NAMESPACE + key); }
+function qmStorageSet(key, value){ localStorage.setItem(QM_NAMESPACE + key, value); }
+
 /* ================= LOGO PICTURE MODE ================= */
 const logoMark = document.getElementById('logoMark');
 const logoFileInput = document.getElementById('logoFileInput');
 const defaultLogoSvg = document.getElementById('defaultLogoSvg');
 
 function applyStoredLogo(){
-  const saved = localStorage.getItem('qm_logo_image');
+  const saved = qmStorageGet('qm_logo_image');
   if(saved){
     let img = logoMark.querySelector('img');
     if(!img){
@@ -498,7 +546,7 @@ logoFileInput.addEventListener('change', (e)=>{
   if(!file.type.startsWith('image/')){ alert('Please choose an image file.'); return; }
   const reader = new FileReader();
   reader.onload = ()=>{
-    localStorage.setItem('qm_logo_image', reader.result);
+    qmStorageSet('qm_logo_image', reader.result);
     applyStoredLogo();
   };
   reader.readAsDataURL(file);
@@ -692,17 +740,28 @@ let playQueue = [];
 
 // Top languages incl. Bangla, Chinese, Hindi, and other widely-spoken languages
 const LANGUAGES = [
-  { code:'en', label:'English',    edition:'en.sahih' },
-  { code:'bn', label:'Bangla',     edition:'bn.bengali' },
-  { code:'zh', label:'Chinese',    edition:'zh.jian' },
-  { code:'hi', label:'Hindi',      edition:'hi.hindi' },
-  { code:'ur', label:'Urdu',       edition:'ur.jalandhry' },
-  { code:'es', label:'Spanish',    edition:'es.cortes' },
-  { code:'fr', label:'French',     edition:'fr.hamidullah' },
-  { code:'id', label:'Indonesian', edition:'id.indonesian' },
-  { code:'tr', label:'Turkish',    edition:'tr.diyanet' },
-  { code:'ru', label:'Russian',    edition:'ru.kuliev' },
+  { code:'en', label:'English',          edition:'en.sahih' },
+  { code:'bn', label:'Bangla',           edition:'bn.bengali' },
+  { code:'zh', label:'Chinese (Simplified)', edition:'zh.jian' },
+  { code:'hi', label:'Hindi',            edition:'hi.hindi' },
+  { code:'ur', label:'Urdu',             edition:'ur.jalandhry' },
+  { code:'es', label:'Spanish',          edition:'es.cortes' },
+  { code:'fr', label:'French',           edition:'fr.hamidullah' },
+  { code:'id', label:'Indonesian',       edition:'id.indonesian' },
+  { code:'tr', label:'Turkish',          edition:'tr.diyanet' },
+  { code:'ru', label:'Russian',          edition:'ru.kuliev' },
+  { code:'ms', label:'Malay',            edition:'ms.basmeih' },
+  { code:'fa', label:'Persian (Farsi)',  edition:'fa.makarem' },
+  { code:'it', label:'Italian',          edition:'it.piccardo' },
+  { code:'ja', label:'Japanese',         edition:'ja.japanese' },
+  { code:'ko', label:'Korean',           edition:'ko.korean' },
+  { code:'th', label:'Thai',             edition:'th.thai' },
+  { code:'sw', label:'Swahili',          edition:'sw.barwani' },
+  { code:'ta', label:'Tamil',            edition:'ta.tamil' },
+  { code:'ml', label:'Malayalam',        edition:'ml.abdulhameed' },
+  { code:'de', label:'German',           edition:'de.bubenheim' },
 ];
+
 
 const langSelect = document.getElementById('langSelect');
 LANGUAGES.forEach(l=>{
@@ -715,13 +774,13 @@ langSelect.value = 'en.sahih';
 let surahList = [];
 
 function getLastRead(){
-  try{ return JSON.parse(localStorage.getItem('qm_last_read') || 'null'); }catch{ return null; }
+  try{ return JSON.parse(qmStorageGet('qm_last_read') || 'null'); }catch{ return null; }
 }
 function setLastRead(surahNumber, surahEnglishName, ayahNumberInSurah){
-  localStorage.setItem('qm_last_read', JSON.stringify({ surahNumber, surahEnglishName, ayahNumberInSurah, ts: Date.now() }));
+  qmStorageSet('qm_last_read', JSON.stringify({ surahNumber, surahEnglishName, ayahNumberInSurah, ts: Date.now() }));
 }
 function getBookmarks(){
-  try{ return JSON.parse(localStorage.getItem('qm_bookmarks') || '{}'); }catch{ return {}; }
+  try{ return JSON.parse(qmStorageGet('qm_bookmarks') || '{}'); }catch{ return {}; }
 }
 function isBookmarked(surahNumber, ayahNumberInSurah){
   const b = getBookmarks();
@@ -732,7 +791,7 @@ function toggleBookmark(surahNumber, ayahNumberInSurah){
   b[surahNumber] = b[surahNumber] || {};
   if (b[surahNumber][ayahNumberInSurah]) delete b[surahNumber][ayahNumberInSurah];
   else b[surahNumber][ayahNumberInSurah] = true;
-  localStorage.setItem('qm_bookmarks', JSON.stringify(b));
+  qmStorageSet('qm_bookmarks', JSON.stringify(b));
 }
 
 function renderResumeBanner(){
@@ -957,6 +1016,186 @@ langSelect.addEventListener('change', ()=>{
   }
 });
 loadSurahList();
+
+/* ================= HADITH — via fawazahmed0/hadith-api (free, no key, CDN-hosted) ================= */
+const HADITH_CDN = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions';
+
+// Collections confirmed available on this API, with their real book identifiers.
+const HADITH_COLLECTIONS = [
+  { id:'bukhari',  name:'Sahih al-Bukhari' },
+  { id:'muslim',   name:'Sahih Muslim' },
+  { id:'abudawud', name:'Sunan Abu Dawud' },
+  { id:'tirmidhi', name:'Jami At-Tirmidhi' },
+  { id:'nasai',    name:'Sunan an-Nasai' },
+  { id:'ibnmajah', name:'Sunan Ibn Majah' },
+  { id:'malik',    name:'Muwatta Malik' },
+  { id:'nawawi',   name: "Forty Hadith of an-Nawawi" },
+  { id:'qudsi',    name:'Forty Hadith Qudsi' },
+  { id:'dehlawi',  name: "Forty Hadith of Shah Waliullah Dehlawi" },
+];
+
+// Language availability differs per collection on this API; these are the editions
+// confirmed in the API's own editions.json. Not every language exists for every book,
+// so the dropdown is rebuilt per collection to only show what's actually available.
+const HADITH_LANG_PREFIXES = [
+  { prefix:'eng', label:'English' },
+  { prefix:'ara', label:'Arabic' },
+  { prefix:'ben', label:'Bangla' },
+  { prefix:'urd', label:'Urdu' },
+  { prefix:'fra', label:'French' },
+  { prefix:'ind', label:'Indonesian' },
+  { prefix:'rus', label:'Russian' },
+  { prefix:'tur', label:'Turkish' },
+  { prefix:'tam', label:'Tamil' },
+];
+// Confirmed per-collection language availability (from the API's editions.json),
+// so the language dropdown never offers a combination that 404s.
+const HADITH_LANGS_BY_COLLECTION = {
+  bukhari:  ['eng','ara','ben','urd','fra','ind','rus','tam','tur'],
+  muslim:   ['eng','ara','ben','urd','fra','ind','rus','tam','tur'],
+  abudawud: ['eng','ara','ben','urd','fra','ind','rus','tur'],
+  tirmidhi: ['eng','ara','ben','urd','ind','tur'],
+  nasai:    ['eng','ara','ben','urd','fra','ind','tur'],
+  ibnmajah: ['eng','ara','ben','urd','fra','ind','tur'],
+  malik:    ['eng','ara','ben','urd','fra','ind','tur'],
+  nawawi:   ['eng','ara','ben','fra','tur'],
+  qudsi:    ['eng','ara','fra'],
+  dehlawi:  ['eng','ara','fra'],
+};
+
+const hadithCollectionSelect = document.getElementById('hadithCollectionSelect');
+const hadithLangSelect = document.getElementById('hadithLangSelect');
+HADITH_COLLECTIONS.forEach(c=>{
+  const opt = document.createElement('option');
+  opt.value = c.id; opt.textContent = c.name;
+  hadithCollectionSelect.appendChild(opt);
+});
+
+function refreshHadithLangOptions(){
+  const collectionId = hadithCollectionSelect.value;
+  const available = HADITH_LANGS_BY_COLLECTION[collectionId] || ['eng'];
+  hadithLangSelect.innerHTML = '';
+  HADITH_LANG_PREFIXES.filter(l => available.includes(l.prefix)).forEach(l=>{
+    const opt = document.createElement('option');
+    opt.value = l.prefix; opt.textContent = l.label;
+    hadithLangSelect.appendChild(opt);
+  });
+  if (![...hadithLangSelect.options].some(o=>o.value==='eng')) {
+    // fall back to whatever the first available language is
+  } else {
+    hadithLangSelect.value = 'eng';
+  }
+}
+
+const HADITH_PAGE_SIZE = 20;
+let hadithCurrentPage = 0;
+let hadithCurrentList = [];
+
+async function loadHadithCollection(){
+  const collectionId = hadithCollectionSelect.value;
+  const lang = hadithLangSelect.value;
+  const edition = `${lang}-${collectionId}`;
+  const listEl = document.getElementById('hadithList');
+  const infoEl = document.getElementById('hadithCollectionInfo');
+  listEl.innerHTML = '<div class="reader-loading">Loading collection…</div>';
+  infoEl.textContent = '';
+
+  try{
+    const r = await fetch(`${HADITH_CDN}/${edition}.json`);
+    if (!r.ok) throw new Error('not found');
+    const data = await r.json();
+    // Defensive parsing: the API returns { metadata: {...}, hadiths: [ {...}, ... ] }.
+    // We only rely on fields we've confirmed exist (an array under "hadiths", each
+    // item carrying at least a hadith number and text); anything else is read
+    // opportunistically and skipped if absent, so a field-name difference can't crash the page.
+    const hadiths = Array.isArray(data.hadiths) ? data.hadiths : [];
+    if (!hadiths.length) throw new Error('empty');
+
+    hadithCurrentList = hadiths;
+    hadithCurrentPage = 0;
+
+    const collectionName = HADITH_COLLECTIONS.find(c=>c.id===collectionId)?.name || collectionId;
+    const total = (typeof data.metadata?.length === 'number' ? data.metadata.length : hadiths.length);
+    infoEl.textContent = `${collectionName} · ${total} hadith total`;
+
+    renderHadithPage();
+  }catch(e){
+    listEl.innerHTML = '<div class="reader-loading">Could not load this collection in the selected language. Try a different language.</div>';
+    document.getElementById('hadithPageInfo').textContent = '';
+  }
+}
+
+function renderHadithPage(){
+  const listEl = document.getElementById('hadithList');
+  const start = hadithCurrentPage * HADITH_PAGE_SIZE;
+  const pageItems = hadithCurrentList.slice(start, start + HADITH_PAGE_SIZE);
+
+  if (!pageItems.length){
+    listEl.innerHTML = '<div class="reader-loading">No hadiths on this page.</div>';
+    return;
+  }
+
+  listEl.innerHTML = pageItems.map(h=>{
+    // Sahih Muslim uses sunnah.com-style sub-numbering like "2677a", "2677b" for grouped
+    // narrations sharing one hadith, unlike Bukhari's plain sequential integers — so this
+    // field can legitimately be a string with a letter suffix, not just a number.
+    const num = h.hadithnumber ?? h.hadithNumber ?? h.number ?? '';
+    const text = (h.text || h.body || h.hadith || '').toString().trim();
+    const grade = Array.isArray(h.grades) && h.grades.length ? h.grades[0].grade : null;
+
+    if (!text) {
+      // Surface the real field names instead of rendering a silent blank card —
+      // this tells us exactly what this entry actually contains.
+      const keys = Object.keys(h).join(', ') || '(no fields)';
+      return `
+        <div class="ayah">
+          <div class="num-badge" style="float:right;">${num}</div>
+          <div style="clear:both;"></div>
+          <div class="small" style="color:var(--muted);">No text found in the expected field for this entry. Available fields: ${keys}</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="ayah">
+        <div class="num-badge" style="float:right;">${num}</div>
+        <div style="clear:both;"></div>
+        <div class="tr" style="font-size:15px;">${text}</div>
+        ${grade ? `<div class="small" style="margin-top:8px;color:var(--accent2);">${grade}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  const totalPages = Math.ceil(hadithCurrentList.length / HADITH_PAGE_SIZE);
+  document.getElementById('hadithPageInfo').textContent = `Page ${hadithCurrentPage+1} of ${totalPages}`;
+  listEl.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+hadithCollectionSelect.addEventListener('change', ()=>{
+  refreshHadithLangOptions();
+  loadHadithCollection();
+});
+hadithLangSelect.addEventListener('change', loadHadithCollection);
+
+document.getElementById('hadithPrevBtn').onclick = ()=>{
+  if (hadithCurrentPage > 0){ hadithCurrentPage--; renderHadithPage(); }
+};
+document.getElementById('hadithNextBtn').onclick = ()=>{
+  const totalPages = Math.ceil(hadithCurrentList.length / HADITH_PAGE_SIZE);
+  if (hadithCurrentPage < totalPages - 1){ hadithCurrentPage++; renderHadithPage(); }
+};
+document.getElementById('hadithJumpBtn').onclick = ()=>{
+  const n = parseInt(document.getElementById('hadithJumpInput').value);
+  if (!n || !hadithCurrentList.length) return;
+  const idx = hadithCurrentList.findIndex(h => (h.hadithnumber ?? h.hadithNumber ?? h.number) == n);
+  if (idx === -1) return;
+  hadithCurrentPage = Math.floor(idx / HADITH_PAGE_SIZE);
+  renderHadithPage();
+};
+
+// initialize once both the collection and language pickers are wired
+refreshHadithLangOptions();
+loadHadithCollection();
 
 /* ================= Disable Right-Click & Shortcuts ================= */
 document.addEventListener('contextmenu', e=>e.preventDefault());
