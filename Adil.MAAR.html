@@ -547,7 +547,34 @@ function updateClock(){
   document.getElementById('arabicTime').textContent = toArabic(eng);
   document.getElementById('gregorian').textContent = now.toLocaleDateString('en-GB',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
   try{
-    document.getElementById('hijri').textContent = new Intl.DateTimeFormat('en-u-ca-islamic',{day:'numeric',month:'long',year:'numeric'}).format(now);
+    // Try multiple Islamic calendar locale identifiers in order of preference.
+    // Some browsers (especially iPhone Safari and older Android) don't support
+    // 'ca-islamic' and either fail silently or output a BC/wrong-era date.
+    // islamic-umalqura (Saudi Umm al-Qura) has the widest mobile support.
+    const hijriLocales = [
+      'en-u-ca-islamic-umalqura',
+      'en-u-ca-islamic-rgsa',
+      'en-u-ca-islamic'
+    ];
+    let hijriDate = null;
+    for(const locale of hijriLocales){
+      try{
+        const fmt = new Intl.DateTimeFormat(locale,{day:'numeric',month:'long',year:'numeric'});
+        const parts = fmt.formatToParts(now);
+        const day   = parts.find(p=>p.type==='day')?.value   || '';
+        const month = parts.find(p=>p.type==='month')?.value || '';
+        const year  = parts.find(p=>p.type==='year')?.value  || '';
+        // Sanity check: current Hijri year is 1446-1447 AH. If a browser returns
+        // something outside 1400-1600 (e.g. a BC year or Gregorian year),
+        // reject it and try the next locale instead of displaying garbage.
+        const yearNum = parseInt(year.replace(/[^0-9]/g,''));
+        if(yearNum >= 1400 && yearNum <= 1600){
+          hijriDate = `${day} ${month} ${year} AH`;
+          break;
+        }
+      }catch(e){ continue; }
+    }
+    document.getElementById('hijri').textContent = hijriDate || '--';
   }catch{document.getElementById('hijri').textContent='--'}
 }
 setInterval(updateClock,1000); updateClock();
