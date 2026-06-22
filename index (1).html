@@ -3,24 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Quran Maar</title>
-<link rel="icon" id="favicon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%2322d3ee%22/></svg>">
-<script>
-  // If a real logo.png has been uploaded to the repo, use it as the favicon too.
-  // This is a one-way check only — it can never write or change the file, just
-  // detect whether it exists and, if so, point the tab icon at it.
-  (function(){
-    const probe = new Image();
-    probe.onload = function(){
-      document.getElementById('favicon').setAttribute('href', 'logo.png');
-    };
-    probe.onerror = function(){ /* logo.png not present yet — keep the default icon */ };
-    probe.src = 'logo.png';
-  })();
-</script>
+<title>Quran Maar • Light · Time · Guidance</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%2322d3ee%22/></svg>">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Noto+Sans+Bengali:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
 
 <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
 
@@ -63,7 +50,6 @@ body{
   overflow-x:hidden;
 }
 
-/* ambient starfield */
 #stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.7;}
 
 h1,h2,h3{font-family:'Cormorant Garamond',serif;letter-spacing:.01em;margin:0;}
@@ -72,7 +58,6 @@ h1,h2,h3{font-family:'Cormorant Garamond',serif;letter-spacing:.01em;margin:0;}
 header{position:sticky;top:0;z-index:30;backdrop-filter:blur(16px);background:rgba(5,8,15,.55);border-bottom:1px solid rgba(255,255,255,.06);}
 .nav{display:flex;align-items:center;padding:12px 22px;gap:18px;max-width:1280px;margin:0 auto;}
 
-/* ---- LOGO (picture-mode capable) ---- */
 .logo-wrap{display:flex;gap:12px;align-items:center;user-select:none;}
 .logo-mark{
   position:relative;width:46px;height:46px;border-radius:14px;flex:0 0 auto;
@@ -96,6 +81,7 @@ header{position:sticky;top:0;z-index:30;backdrop-filter:blur(16px);background:rg
 .tab:hover{color:var(--text);}
 .tab.active{background:rgba(255,255,255,.06);color:var(--accent);font-weight:600;}
 .tab.active::after{content:'';position:absolute;left:18px;right:18px;bottom:3px;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;}
+
 .google-login-btn{
   margin-left:6px;padding:9px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.14);
   background:linear-gradient(135deg,rgba(34,211,238,.14),rgba(52,211,153,.10));
@@ -141,7 +127,7 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 .clock-box div:first-child{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;}
 .clock-box .arabic-num{font-family:'Amiri',serif;direction:rtl;}
 
-/* ---------------- 3D MOON ---------------- */
+/* 3D Moon */
 .moon-stage{
   position:relative;height:280px;margin-top:26px;border-radius:20px;overflow:hidden;
   background:
@@ -162,7 +148,6 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 .moon-disc{position:absolute;inset:0;border-radius:50%;overflow:hidden;}
 @keyframes moonFloat{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-14px) rotate(1.5deg)}}
 
-/* base lit sphere: light source offset gives genuine spherical falloff */
 .moon-sphere{
   position:absolute;inset:0;border-radius:50%;
   background:
@@ -173,7 +158,6 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
     0 0 50px rgba(180,200,255,.18),
     0 0 110px rgba(120,150,255,.10);
 }
-/* crater texture layer */
 .moon-craters{
   position:absolute;inset:0;border-radius:50%;mix-blend-mode:multiply;opacity:.55;
   background-image:
@@ -185,8 +169,6 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
     radial-gradient(circle at 80% 55%, rgba(0,0,0,.25) 0%, transparent 5%),
     radial-gradient(circle at 18% 38%, rgba(0,0,0,.2) 0%, transparent 5%);
 }
-/* terminator / phase shadow — curved edge built from a half-disc + a moving ellipse,
-   the same construction real moon-phase diagrams use, so the edge is a curve not a wedge */
 .moon-shadow-half{
   position:absolute;inset:0;
   background:rgba(2,4,10,.95);
@@ -224,7 +206,7 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 #moonCompass span{position:absolute;font-size:8px;color:var(--muted);}
 #compassArrow{position:absolute;top:50%;left:50%;width:2px;height:34px;background:linear-gradient(180deg,var(--accent2),transparent);transform-origin:bottom center;transform:rotate(0deg);border-radius:2px;box-shadow:0 0 8px var(--accent2);transition:transform 1s ease;}
 
-/* ---------------- Quran reader ---------------- */
+/* Quran reader */
 .quran-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
 .quran-toolbar .grow{flex:1;min-width:160px;}
 .surah-grid{
@@ -266,6 +248,21 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 .ayah.is-playing{background:rgba(34,211,238,.05);border-radius:12px;}
 .ayah.is-bookmarked{box-shadow:inset 3px 0 0 var(--gold);}
 .reader-controls{display:flex;gap:8px;align-items:center;}
+.bookmark-card{
+  padding:14px 16px;border-radius:14px;margin-bottom:10px;cursor:pointer;
+  background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+  border:1px solid rgba(255,255,255,.07);
+  transition:.2s;display:flex;flex-direction:column;gap:6px;
+}
+.bookmark-card:hover{border-color:var(--gold);background:rgba(251,191,36,.06);}
+.bookmark-card .bm-meta{display:flex;justify-content:space-between;align-items:center;}
+.bookmark-card .bm-label{font-size:13px;font-weight:600;color:var(--gold);}
+.bookmark-card .bm-delete{color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px;border:none;background:transparent;}
+.bookmark-card .bm-delete:hover{color:#ef4444;background:rgba(239,68,68,.1);}
+.bookmark-card .bm-arabic{font-family:'Noto Naskh Arabic','Amiri',serif;font-size:20px;text-align:right;direction:rtl;color:#f5f8fc;line-height:1.8;}
+.bookmark-card .bm-text{font-size:13px;color:var(--muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.bm-empty{text-align:center;padding:40px 20px;color:var(--muted);}
+.bm-empty .bm-empty-icon{font-size:36px;margin-bottom:10px;}
 .bismillah-banner{
   text-align:center;padding:22px 10px 26px;margin-bottom:6px;
   border-bottom:1px solid rgba(255,255,255,.08);
@@ -279,7 +276,7 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 }
 .reader-loading{text-align:center;padding:40px;color:var(--muted);}
 
-/* ---------------- About ---------------- */
+/* About */
 .about-panel{display:flex;flex-wrap:wrap;justify-content:center;gap:24px;}
 .profile-card{
   width:300px;max-width:100%;
@@ -382,35 +379,55 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
   <!-- QURAN -->
   <section id="quran" class="page">
     <div class="panel">
-      <div class="eyebrow">Read</div>
-      <h2 style="font-size:22px;margin-top:4px;margin-bottom:14px;">The Qur'an</h2>
-
-      <div class="quran-toolbar">
-        <div class="grow">
-          <input type="text" id="surahSearch" placeholder="Search a surah by name or number…" style="width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+          <div class="eyebrow">Read</div>
+          <h2 style="font-size:22px;margin-top:4px;">The Qur'an</h2>
         </div>
-        <label class="small" for="langSelect">Translation language:</label>
-        <select id="langSelect"></select>
+        <button class="ghost" id="bookmarksToggleBtn" style="display:flex;align-items:center;gap:6px;padding:9px 16px;">
+          <span>★</span> My Bookmarks <span id="bookmarkCount" style="background:rgba(251,191,36,.18);color:var(--gold);border-radius:999px;padding:1px 8px;font-size:12px;"></span>
+        </button>
       </div>
 
-      <div id="resumeBanner" style="display:none;"></div>
-
-      <div id="surahGrid" class="surah-grid">
-        <div class="small" style="padding:20px;">Loading surah list…</div>
+      <!-- BOOKMARKS PANEL -->
+      <div id="bookmarksPanel" style="display:none;">
+        <div style="border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;padding-bottom:12px;display:flex;gap:10px;align-items:center;">
+          <button class="ghost active" id="bmTabQuran" style="padding:7px 14px;">📖 Qur'an</button>
+          <button class="ghost" id="bmTabHadith" style="padding:7px 14px;">📜 Hadith</button>
+          <button class="ghost" id="clearBookmarksBtn" style="margin-left:auto;color:var(--muted);font-size:12px;">Clear all</button>
+        </div>
+        <div id="bmQuranList"></div>
+        <div id="bmHadithList" style="display:none;"></div>
       </div>
 
-      <div class="reader" id="readerWrap" style="display:none;">
-        <div class="reader-head">
-          <div>
-            <div class="eyebrow" id="readerEyebrow">Surah</div>
-            <h2 id="readerTitle" style="font-size:24px;">—</h2>
+      <div id="quranMainView">
+        <div class="quran-toolbar">
+          <div class="grow">
+            <input type="text" id="surahSearch" placeholder="Search a surah by name or number…" style="width:100%;">
           </div>
-          <div class="reader-controls">
-            <button class="ghost" id="playSurahBtn" title="Play recitation from the start">▶ Play surah</button>
-            <button class="ghost" id="closeReader">← Back to list</button>
-          </div>
+          <label class="small" for="langSelect">Translation language:</label>
+          <select id="langSelect"></select>
         </div>
-        <div id="ayahList"></div>
+
+        <div id="resumeBanner" style="display:none;"></div>
+
+        <div id="surahGrid" class="surah-grid">
+          <div class="small" style="padding:20px;">Loading surah list…</div>
+        </div>
+
+        <div class="reader" id="readerWrap" style="display:none;">
+          <div class="reader-head">
+            <div>
+              <div class="eyebrow" id="readerEyebrow">Surah</div>
+              <h2 id="readerTitle" style="font-size:24px;">—</h2>
+            </div>
+            <div class="reader-controls">
+              <button class="ghost" id="playSurahBtn" title="Play recitation from the start">▶ Play surah</button>
+              <button class="ghost" id="closeReader">← Back to list</button>
+            </div>
+          </div>
+          <div id="ayahList"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -475,7 +492,7 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 </main>
 
 <script>
-/* ================= STARFIELD (canvas background) ================= */
+/* ================= STARFIELD ================= */
 (function(){
   const c = document.getElementById('stars');
   const ctx = c.getContext('2d');
@@ -501,7 +518,8 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
   resize(); window.addEventListener('resize', resize);
   requestAnimationFrame(draw);
 })();
-/* local twinkle stars inside the moon panel */
+
+/* local twinkle stars */
 (function(){
   const host = document.getElementById('localStars');
   let html='';
@@ -512,16 +530,29 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
   host.innerHTML = html;
 })();
 
-/* ================= STORAGE NAMESPACING ================= */
-// GitHub Pages serves every repo under the SAME domain (e.g. yourname.github.io),
-// and browser localStorage is scoped to the whole domain, not the folder — so without
-// this, data from this project could collide with any other project hosted on the
-// same github.io account if both ever used a similar key name. We derive a namespace
-// from this page's own folder path so every key is automatically unique to this exact
-// project, no matter what else is hosted alongside it.
+/* ================= STORAGE NAMESPACING (Safe for sandboxed iframes) ================= */
 const QM_NAMESPACE = (location.pathname.split('/').filter(Boolean)[0] || 'quran-maar') + '::';
-function qmStorageGet(key){ return localStorage.getItem(QM_NAMESPACE + key); }
-function qmStorageSet(key, value){ localStorage.setItem(QM_NAMESPACE + key, value); }
+
+// Fallback in-memory storage if localStorage is blocked (sandboxed iframe, file://, etc.)
+let memoryStorage = {};
+
+function qmStorageGet(key) {
+  try {
+    return localStorage.getItem(QM_NAMESPACE + key);
+  } catch (e) {
+    // Sandboxed or restricted environment — use memory fallback
+    return memoryStorage[QM_NAMESPACE + key] || null;
+  }
+}
+
+function qmStorageSet(key, value) {
+  try {
+    localStorage.setItem(QM_NAMESPACE + key, value);
+  } catch (e) {
+    // Sandboxed or restricted environment — use memory fallback
+    memoryStorage[QM_NAMESPACE + key] = value;
+  }
+}
 
 /* ================= TABS ================= */
 document.querySelectorAll('.tab').forEach(t=>{
@@ -536,31 +567,78 @@ function openTab(id){
   document.getElementById(id).classList.add('active');
 }
 
-/* ================= CLOCKS ================= */
+/* ================= CLOCKS + HIJRI (FIXED & ROBUST) ================= */
 function two(n){return String(n).padStart(2,'0')}
 const arabicMap={'0':'٠','1':'١','2':'٢','3':'٣','4':'٤','5':'٥','6':'٦','7':'٧','8':'٨','9':'٩',':':':'};
 function toArabic(s){return String(s).split('').map(c=>arabicMap[c]||c).join('')}
+
 function updateClock(){
-  const now=new Date();
-  const eng=`${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
+  const now = new Date();
+  
+  // English + Arabic time
+  const eng = `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
   document.getElementById('englishTime').textContent = eng;
   document.getElementById('arabicTime').textContent = toArabic(eng);
-  document.getElementById('gregorian').textContent = now.toLocaleDateString('en-GB',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
-  try{
-    document.getElementById('hijri').textContent = new Intl.DateTimeFormat('en-u-ca-islamic',{day:'numeric',month:'long',year:'numeric'}).format(now);
-  }catch{document.getElementById('hijri').textContent='--'}
+
+  // Gregorian
+  document.getElementById('gregorian').textContent = now.toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
+  // ==================== HIJRI CALENDAR (FIXED VERSION) ====================
+  try {
+    // Best supported order for 2026 (Umm al-Qura is most reliable on mobile)
+    const hijriLocales = [
+      'en-u-ca-islamic-umalqura',
+      'en-u-ca-islamic-rgsa',
+      'en-u-ca-islamic'
+    ];
+
+    let hijriDate = null;
+
+    for (const locale of hijriLocales) {
+      try {
+        const fmt = new Intl.DateTimeFormat(locale, {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+
+        const parts = fmt.formatToParts(now);
+        const day   = parts.find(p => p.type === 'day')?.value   || '';
+        const month = parts.find(p => p.type === 'month')?.value || '';
+        const year  = parts.find(p => p.type === 'year')?.value  || '';
+
+        // Sanity check - current Hijri years are ~1446-1448
+        const yearNum = parseInt(year.replace(/[^0-9]/g, ''));
+        if (yearNum >= 1440 && yearNum <= 1455) {
+          hijriDate = `${day} ${month} ${year} AH`;
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    document.getElementById('hijri').textContent = hijriDate || '--';
+  } catch {
+    document.getElementById('hijri').textContent = '--';
+  }
 }
-setInterval(updateClock,1000); updateClock();
+
+setInterval(updateClock, 1000);
+updateClock();
 
 /* ================= PRAYER TIMES ================= */
 async function loadPrayer(){
   try{
-    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000}));
+    const pos = await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000}));
     const {latitude,longitude}=pos.coords;
     const r=await fetch(`https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=3`);
     const j=await r.json();
     const t=j.data.timings;
     const prayerOrder=['Fajr','Dhuhr','Asr','Maghrib','Isha'];
+    
     function updatePrayerDisplay(){
       const now=new Date();
       const currentMinutes = now.getHours()*60 + now.getMinutes();
@@ -569,12 +647,15 @@ async function loadPrayer(){
         return h*60 + m > currentMinutes;
       });
       if(nextIndex===-1) nextIndex=0;
+      
       const ticker=prayerOrder.map((p,i)=>{
         let text=`${p} · ${t[p]}`;
         if(i===nextIndex) text=`<span class="highlight">${text}</span>`;
         return `<div>${text}</div>`;
-      }).join('') ;
-      document.getElementById('prayerTicker').innerHTML= ticker + ticker; // duplicate for seamless scroll
+      }).join('');
+      
+      document.getElementById('prayerTicker').innerHTML= ticker + ticker;
+      
       const [nh,nm]=t[prayerOrder[nextIndex]].split(':').map(Number);
       let next=new Date(); next.setHours(nh,nm,0,0);
       if(next<new Date()) next.setDate(next.getDate()+1);
@@ -593,7 +674,7 @@ async function loadPrayer(){
 }
 loadPrayer();
 
-/* ================= MOON (true 3D-style sphere + sun) ================= */
+/* ================= MOON + SUN ================= */
 function updateMoonAndSun(){
   const now=new Date();
   navigator.geolocation.getCurrentPosition(pos=>{
@@ -606,27 +687,19 @@ function updateMoonAndSun(){
     const moonAz=((moonPos.azimuth*180/Math.PI)+180).toFixed(1);
     const moonIllum=(moonIll.fraction*100).toFixed(1);
 
-    // phase: 0 = new, 0.25 = first quarter, 0.5 = full, 0.75 = last quarter, 1 = new again
     const phase = moonIll.phase;
     const waxing = phase < 0.5;
-    const litPercent = moonIll.fraction; // 0..1, how much of the disc is lit
+    const litPercent = moonIll.fraction;
 
     const half = document.getElementById('moonShadowHalf');
     const curve = document.getElementById('moonShadowCurve');
 
-    // Standard CSS moon-phase construction:
-    // - a flat half-shadow permanently covers the dark hemisphere (left if waxing, right if waning)
-    // - a second ellipse, confined to ONE hemisphere and sized 0–50% of the disc width,
-    //   supplies the curved part of the terminator:
-    //     · crescent (<50% lit): the ellipse is shadow-colored and sits in the LIT half,
-    //       eating into it so only a curved sliver remains lit
-    //     · gibbous (>50% lit): the ellipse is moon-colored and sits in the DARK half,
-    //       painting back over part of the shadow so the curve bulges outward
-    // Width tracks |cos(phase*2*PI)|: 0 at quarter (flat terminator) up to 50% at new/full.
+    // Improved moon phase rendering for all cases
     if (litPercent <= 0.01) {
-      half.style.left = '0'; half.style.right = '0'; half.style.width = 'auto';
       half.style.opacity = '1';
       curve.style.opacity = '0';
+      half.style.left = '0';
+      half.style.right = '0';
     } else if (litPercent >= 0.99) {
       half.style.opacity = '0';
       curve.style.opacity = '0';
@@ -635,21 +708,15 @@ function updateMoonAndSun(){
       curve.style.opacity = '1';
       half.style.left = waxing ? '0' : '50%';
       half.style.right = waxing ? '50%' : '0';
-      half.style.width = 'auto';
 
-      const widthPct = Math.abs(Math.cos(phase * 2 * Math.PI)) * 50; // 0..50% of disc
+      const widthPct = Math.abs(Math.cos(phase * 2 * Math.PI)) * 50;
       curve.style.width = widthPct + '%';
       curve.style.borderRadius = '50%';
-      curve.style.transform = 'none';
 
       if (litPercent < 0.5) {
-        // crescent: dark ellipse confined to the lit half, flush against the centerline,
-        // curving away from it
         curve.style.background = 'rgba(2,4,10,.95)';
         curve.style.left = waxing ? `${50 - widthPct}%` : '50%';
       } else {
-        // gibbous: moon-colored ellipse confined to the dark half, flush against the
-        // centerline, painting the bulge back to light
         curve.style.background = '#cfd6e0';
         curve.style.left = waxing ? '50%' : `${50 - widthPct}%`;
       }
@@ -666,7 +733,6 @@ function updateMoonAndSun(){
     const arrow=document.getElementById("compassArrow");
     if(arrow){ arrow.style.transform=`rotate(${moonAz}deg)`; }
 
-    // subtle 3D tilt of the moon sphere toward the viewer based on altitude
     const moon3d = document.getElementById('moon3d');
     const tilt = Math.max(-20, Math.min(20, (moonAlt/90)*20));
     moon3d.style.transform = `rotateX(${tilt}deg)`;
@@ -698,10 +764,10 @@ document.getElementById('googleLoginBtn').onclick = async ()=>{
   }
 };
 
-/* ================= QURAN — multilingual via AlQuran Cloud API ================= */
+/* ================= QURAN ================= */
 const QURAN_API = 'https://api.alquran.cloud/v1';
 const ARABIC_EDITION = 'quran-uthmani';
-const AUDIO_EDITION = 'ar.alafasy'; // Mishary Rashid Alafasy recitation, served from the open CDN
+const AUDIO_EDITION = 'ar.alafasy';
 const AUDIO_CDN = (ayahGlobalNumber)=> `https://cdn.islamic.network/quran/audio/128/${AUDIO_EDITION}/${ayahGlobalNumber}.mp3`;
 
 let currentSurahNumber = null;
@@ -709,7 +775,6 @@ let currentAudio = null;
 let currentPlayingAyahEl = null;
 let playQueue = [];
 
-// Top languages incl. Bangla, Chinese, Hindi, and other widely-spoken languages
 const LANGUAGES = [
   { code:'en', label:'English',          edition:'en.sahih' },
   { code:'bn', label:'Bangla',           edition:'bn.bengali' },
@@ -732,7 +797,6 @@ const LANGUAGES = [
   { code:'ml', label:'Malayalam',        edition:'ml.abdulhameed' },
   { code:'de', label:'German',           edition:'de.bubenheim' },
 ];
-
 
 const langSelect = document.getElementById('langSelect');
 LANGUAGES.forEach(l=>{
@@ -757,13 +821,181 @@ function isBookmarked(surahNumber, ayahNumberInSurah){
   const b = getBookmarks();
   return !!(b[surahNumber] && b[surahNumber][ayahNumberInSurah]);
 }
-function toggleBookmark(surahNumber, ayahNumberInSurah){
+function toggleBookmark(surahNumber, ayahNumberInSurah, richData){
   const b = getBookmarks();
   b[surahNumber] = b[surahNumber] || {};
-  if (b[surahNumber][ayahNumberInSurah]) delete b[surahNumber][ayahNumberInSurah];
-  else b[surahNumber][ayahNumberInSurah] = true;
+  if (b[surahNumber][ayahNumberInSurah]) {
+    delete b[surahNumber][ayahNumberInSurah];
+    if (!Object.keys(b[surahNumber]).length) delete b[surahNumber];
+  } else {
+    b[surahNumber][ayahNumberInSurah] = richData || true;
+  }
   qmStorageSet('qm_bookmarks', JSON.stringify(b));
+  updateBookmarkCount();
 }
+
+function getHadithBookmarks(){
+  try{ return JSON.parse(qmStorageGet('qm_hadith_bookmarks') || '{}'); }catch{ return {}; }
+}
+function isHadithBookmarked(collectionId, hadithNum){
+  const b = getHadithBookmarks();
+  return !!(b[collectionId] && b[collectionId][hadithNum]);
+}
+function toggleHadithBookmark(collectionId, hadithNum, richData){
+  const b = getHadithBookmarks();
+  b[collectionId] = b[collectionId] || {};
+  if (b[collectionId][hadithNum]) {
+    delete b[collectionId][hadithNum];
+    if (!Object.keys(b[collectionId]).length) delete b[collectionId];
+  } else {
+    b[collectionId][hadithNum] = richData || true;
+  }
+  qmStorageSet('qm_hadith_bookmarks', JSON.stringify(b));
+  updateBookmarkCount();
+}
+
+function updateBookmarkCount(){
+  const qb = getBookmarks();
+  const hb = getHadithBookmarks();
+  const qCount = Object.values(qb).reduce((acc,s)=>acc+Object.keys(s).length, 0);
+  const hCount = Object.values(hb).reduce((acc,c)=>acc+Object.keys(c).length, 0);
+  const total = qCount + hCount;
+  const el = document.getElementById('bookmarkCount');
+  if(el) el.textContent = total > 0 ? total : '';
+}
+
+let bmActiveTab = 'quran';
+function renderBookmarksPanel(){
+  renderQuranBookmarks();
+  renderHadithBookmarks();
+  updateBookmarkCount();
+}
+function renderQuranBookmarks(){
+  const el = document.getElementById('bmQuranList');
+  const b = getBookmarks();
+  const entries = [];
+  Object.entries(b).forEach(([surahNum, ayahs])=>{
+    Object.entries(ayahs).forEach(([ayahNum, data])=>{
+      entries.push({ surahNum: parseInt(surahNum), ayahNum: parseInt(ayahNum), data });
+    });
+  });
+  entries.sort((a,b)=> a.surahNum - b.surahNum || a.ayahNum - b.ayahNum);
+  if(!entries.length){
+    el.innerHTML = `<div class="bm-empty"><div class="bm-empty-icon">☆</div><div>No Qur'an bookmarks yet.</div><div style="margin-top:6px;font-size:12px;">Tap ☆ on any verse while reading to save it here.</div></div>`;
+    return;
+  }
+  el.innerHTML = entries.map(({surahNum, ayahNum, data})=>{
+    const surahName = (data && data.surahName) ? data.surahName : `Surah ${surahNum}`;
+    const arabic    = (data && data.arabicText) ? data.arabicText : '';
+    const trans     = (data && data.translationText) ? data.translationText : '';
+    return `
+      <div class="bookmark-card" data-surah="${surahNum}" data-ayah="${ayahNum}">
+        <div class="bm-meta">
+          <span class="bm-label">★ ${surahName} · Verse ${ayahNum}</span>
+          <button class="bm-delete" data-surah="${surahNum}" data-ayah="${ayahNum}" title="Remove bookmark">✕</button>
+        </div>
+        ${arabic ? `<div class="bm-arabic">${arabic}</div>` : ''}
+        ${trans  ? `<div class="bm-text">${trans}</div>` : ''}
+      </div>`;
+  }).join('');
+  el.querySelectorAll('.bookmark-card').forEach(card=>{
+    card.onclick = (e)=>{
+      if(e.target.classList.contains('bm-delete')) return;
+      const sn = parseInt(card.dataset.surah);
+      const an = parseInt(card.dataset.ayah);
+      showBookmarksPanel(false);
+      openTab('quran');
+      openSurah(sn, an);
+    };
+  });
+  el.querySelectorAll('.bm-delete').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      toggleBookmark(parseInt(btn.dataset.surah), parseInt(btn.dataset.ayah));
+      renderQuranBookmarks();
+    };
+  });
+}
+function renderHadithBookmarks(){
+  const el = document.getElementById('bmHadithList');
+  const b = getHadithBookmarks();
+  const entries = [];
+  Object.entries(b).forEach(([collId, hadiths])=>{
+    Object.entries(hadiths).forEach(([num, data])=>{
+      entries.push({ collId, num, data });
+    });
+  });
+  if(!entries.length){
+    el.innerHTML = `<div class="bm-empty"><div class="bm-empty-icon">☆</div><div>No Hadith bookmarks yet.</div><div style="margin-top:6px;font-size:12px;">Tap ☆ on any hadith while reading to save it here.</div></div>`;
+    return;
+  }
+  const collMap = Object.fromEntries(HADITH_COLLECTIONS.map(c=>[c.id, c.name]));
+  el.innerHTML = entries.map(({collId, num, data})=>{
+    const collName = collMap[collId] || collId;
+    const text = (data && data.text) ? data.text : '';
+    return `
+      <div class="bookmark-card" data-coll="${collId}" data-num="${num}">
+        <div class="bm-meta">
+          <span class="bm-label">★ ${collName} · #${num}</span>
+          <button class="bm-delete" data-coll="${collId}" data-num="${num}" title="Remove bookmark">✕</button>
+        </div>
+        ${text ? `<div class="bm-text">${text}</div>` : ''}
+      </div>`;
+  }).join('');
+  el.querySelectorAll('.bookmark-card').forEach(card=>{
+    card.onclick = (e)=>{
+      if(e.target.classList.contains('bm-delete')) return;
+      showBookmarksPanel(false);
+      openTab('hadith');
+      document.getElementById('hadithCollectionSelect').value = card.dataset.coll;
+      refreshHadithLangOptions();
+      loadHadithCollection().then(()=>{
+        const n = parseInt(card.dataset.num);
+        const idx = hadithCurrentList.findIndex(h=>(h.hadithnumber??h.hadithNumber??h.number)==n);
+        if(idx>-1){ hadithCurrentPage=Math.floor(idx/HADITH_PAGE_SIZE); renderHadithPage(); }
+      });
+    };
+  });
+  el.querySelectorAll('.bm-delete').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      toggleHadithBookmark(btn.dataset.coll, btn.dataset.num);
+      renderHadithBookmarks();
+    };
+  });
+}
+function showBookmarksPanel(show){
+  document.getElementById('bookmarksPanel').style.display = show ? 'block' : 'none';
+  document.getElementById('quranMainView').style.display = show ? 'none' : 'block';
+  const btn = document.getElementById('bookmarksToggleBtn');
+  if(btn) btn.style.background = show ? 'rgba(251,191,36,.15)' : '';
+  if(show) renderBookmarksPanel();
+}
+document.getElementById('bookmarksToggleBtn').onclick = ()=>{
+  const isShowing = document.getElementById('bookmarksPanel').style.display !== 'none';
+  showBookmarksPanel(!isShowing);
+};
+document.getElementById('bmTabQuran').onclick = ()=>{
+  bmActiveTab = 'quran';
+  document.getElementById('bmQuranList').style.display = 'block';
+  document.getElementById('bmHadithList').style.display = 'none';
+  document.getElementById('bmTabQuran').classList.add('active');
+  document.getElementById('bmTabHadith').classList.remove('active');
+};
+document.getElementById('bmTabHadith').onclick = ()=>{
+  bmActiveTab = 'hadith';
+  document.getElementById('bmQuranList').style.display = 'none';
+  document.getElementById('bmHadithList').style.display = 'block';
+  document.getElementById('bmTabHadith').classList.add('active');
+  document.getElementById('bmTabQuran').classList.remove('active');
+};
+document.getElementById('clearBookmarksBtn').onclick = ()=>{
+  if(!confirm('Clear ALL bookmarks? This cannot be undone.')) return;
+  if(bmActiveTab==='quran'){ qmStorageSet('qm_bookmarks','{}'); renderQuranBookmarks(); }
+  else { qmStorageSet('qm_hadith_bookmarks','{}'); renderHadithBookmarks(); }
+  updateBookmarkCount();
+};
+updateBookmarkCount();
 
 function renderResumeBanner(){
   const el = document.getElementById('resumeBanner');
@@ -839,17 +1071,6 @@ async function openSurah(number, scrollToAyah){
     document.getElementById('readerEyebrow').textContent = `Surah ${arData.number} · ${arData.revelationType}`;
     document.getElementById('readerTitle').textContent = `${arData.englishName} — ${arData.name}`;
 
-    // The Bismillah ("In the name of God, the Most Gracious, the Most Merciful") is prefixed
-    // onto ayah 1's Arabic text by this API for every surah except At-Tawbah (9). Al-Fatihah (1)
-    // is the one place Bismillah genuinely *is* ayah 1, so it's left intact there.
-    //
-    // Earlier this was split by matching diacritics character-by-character against a hardcoded
-    // spelling, which broke whenever the API's Unicode normalization (alef variants, madda marks)
-    // differed even slightly from what was typed here — that's the "mixed up" text seen before.
-    // Word-count splitting is robust to that: Bismillah is always exactly 4 space-separated
-    // words, regardless of which exact diacritic codepoints were used to spell it. And rather
-    // than redisplay whatever fragment we cut out of the API text, we always render one fixed,
-    // known-correct copy of Bismillah — so its on-screen appearance never depends on the API at all.
     const BISMILLAH_DISPLAY = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
     const BISMILLAH_WORD_COUNT = 4;
     let bismillahHtml = '';
@@ -863,16 +1084,10 @@ async function openSurah(number, scrollToAyah){
       }
     }
 
-    // build the play queue of {globalAyahNumber, numberInSurah} for "Play surah"
     playQueue = arData.ayahs.map(a => ({ global: a.number, inSurah: a.numberInSurah }));
 
     const rows = arData.ayahs.map((a, i)=>{
       let tr = trData.ayahs[i] ? trData.ayahs[i].text : '';
-      // Some translation editions also prefix ayah 1 with a short Bismillah sentence.
-      // Since we've already pulled Bismillah out on the Arabic side, strip it here too
-      // — but conservatively: only remove it if the start of the text matches one of a
-      // few known, complete Bismillah translation phrasings, so we never risk cutting
-      // into a real ayah translation that simply mentions mercy.
       if (i === 0 && bismillahHtml && tr) {
         const knownBismillahPrefixes = [
           'In the name of Allah, the Entirely Merciful, the Especially Merciful.',
@@ -902,13 +1117,18 @@ async function openSurah(number, scrollToAyah){
     }).join('');
     list.innerHTML = bismillahHtml + rows;
 
-    // wire per-ayah controls
     list.querySelectorAll('.ayah').forEach(ayahEl=>{
       const global = parseInt(ayahEl.dataset.global);
       const inSurah = parseInt(ayahEl.dataset.insurah);
       ayahEl.querySelector('.ayah-play').onclick = ()=> playSingleAyah(global, ayahEl);
       ayahEl.querySelector('.ayah-bookmark').onclick = (e)=>{
-        toggleBookmark(arData.number, inSurah);
+        const ayahData = arData.ayahs.find(a=>a.numberInSurah===inSurah);
+        const trData2 = trJson.data.ayahs.find(a=>a.numberInSurah===inSurah);
+        toggleBookmark(arData.number, inSurah, {
+          surahName: arData.englishName,
+          arabicText: ayahData ? ayahData.text : '',
+          translationText: trData2 ? trData2.text : ''
+        });
         const btn = e.currentTarget;
         const nowBookmarked = isBookmarked(arData.number, inSurah);
         btn.classList.toggle('active', nowBookmarked);
@@ -941,7 +1161,7 @@ function playSingleAyah(globalAyahNumber, ayahEl){
   currentAudio = new Audio(AUDIO_CDN(globalAyahNumber));
   currentPlayingAyahEl = ayahEl;
   ayahEl.classList.add('is-playing');
-  currentAudio.play().catch(()=>{ /* autoplay or network issue, fail silently */ });
+  currentAudio.play().catch(()=>{});
   currentAudio.onended = ()=>{ ayahEl.classList.remove('is-playing'); currentPlayingAyahEl = null; currentAudio = null; };
 }
 
@@ -949,8 +1169,6 @@ function playSurahFrom(index){
   if (index >= playQueue.length){ stopAudio(); return; }
   const { global, inSurah } = playQueue[index];
   const ayahEl = document.getElementById(`ayah-${inSurah}`);
-  // stop any currently playing audio without resetting the "Play surah" button label,
-  // since we're about to immediately start the next ayah in the same sequence
   if (currentAudio){ currentAudio.onended = null; currentAudio.pause(); currentAudio = null; }
   if (currentPlayingAyahEl){ currentPlayingAyahEl.classList.remove('is-playing'); currentPlayingAyahEl = null; }
 
@@ -988,10 +1206,9 @@ langSelect.addEventListener('change', ()=>{
 });
 loadSurahList();
 
-/* ================= HADITH — via fawazahmed0/hadith-api (free, no key, CDN-hosted) ================= */
+/* ================= HADITH ================= */
 const HADITH_CDN = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions';
 
-// Collections confirmed available on this API, with their real book identifiers.
 const HADITH_COLLECTIONS = [
   { id:'bukhari',  name:'Sahih al-Bukhari' },
   { id:'muslim',   name:'Sahih Muslim' },
@@ -1005,9 +1222,6 @@ const HADITH_COLLECTIONS = [
   { id:'dehlawi',  name: "Forty Hadith of Shah Waliullah Dehlawi" },
 ];
 
-// Language availability differs per collection on this API; these are the editions
-// confirmed in the API's own editions.json. Not every language exists for every book,
-// so the dropdown is rebuilt per collection to only show what's actually available.
 const HADITH_LANG_PREFIXES = [
   { prefix:'eng', label:'English' },
   { prefix:'ara', label:'Arabic' },
@@ -1019,8 +1233,7 @@ const HADITH_LANG_PREFIXES = [
   { prefix:'tur', label:'Turkish' },
   { prefix:'tam', label:'Tamil' },
 ];
-// Confirmed per-collection language availability (from the API's editions.json),
-// so the language dropdown never offers a combination that 404s.
+
 const HADITH_LANGS_BY_COLLECTION = {
   bukhari:  ['eng','ara','ben','urd','fra','ind','rus','tam','tur'],
   muslim:   ['eng','ara','ben','urd','fra','ind','rus','tam','tur'],
@@ -1051,11 +1264,7 @@ function refreshHadithLangOptions(){
     opt.value = l.prefix; opt.textContent = l.label;
     hadithLangSelect.appendChild(opt);
   });
-  if (![...hadithLangSelect.options].some(o=>o.value==='eng')) {
-    // fall back to whatever the first available language is
-  } else {
-    hadithLangSelect.value = 'eng';
-  }
+  hadithLangSelect.value = 'eng';
 }
 
 const HADITH_PAGE_SIZE = 20;
@@ -1075,10 +1284,6 @@ async function loadHadithCollection(){
     const r = await fetch(`${HADITH_CDN}/${edition}.json`);
     if (!r.ok) throw new Error('not found');
     const data = await r.json();
-    // Defensive parsing: the API returns { metadata: {...}, hadiths: [ {...}, ... ] }.
-    // We only rely on fields we've confirmed exist (an array under "hadiths", each
-    // item carrying at least a hadith number and text); anything else is read
-    // opportunistically and skipped if absent, so a field-name difference can't crash the page.
     const hadiths = Array.isArray(data.hadiths) ? data.hadiths : [];
     if (!hadiths.length) throw new Error('empty');
 
@@ -1098,6 +1303,7 @@ async function loadHadithCollection(){
 
 function renderHadithPage(){
   const listEl = document.getElementById('hadithList');
+  const collectionId = hadithCollectionSelect.value;
   const start = hadithCurrentPage * HADITH_PAGE_SIZE;
   const pageItems = hadithCurrentList.slice(start, start + HADITH_PAGE_SIZE);
 
@@ -1107,35 +1313,48 @@ function renderHadithPage(){
   }
 
   listEl.innerHTML = pageItems.map(h=>{
-    // Sahih Muslim uses sunnah.com-style sub-numbering like "2677a", "2677b" for grouped
-    // narrations sharing one hadith, unlike Bukhari's plain sequential integers — so this
-    // field can legitimately be a string with a letter suffix, not just a number.
     const num = h.hadithnumber ?? h.hadithNumber ?? h.number ?? '';
     const text = (h.text || h.body || h.hadith || '').toString().trim();
     const grade = Array.isArray(h.grades) && h.grades.length ? h.grades[0].grade : null;
+    const bookmarked = isHadithBookmarked(collectionId, String(num));
 
     if (!text) {
-      // Surface the real field names instead of rendering a silent blank card —
-      // this tells us exactly what this entry actually contains.
-      const keys = Object.keys(h).join(', ') || '(no fields)';
       return `
-        <div class="ayah">
+        <div class="ayah" data-num="${num}">
+          <div class="ayah-actions">
+            <button class="hadith-bookmark ${bookmarked?'active':''}" title="Bookmark this hadith">${bookmarked?'★':'☆'}</button>
+          </div>
           <div class="num-badge" style="float:right;">${num}</div>
           <div style="clear:both;"></div>
-          <div class="small" style="color:var(--muted);">No text found in the expected field for this entry. Available fields: ${keys}</div>
-        </div>
-      `;
+          <div class="small" style="color:var(--muted);">No text available for this hadith.</div>
+        </div>`;
     }
-
     return `
-      <div class="ayah">
+      <div class="ayah" data-num="${num}">
+        <div class="ayah-actions">
+          <button class="hadith-bookmark ${bookmarked?'active':''}" title="Bookmark this hadith">${bookmarked?'★':'☆'}</button>
+        </div>
         <div class="num-badge" style="float:right;">${num}</div>
         <div style="clear:both;"></div>
         <div class="tr" style="font-size:15px;">${text}</div>
         ${grade ? `<div class="small" style="margin-top:8px;color:var(--accent2);">${grade}</div>` : ''}
-      </div>
-    `;
+      </div>`;
   }).join('');
+
+  listEl.querySelectorAll('.hadith-bookmark').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      const ayahEl = btn.closest('.ayah');
+      const num = String(ayahEl.dataset.num);
+      const textEl = ayahEl.querySelector('.tr');
+      toggleHadithBookmark(collectionId, num, {
+        text: textEl ? textEl.textContent.slice(0,200) : ''
+      });
+      const nowBookmarked = isHadithBookmarked(collectionId, num);
+      btn.classList.toggle('active', nowBookmarked);
+      btn.textContent = nowBookmarked ? '★' : '☆';
+    };
+  });
 
   const totalPages = Math.ceil(hadithCurrentList.length / HADITH_PAGE_SIZE);
   document.getElementById('hadithPageInfo').textContent = `Page ${hadithCurrentPage+1} of ${totalPages}`;
@@ -1164,11 +1383,10 @@ document.getElementById('hadithJumpBtn').onclick = ()=>{
   renderHadithPage();
 };
 
-// initialize once both the collection and language pickers are wired
 refreshHadithLangOptions();
 loadHadithCollection();
 
-/* ================= Disable Right-Click & Shortcuts ================= */
+/* ================= Disable Right-Click ================= */
 document.addEventListener('contextmenu', e=>e.preventDefault());
 document.addEventListener('keydown', e=>{
   if(e.ctrlKey && ['s','p'].includes(e.key.toLowerCase())) e.preventDefault();
