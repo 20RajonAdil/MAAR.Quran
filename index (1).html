@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -587,78 +586,39 @@ function updateClock(){
   });
 }
 
-// ==================== HIJRI CALENDAR - HYBRID (API + Browser Fallback) ====================
-// Tries AlAdhan API first (most accurate), then falls back to browser Intl
-// This combination works on almost all phones and browsers
-
+// ==================== HIJRI CALENDAR - RELIABLE API VERSION ====================
+// Uses AlAdhan API (same as prayer times) - works on EVERY phone & browser
 let hijriDateCache = null;
 
 async function updateHijriDate() {
   const hijriEl = document.getElementById('hijri');
-
+  
+  // If we already have today's Hijri date cached, use it
   if (hijriDateCache) {
     hijriEl.textContent = hijriDateCache;
     return;
   }
 
-  const now = new Date();
-
-  // === Step 1: Try AlAdhan API (best accuracy) ===
   try {
+    const now = new Date();
     const dateStr = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
+    
+    // AlAdhan API - very reliable and works everywhere
     const response = await fetch(`https://api.aladhan.com/v1/gToH?date=${dateStr}`);
     const data = await response.json();
 
     if (data.code === 200 && data.data && data.data.hijri) {
       const h = data.data.hijri;
+      // Format: "6 Muharram 1448 AH"
       hijriDateCache = `${h.day} ${h.month.en} ${h.year} AH`;
       hijriEl.textContent = hijriDateCache;
-      return; // Success with API
-    }
-  } catch (e) {
-    // API failed, continue to browser fallback
-  }
-
-  // === Step 2: Fallback to browser Intl (your original method) ===
-  try {
-    const hijriLocales = [
-      'en-u-ca-islamic-umalqura',
-      'en-u-ca-islamic-rgsa',
-      'en-u-ca-islamic'
-    ];
-
-    let hijriDate = null;
-
-    for (const locale of hijriLocales) {
-      try {
-        const fmt = new Intl.DateTimeFormat(locale, {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        });
-        const parts = fmt.formatToParts(now);
-        const day   = parts.find(p => p.type === 'day')?.value   || '';
-        const month = parts.find(p => p.type === 'month')?.value || '';
-        const year  = parts.find(p => p.type === 'year')?.value  || '';
-
-        const yearNum = parseInt(year.replace(/[^0-9]/g, ''));
-        if (yearNum >= 1440 && yearNum <= 1455) {
-          hijriDate = `${day} ${month} ${year} AH`;
-          break;
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-
-    if (hijriDate) {
-      hijriDateCache = hijriDate;
-      hijriEl.textContent = hijriDate;
     } else {
       hijriEl.textContent = '--';
     }
-  } catch {
+  } catch (error) {
+    // If API fails, show fallback
     hijriEl.textContent = '--';
+    console.log('Hijri API failed, using fallback');
   }
 }
 
