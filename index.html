@@ -751,16 +751,86 @@ function updateMoonAndSun(){
 updateMoonAndSun();
 setInterval(updateMoonAndSun,60000);
 
-/* ================= GOOGLE LOGIN ================= */
-document.getElementById('googleLoginBtn').onclick = async ()=>{
-  try{
-    const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
-    if(error) alert('Login failed: '+error.message);
-    else if(data?.url) window.location.href = data.url;
-  }catch(err){
-    alert('Login error');
+/* ================= GOOGLE LOGIN + PROFILE (Fixed for GitHub Pages) ================= */
+(function initGoogleAuth() {
+  const loginBtn = document.getElementById('googleLoginBtn');
+  const profileArea = document.getElementById('profileArea');
+  const profileBtn = document.getElementById('profileBtn');
+  const profileDropdown = document.getElementById('profileDropdown');
+  const profileName = document.getElementById('profileName');
+  const userEmailDisplay = document.getElementById('userEmailDisplay');
+  const signOutBtn = document.getElementById('signOutBtn');
+
+  // Hardcoded correct redirect for your GitHub Pages site
+  const GITHUB_PAGES_REDIRECT = 'https://20rajonadil.github.io/MAAR.Quran/';
+
+  if (loginBtn) {
+    loginBtn.onclick = async () => {
+      try {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: GITHUB_PAGES_REDIRECT }
+        });
+        if (error) alert('Login failed: ' + error.message);
+        else if (data?.url) window.location.href = data.url;
+      } catch (err) {
+        alert('Login error');
+      }
+    };
   }
-};
+
+  // Toggle profile dropdown
+  if (profileBtn && profileDropdown) {
+    profileBtn.onclick = (e) => {
+      e.stopPropagation();
+      profileDropdown.style.display = (profileDropdown.style.display === 'block') ? 'none' : 'block';
+    };
+    document.addEventListener('click', (e) => {
+      if (profileArea && !profileArea.contains(e.target)) {
+        profileDropdown.style.display = 'none';
+      }
+    });
+  }
+
+  if (signOutBtn) {
+    signOutBtn.onclick = async () => {
+      await supabase.auth.signOut();
+      if (profileDropdown) profileDropdown.style.display = 'none';
+    };
+  }
+
+  // Handle login/logout state
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (session && session.user) {
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (profileArea) profileArea.style.display = 'block';
+
+      const email = session.user.email || '';
+      const name = session.user.user_metadata?.full_name || email.split('@')[0] || 'User';
+
+      if (profileName) profileName.textContent = name;
+      if (userEmailDisplay) userEmailDisplay.textContent = email;
+    } else {
+      if (loginBtn) loginBtn.style.display = 'inline-flex';
+      if (profileArea) profileArea.style.display = 'none';
+      if (profileDropdown) profileDropdown.style.display = 'none';
+    }
+  });
+
+  // Check session on page load (after OAuth redirect)
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session && session.user) {
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (profileArea) profileArea.style.display = 'block';
+
+      const email = session.user.email || '';
+      const name = session.user.user_metadata?.full_name || email.split('@')[0] || 'User';
+
+      if (profileName) profileName.textContent = name;
+      if (userEmailDisplay) userEmailDisplay.textContent = email;
+    }
+  });
+})();
 
 /* ================= QURAN ================= */
 const QURAN_API = 'https://api.alquran.cloud/v1';
