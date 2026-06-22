@@ -266,6 +266,21 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
 .ayah.is-playing{background:rgba(34,211,238,.05);border-radius:12px;}
 .ayah.is-bookmarked{box-shadow:inset 3px 0 0 var(--gold);}
 .reader-controls{display:flex;gap:8px;align-items:center;}
+.bookmark-card{
+  padding:14px 16px;border-radius:14px;margin-bottom:10px;cursor:pointer;
+  background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+  border:1px solid rgba(255,255,255,.07);
+  transition:.2s;display:flex;flex-direction:column;gap:6px;
+}
+.bookmark-card:hover{border-color:var(--gold);background:rgba(251,191,36,.06);}
+.bookmark-card .bm-meta{display:flex;justify-content:space-between;align-items:center;}
+.bookmark-card .bm-label{font-size:13px;font-weight:600;color:var(--gold);}
+.bookmark-card .bm-delete{color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px;border:none;background:transparent;}
+.bookmark-card .bm-delete:hover{color:#ef4444;background:rgba(239,68,68,.1);}
+.bookmark-card .bm-arabic{font-family:'Noto Naskh Arabic','Amiri',serif;font-size:20px;text-align:right;direction:rtl;color:#f5f8fc;line-height:1.8;}
+.bookmark-card .bm-text{font-size:13px;color:var(--muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.bm-empty{text-align:center;padding:40px 20px;color:var(--muted);}
+.bm-empty .bm-empty-icon{font-size:36px;margin-bottom:10px;}
 .bismillah-banner{
   text-align:center;padding:22px 10px 26px;margin-bottom:6px;
   border-bottom:1px solid rgba(255,255,255,.08);
@@ -382,35 +397,55 @@ button.ghost:hover{border-color:var(--accent);color:var(--accent);}
   <!-- QURAN -->
   <section id="quran" class="page">
     <div class="panel">
-      <div class="eyebrow">Read</div>
-      <h2 style="font-size:22px;margin-top:4px;margin-bottom:14px;">The Qur'an</h2>
-
-      <div class="quran-toolbar">
-        <div class="grow">
-          <input type="text" id="surahSearch" placeholder="Search a surah by name or number…" style="width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+          <div class="eyebrow">Read</div>
+          <h2 style="font-size:22px;margin-top:4px;">The Qur'an</h2>
         </div>
-        <label class="small" for="langSelect">Translation language:</label>
-        <select id="langSelect"></select>
+        <button class="ghost" id="bookmarksToggleBtn" style="display:flex;align-items:center;gap:6px;padding:9px 16px;">
+          <span>★</span> My Bookmarks <span id="bookmarkCount" style="background:rgba(251,191,36,.18);color:var(--gold);border-radius:999px;padding:1px 8px;font-size:12px;"></span>
+        </button>
       </div>
 
-      <div id="resumeBanner" style="display:none;"></div>
-
-      <div id="surahGrid" class="surah-grid">
-        <div class="small" style="padding:20px;">Loading surah list…</div>
+      <!-- BOOKMARKS PANEL (hidden by default) -->
+      <div id="bookmarksPanel" style="display:none;">
+        <div style="border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;padding-bottom:12px;display:flex;gap:10px;align-items:center;">
+          <button class="ghost active" id="bmTabQuran" style="padding:7px 14px;">📖 Qur'an</button>
+          <button class="ghost" id="bmTabHadith" style="padding:7px 14px;">📜 Hadith</button>
+          <button class="ghost" id="clearBookmarksBtn" style="margin-left:auto;color:var(--muted);font-size:12px;">Clear all</button>
+        </div>
+        <div id="bmQuranList"></div>
+        <div id="bmHadithList" style="display:none;"></div>
       </div>
 
-      <div class="reader" id="readerWrap" style="display:none;">
-        <div class="reader-head">
-          <div>
-            <div class="eyebrow" id="readerEyebrow">Surah</div>
-            <h2 id="readerTitle" style="font-size:24px;">—</h2>
+      <div id="quranMainView">
+        <div class="quran-toolbar">
+          <div class="grow">
+            <input type="text" id="surahSearch" placeholder="Search a surah by name or number…" style="width:100%;">
           </div>
-          <div class="reader-controls">
-            <button class="ghost" id="playSurahBtn" title="Play recitation from the start">▶ Play surah</button>
-            <button class="ghost" id="closeReader">← Back to list</button>
-          </div>
+          <label class="small" for="langSelect">Translation language:</label>
+          <select id="langSelect"></select>
         </div>
-        <div id="ayahList"></div>
+
+        <div id="resumeBanner" style="display:none;"></div>
+
+        <div id="surahGrid" class="surah-grid">
+          <div class="small" style="padding:20px;">Loading surah list…</div>
+        </div>
+
+        <div class="reader" id="readerWrap" style="display:none;">
+          <div class="reader-head">
+            <div>
+              <div class="eyebrow" id="readerEyebrow">Surah</div>
+              <h2 id="readerTitle" style="font-size:24px;">—</h2>
+            </div>
+            <div class="reader-controls">
+              <button class="ghost" id="playSurahBtn" title="Play recitation from the start">▶ Play surah</button>
+              <button class="ghost" id="closeReader">← Back to list</button>
+            </div>
+          </div>
+          <div id="ayahList"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -784,13 +819,189 @@ function isBookmarked(surahNumber, ayahNumberInSurah){
   const b = getBookmarks();
   return !!(b[surahNumber] && b[surahNumber][ayahNumberInSurah]);
 }
-function toggleBookmark(surahNumber, ayahNumberInSurah){
+function toggleBookmark(surahNumber, ayahNumberInSurah, richData){
+  // richData = { surahName, arabicText, translationText } — stored so the
+  // bookmarks page can show a real preview without re-fetching the whole surah
   const b = getBookmarks();
   b[surahNumber] = b[surahNumber] || {};
-  if (b[surahNumber][ayahNumberInSurah]) delete b[surahNumber][ayahNumberInSurah];
-  else b[surahNumber][ayahNumberInSurah] = true;
+  if (b[surahNumber][ayahNumberInSurah]) {
+    delete b[surahNumber][ayahNumberInSurah];
+    if (!Object.keys(b[surahNumber]).length) delete b[surahNumber];
+  } else {
+    b[surahNumber][ayahNumberInSurah] = richData || true;
+  }
   qmStorageSet('qm_bookmarks', JSON.stringify(b));
+  updateBookmarkCount();
 }
+
+/* -------- Hadith bookmarks -------- */
+function getHadithBookmarks(){
+  try{ return JSON.parse(qmStorageGet('qm_hadith_bookmarks') || '{}'); }catch{ return {}; }
+}
+function isHadithBookmarked(collectionId, hadithNum){
+  const b = getHadithBookmarks();
+  return !!(b[collectionId] && b[collectionId][hadithNum]);
+}
+function toggleHadithBookmark(collectionId, hadithNum, richData){
+  const b = getHadithBookmarks();
+  b[collectionId] = b[collectionId] || {};
+  if (b[collectionId][hadithNum]) {
+    delete b[collectionId][hadithNum];
+    if (!Object.keys(b[collectionId]).length) delete b[collectionId];
+  } else {
+    b[collectionId][hadithNum] = richData || true;
+  }
+  qmStorageSet('qm_hadith_bookmarks', JSON.stringify(b));
+  updateBookmarkCount();
+}
+
+/* -------- Bookmark count badge -------- */
+function updateBookmarkCount(){
+  const qb = getBookmarks();
+  const hb = getHadithBookmarks();
+  const qCount = Object.values(qb).reduce((acc,s)=>acc+Object.keys(s).length, 0);
+  const hCount = Object.values(hb).reduce((acc,c)=>acc+Object.keys(c).length, 0);
+  const total = qCount + hCount;
+  const el = document.getElementById('bookmarkCount');
+  if(el) el.textContent = total > 0 ? total : '';
+}
+
+/* -------- Bookmarks panel rendering -------- */
+let bmActiveTab = 'quran';
+function renderBookmarksPanel(){
+  renderQuranBookmarks();
+  renderHadithBookmarks();
+  updateBookmarkCount();
+}
+function renderQuranBookmarks(){
+  const el = document.getElementById('bmQuranList');
+  const b = getBookmarks();
+  const entries = [];
+  Object.entries(b).forEach(([surahNum, ayahs])=>{
+    Object.entries(ayahs).forEach(([ayahNum, data])=>{
+      entries.push({ surahNum: parseInt(surahNum), ayahNum: parseInt(ayahNum), data });
+    });
+  });
+  entries.sort((a,b)=> a.surahNum - b.surahNum || a.ayahNum - b.ayahNum);
+  if(!entries.length){
+    el.innerHTML = `<div class="bm-empty"><div class="bm-empty-icon">☆</div><div>No Qur'an bookmarks yet.</div><div style="margin-top:6px;font-size:12px;">Tap ☆ on any verse while reading to save it here.</div></div>`;
+    return;
+  }
+  el.innerHTML = entries.map(({surahNum, ayahNum, data})=>{
+    const surahName = (data && data.surahName) ? data.surahName : `Surah ${surahNum}`;
+    const arabic    = (data && data.arabicText) ? data.arabicText : '';
+    const trans     = (data && data.translationText) ? data.translationText : '';
+    return `
+      <div class="bookmark-card" data-surah="${surahNum}" data-ayah="${ayahNum}">
+        <div class="bm-meta">
+          <span class="bm-label">★ ${surahName} · Verse ${ayahNum}</span>
+          <button class="bm-delete" data-surah="${surahNum}" data-ayah="${ayahNum}" title="Remove bookmark">✕</button>
+        </div>
+        ${arabic ? `<div class="bm-arabic">${arabic}</div>` : ''}
+        ${trans  ? `<div class="bm-text">${trans}</div>` : ''}
+      </div>`;
+  }).join('');
+  el.querySelectorAll('.bookmark-card').forEach(card=>{
+    card.onclick = (e)=>{
+      if(e.target.classList.contains('bm-delete')) return;
+      const sn = parseInt(card.dataset.surah);
+      const an = parseInt(card.dataset.ayah);
+      showBookmarksPanel(false);
+      openTab('quran');
+      openSurah(sn, an);
+    };
+  });
+  el.querySelectorAll('.bm-delete').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      toggleBookmark(parseInt(btn.dataset.surah), parseInt(btn.dataset.ayah));
+      renderQuranBookmarks();
+    };
+  });
+}
+function renderHadithBookmarks(){
+  const el = document.getElementById('bmHadithList');
+  const b = getHadithBookmarks();
+  const entries = [];
+  Object.entries(b).forEach(([collId, hadiths])=>{
+    Object.entries(hadiths).forEach(([num, data])=>{
+      entries.push({ collId, num, data });
+    });
+  });
+  if(!entries.length){
+    el.innerHTML = `<div class="bm-empty"><div class="bm-empty-icon">☆</div><div>No Hadith bookmarks yet.</div><div style="margin-top:6px;font-size:12px;">Tap ☆ on any hadith while reading to save it here.</div></div>`;
+    return;
+  }
+  const collMap = Object.fromEntries(HADITH_COLLECTIONS.map(c=>[c.id, c.name]));
+  el.innerHTML = entries.map(({collId, num, data})=>{
+    const collName = collMap[collId] || collId;
+    const text = (data && data.text) ? data.text : '';
+    return `
+      <div class="bookmark-card" data-coll="${collId}" data-num="${num}">
+        <div class="bm-meta">
+          <span class="bm-label">★ ${collName} · #${num}</span>
+          <button class="bm-delete" data-coll="${collId}" data-num="${num}" title="Remove bookmark">✕</button>
+        </div>
+        ${text ? `<div class="bm-text">${text}</div>` : ''}
+      </div>`;
+  }).join('');
+  el.querySelectorAll('.bookmark-card').forEach(card=>{
+    card.onclick = (e)=>{
+      if(e.target.classList.contains('bm-delete')) return;
+      showBookmarksPanel(false);
+      openTab('hadith');
+      // switch to that collection and jump to that hadith
+      document.getElementById('hadithCollectionSelect').value = card.dataset.coll;
+      refreshHadithLangOptions();
+      loadHadithCollection().then(()=>{
+        const n = parseInt(card.dataset.num);
+        const idx = hadithCurrentList.findIndex(h=>(h.hadithnumber??h.hadithNumber??h.number)==n);
+        if(idx>-1){ hadithCurrentPage=Math.floor(idx/HADITH_PAGE_SIZE); renderHadithPage(); }
+      });
+    };
+  });
+  el.querySelectorAll('.bm-delete').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      toggleHadithBookmark(btn.dataset.coll, btn.dataset.num);
+      renderHadithBookmarks();
+    };
+  });
+}
+function showBookmarksPanel(show){
+  document.getElementById('bookmarksPanel').style.display = show ? 'block' : 'none';
+  document.getElementById('quranMainView').style.display = show ? 'none' : 'block';
+  const btn = document.getElementById('bookmarksToggleBtn');
+  if(btn) btn.style.background = show ? 'rgba(251,191,36,.15)' : '';
+  if(show) renderBookmarksPanel();
+}
+document.getElementById('bookmarksToggleBtn').onclick = ()=>{
+  const isShowing = document.getElementById('bookmarksPanel').style.display !== 'none';
+  showBookmarksPanel(!isShowing);
+};
+document.getElementById('bmTabQuran').onclick = ()=>{
+  bmActiveTab = 'quran';
+  document.getElementById('bmQuranList').style.display = 'block';
+  document.getElementById('bmHadithList').style.display = 'none';
+  document.getElementById('bmTabQuran').classList.add('active');
+  document.getElementById('bmTabHadith').classList.remove('active');
+};
+document.getElementById('bmTabHadith').onclick = ()=>{
+  bmActiveTab = 'hadith';
+  document.getElementById('bmQuranList').style.display = 'none';
+  document.getElementById('bmHadithList').style.display = 'block';
+  document.getElementById('bmTabHadith').classList.add('active');
+  document.getElementById('bmTabQuran').classList.remove('active');
+};
+document.getElementById('clearBookmarksBtn').onclick = ()=>{
+  if(!confirm('Clear ALL bookmarks? This cannot be undone.')) return;
+  if(bmActiveTab==='quran'){ qmStorageSet('qm_bookmarks','{}'); renderQuranBookmarks(); }
+  else { qmStorageSet('qm_hadith_bookmarks','{}'); renderHadithBookmarks(); }
+  updateBookmarkCount();
+};
+
+// initialise count on load
+updateBookmarkCount();
 
 function renderResumeBanner(){
   const el = document.getElementById('resumeBanner');
@@ -935,7 +1146,13 @@ async function openSurah(number, scrollToAyah){
       const inSurah = parseInt(ayahEl.dataset.insurah);
       ayahEl.querySelector('.ayah-play').onclick = ()=> playSingleAyah(global, ayahEl);
       ayahEl.querySelector('.ayah-bookmark').onclick = (e)=>{
-        toggleBookmark(arData.number, inSurah);
+        const ayahData = arData.ayahs.find(a=>a.numberInSurah===inSurah);
+        const trData2 = trJson.data.ayahs.find(a=>a.numberInSurah===inSurah);
+        toggleBookmark(arData.number, inSurah, {
+          surahName: arData.englishName,
+          arabicText: ayahData ? ayahData.text : '',
+          translationText: trData2 ? trData2.text : ''
+        });
         const btn = e.currentTarget;
         const nowBookmarked = isBookmarked(arData.number, inSurah);
         btn.classList.toggle('active', nowBookmarked);
@@ -1125,6 +1342,7 @@ async function loadHadithCollection(){
 
 function renderHadithPage(){
   const listEl = document.getElementById('hadithList');
+  const collectionId = hadithCollectionSelect.value;
   const start = hadithCurrentPage * HADITH_PAGE_SIZE;
   const pageItems = hadithCurrentList.slice(start, start + HADITH_PAGE_SIZE);
 
@@ -1134,35 +1352,50 @@ function renderHadithPage(){
   }
 
   listEl.innerHTML = pageItems.map(h=>{
-    // Sahih Muslim uses sunnah.com-style sub-numbering like "2677a", "2677b" for grouped
-    // narrations sharing one hadith, unlike Bukhari's plain sequential integers — so this
-    // field can legitimately be a string with a letter suffix, not just a number.
     const num = h.hadithnumber ?? h.hadithNumber ?? h.number ?? '';
     const text = (h.text || h.body || h.hadith || '').toString().trim();
     const grade = Array.isArray(h.grades) && h.grades.length ? h.grades[0].grade : null;
+    const bookmarked = isHadithBookmarked(collectionId, String(num));
 
     if (!text) {
-      // Surface the real field names instead of rendering a silent blank card —
-      // this tells us exactly what this entry actually contains.
       const keys = Object.keys(h).join(', ') || '(no fields)';
       return `
-        <div class="ayah">
+        <div class="ayah" data-num="${num}">
+          <div class="ayah-actions">
+            <button class="hadith-bookmark ${bookmarked?'active':''}" title="Bookmark this hadith">${bookmarked?'★':'☆'}</button>
+          </div>
           <div class="num-badge" style="float:right;">${num}</div>
           <div style="clear:both;"></div>
-          <div class="small" style="color:var(--muted);">No text found in the expected field for this entry. Available fields: ${keys}</div>
-        </div>
-      `;
+          <div class="small" style="color:var(--muted);">No text found. Available fields: ${keys}</div>
+        </div>`;
     }
-
     return `
-      <div class="ayah">
+      <div class="ayah" data-num="${num}">
+        <div class="ayah-actions">
+          <button class="hadith-bookmark ${bookmarked?'active':''}" title="Bookmark this hadith">${bookmarked?'★':'☆'}</button>
+        </div>
         <div class="num-badge" style="float:right;">${num}</div>
         <div style="clear:both;"></div>
         <div class="tr" style="font-size:15px;">${text}</div>
         ${grade ? `<div class="small" style="margin-top:8px;color:var(--accent2);">${grade}</div>` : ''}
-      </div>
-    `;
+      </div>`;
   }).join('');
+
+  // wire hadith bookmark buttons
+  listEl.querySelectorAll('.hadith-bookmark').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      const ayahEl = btn.closest('.ayah');
+      const num = String(ayahEl.dataset.num);
+      const textEl = ayahEl.querySelector('.tr');
+      toggleHadithBookmark(collectionId, num, {
+        text: textEl ? textEl.textContent.slice(0,200) : ''
+      });
+      const nowBookmarked = isHadithBookmarked(collectionId, num);
+      btn.classList.toggle('active', nowBookmarked);
+      btn.textContent = nowBookmarked ? '★' : '☆';
+    };
+  });
 
   const totalPages = Math.ceil(hadithCurrentList.length / HADITH_PAGE_SIZE);
   document.getElementById('hadithPageInfo').textContent = `Page ${hadithCurrentPage+1} of ${totalPages}`;
