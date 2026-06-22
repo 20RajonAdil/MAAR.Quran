@@ -567,7 +567,7 @@ function openTab(id){
   document.getElementById(id).classList.add('active');
 }
 
-/* ================= CLOCKS + HIJRI (FIXED & ROBUST) ================= */
+/* ================= CLOCKS ================= */
 function two(n){return String(n).padStart(2,'0')}
 const arabicMap={'0':'٠','1':'١','2':'٢','3':'٣','4':'٤','5':'٥','6':'٦','7':'٧','8':'٨','9':'٩',':':':'};
 function toArabic(s){return String(s).split('').map(c=>arabicMap[c]||c).join('')}
@@ -584,50 +584,48 @@ function updateClock(){
   document.getElementById('gregorian').textContent = now.toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
+}
 
-  // ==================== HIJRI CALENDAR (FIXED VERSION) ====================
+// ==================== HIJRI CALENDAR - RELIABLE API VERSION ====================
+// Uses AlAdhan API (same as prayer times) - works on EVERY phone & browser
+let hijriDateCache = null;
+
+async function updateHijriDate() {
+  const hijriEl = document.getElementById('hijri');
+  
+  // If we already have today's Hijri date cached, use it
+  if (hijriDateCache) {
+    hijriEl.textContent = hijriDateCache;
+    return;
+  }
+
   try {
-    // Best supported order for 2026 (Umm al-Qura is most reliable on mobile)
-    const hijriLocales = [
-      'en-u-ca-islamic-umalqura',
-      'en-u-ca-islamic-rgsa',
-      'en-u-ca-islamic'
-    ];
+    const now = new Date();
+    const dateStr = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
+    
+    // AlAdhan API - very reliable and works everywhere
+    const response = await fetch(`https://api.aladhan.com/v1/gToH?date=${dateStr}`);
+    const data = await response.json();
 
-    let hijriDate = null;
-
-    for (const locale of hijriLocales) {
-      try {
-        const fmt = new Intl.DateTimeFormat(locale, {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        });
-
-        const parts = fmt.formatToParts(now);
-        const day   = parts.find(p => p.type === 'day')?.value   || '';
-        const month = parts.find(p => p.type === 'month')?.value || '';
-        const year  = parts.find(p => p.type === 'year')?.value  || '';
-
-        // Sanity check - current Hijri years are ~1446-1448
-        const yearNum = parseInt(year.replace(/[^0-9]/g, ''));
-        if (yearNum >= 1440 && yearNum <= 1455) {
-          hijriDate = `${day} ${month} ${year} AH`;
-          break;
-        }
-      } catch (e) {
-        continue;
-      }
+    if (data.code === 200 && data.data && data.data.hijri) {
+      const h = data.data.hijri;
+      // Format: "6 Muharram 1448 AH"
+      hijriDateCache = `${h.day} ${h.month.en} ${h.year} AH`;
+      hijriEl.textContent = hijriDateCache;
+    } else {
+      hijriEl.textContent = '--';
     }
-
-    document.getElementById('hijri').textContent = hijriDate || '--';
-  } catch {
-    document.getElementById('hijri').textContent = '--';
+  } catch (error) {
+    // If API fails, show fallback
+    hijriEl.textContent = '--';
+    console.log('Hijri API failed, using fallback');
   }
 }
 
+// Start clocks and Hijri
 setInterval(updateClock, 1000);
 updateClock();
+updateHijriDate();
 
 /* ================= PRAYER TIMES ================= */
 async function loadPrayer(){
