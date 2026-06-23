@@ -1063,56 +1063,89 @@ if (document.readyState === 'loading') {
 const chatMessages = document.getElementById('chatMessages');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
+
+const HF_TOKEN = "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";
+
 let chatHistory = [];
 
 async function sendMessage() {
   const message = messageInput.value.trim();
+
   if (!message) return;
 
+  addMessage('user', message);
   messageInput.value = '';
   sendBtn.disabled = true;
 
-  addMessage('user', message);
-  
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'YOUR_ANTHROPIC_API_KEY_HERE', // Replace with actual API key
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-6',
-        max_tokens: 1024,
-        system: `You are an Islamic scholar and expert in Qur'anic interpretation (Tafsir) and Hadith. Answer questions about Islam, the Qur'an, Hadith collections, Islamic practices, and Islamic history with accuracy and respect.
+    const response = await fetch(
+      'https://router.huggingface.co/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HF_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'google/gemma-3-27b-it',
+          messages: [
+            {
+              role: 'system',
+              content: `You are QuranMaar, an Islamic Knowledge Assistant.
 
-Guidelines:
-- Provide answers grounded in Islamic sources (Qur'an and authentic Hadith)
-- When citing Qur'anic verses, use this format: "Surah [Name] [Verse Number]"
-- When citing Hadith, mention the collection (e.g., "Sahih Bukhari") and hadith number when possible
-- Be respectful and scholarly in tone
-- If unsure about something, acknowledge the uncertainty
-- Provide balanced perspectives on different Islamic scholarly views when relevant
-- Help users understand Islamic concepts in accessible language`,
-        messages: chatHistory.concat([{ role: 'user', content: message }])
-      })
-    });
+Rules:
+- Base answers on authentic Islamic teachings.
+- Cite Qur'an references when possible.
+- Cite Hadith references when possible.
+- Never invent references.
+- If unsure, clearly say so.
+- Be respectful and balanced.
+- Distinguish between Qur'an, Hadith, and scholarly opinion.`
+            },
+            ...chatHistory,
+            {
+              role: 'user',
+              content: message
+            }
+          ],
+          max_tokens: 1024,
+          temperature: 0.3
+        })
+      }
+    );
 
     const data = await response.json();
-    
+
     if (!response.ok) {
-      throw new Error(data.error?.message || 'API Error');
+      console.error(data);
+      throw new Error(
+        data.error?.message ||
+        data.message ||
+        'Request failed'
+      );
     }
 
-    const assistantMessage = data.content[0]?.text || 'No response';
-    chatHistory.push({ role: 'user', content: message });
-    chatHistory.push({ role: 'assistant', content: assistantMessage });
-    
+    const assistantMessage =
+      data.choices?.[0]?.message?.content ||
+      'No response received.';
+
+    chatHistory.push({
+      role: 'user',
+      content: message
+    });
+
+    chatHistory.push({
+      role: 'assistant',
+      content: assistantMessage
+    });
+
     addMessage('assistant', assistantMessage);
 
-  } catch (error) {
-    addMessage('assistant', `Error: ${error.message}. Please ensure your API key is set up correctly.`);
+  } catch (err) {
+    addMessage(
+      'assistant',
+      'Error: ' + err.message
+    );
   }
 
   sendBtn.disabled = false;
@@ -1120,36 +1153,33 @@ Guidelines:
 }
 
 function addMessage(role, content) {
-  const messageEl = document.createElement('div');
-  messageEl.className = `chat-message ${role}`;
-  
+  const wrapper = document.createElement('div');
+  wrapper.className = `chat-message ${role}`;
+
   const bubble = document.createElement('div');
   bubble.className = 'message-bubble';
-  
-  if (role === 'assistant') {
-    bubble.innerHTML = `<div>${content.replace(/\n/g, '<br>')}</div>`;
-  } else {
-    bubble.textContent = content;
-  }
-  
-  messageEl.appendChild(bubble);
-  chatMessages.appendChild(messageEl);
+
+  bubble.textContent = content;
+
+  wrapper.appendChild(bubble);
+
+  chatMessages.appendChild(wrapper);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-sendBtn.onclick = sendMessage;
-messageInput.addEventListener('keypress', (e) => {
+sendBtn.addEventListener('click', sendMessage);
+
+messageInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendMessage();
   }
 });
 
-// Load initial welcome message
-setTimeout(() => {
-  addMessage('assistant', `Assalamu alaikum wa rahmatullahi wa barakatuh! 🌙\n\nWelcome to the Islamic Knowledge Assistant. I'm here to help answer your questions about the Qur'an, Hadith, Islamic teachings, and practices.\n\nFeel free to ask about:\n• Qur'anic verses and their meanings\n• Hadith explanations\n• Islamic practices and rituals\n• Islamic history and scholars\n• Guidance on Islamic life matters\n\nWhat would you like to know?`);
-}, 500);
-
+addMessage(
+  'assistant',
+  'Assalamu Alaikum wa Rahmatullahi wa Barakatuh. How may I help you with Islamic knowledge today?'
+);
 /* ================= QURAN (Original Code) ================= */
 const QURAN_API = 'https://api.alquran.cloud/v1';
 const ARABIC_EDITION = 'quran-uthmani';
