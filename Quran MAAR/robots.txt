@@ -1,5 +1,0 @@
-# Quran Maar — robots.txt
-User-agent: *
-Allow: /
-
-Sitemap: https://20rajonadil.github.io/MAAR.Quran/sitemap.xml
