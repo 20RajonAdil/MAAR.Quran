@@ -1249,7 +1249,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
         <div class="footer-heading">Reciters available</div>
         <span class="footer-static">Mishary Al-Afasy</span>
         <span class="footer-static">Qari Shakir Qasmi</span>
-        <span class="footer-static">Imam of Masjid al-Haram (As-Sudais)</span>
+        <span class="footer-static">Imam of Masjid al-Haram (Al-Dosari)</span>
         <span class="footer-static">Al-Husary &amp; Al-Minshawi</span>
       </div>
     </nav>
@@ -2454,18 +2454,30 @@ const SHAKIR_QASMI_SURAH_AUDIO = {
   114: 'https://archive.org/download/QuranByQariShakirQasmi/Surah114An-nas-Mankind.mp3',
 };
 
-/* Sheikh Abdul Rahman Mossad has only recorded a limited set of complete
-   surahs (verified, real, direct files) — not the full 114-surah Mushaf.
-   Any surah outside this list, and all single-verse playback, safely
-   falls back to Mishary Al-Afasy audio. */
+/* Sheikh Abdul Rahman Mossad — verified real recordings hosted on the
+   Internet Archive (direct, hotlinkable files, same reliable hosting used
+   for Qari Shakir Qasmi above). tvquran.com's own download links block
+   direct in-page playback, so those are not used. Any surah outside this
+   list, and all single-verse playback, safely falls back to Mishary
+   Al-Afasy audio. */
 const MOSSAD_SURAH_AUDIO = {
-  32: 'https://download.tvquran.com/download/recitations/372/303/032.mp3',
-  73: 'https://download.tvquran.com/download/recitations/372/303/073.mp3',
-  78: 'https://download.tvquran.com/download/recitations/372/303/078.mp3',
-  87: 'https://download.tvquran.com/download/recitations/372/303/087.mp3',
-  88: 'https://download.tvquran.com/download/recitations/372/303/088.mp3',
-  100: 'https://download.tvquran.com/download/recitations/372/303/100.mp3',
-  107: 'https://download.tvquran.com/download/recitations/372/303/107.mp3'
+  29: 'https://archive.org/download/beautiful-quran-recitation-46/Sheikh%20Abdul%20Rahman%20Mossad%20%5B%20Al-Ankabut%20Ayat%2046-69%20%5D.mp3'
+};
+
+/* Sheikh Abdallah Humeid — Imam in Mombasa, Kenya. Verified real,
+   hotlinkable recordings from the Internet Archive. His complete
+   recitation of Surah An-Nahl (16) is split across five real audio
+   files that together cover all 128 verses, played back-to-back as one
+   continuous "Play surah" experience. Other surahs, and single-verse
+   playback, safely fall back to Mishary Al-Afasy audio. */
+const HUMEID_SURAH_PARTS = {
+  16: [
+    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%2001-34%20%5D.mp3',
+    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%2035-72%20%5D.mp3',
+    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%2073-89%20%5D.mp3',
+    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%20090-110%20%5D.mp3',
+    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%20111-128%20%5D.mp3'
+  ]
 };
 
 const RECITERS = [
@@ -2486,15 +2498,6 @@ const RECITERS = [
     ayah: false,
     surahOnly: true,
     tag: 'Featured'
-  },
-  {
-    id: 'sudais',
-    name: 'Sheikh Abdur-Rahman As-Sudais',
-    sub: "Imam of Masjid al-Haram (the Ka'bah), Makkah",
-    source: 'cdn',
-    edition: 'ar.abdurrahmaansudais',
-    ayah: true,
-    tag: 'Kaʿbah Imam'
   },
   {
     id: 'yasser',
@@ -2527,8 +2530,17 @@ const RECITERS = [
   {
     id: 'mossad',
     name: 'Sheikh Abdul Rahman Mossad',
-    sub: 'Egypt · emotive recitation (7 surahs recorded)',
-    source: 'tvquran-mossad',
+    sub: "Egypt · emotive recitation (Surah Al-Ankabut excerpt)",
+    source: 'archive-mossad',
+    ayah: false,
+    surahOnly: true,
+    tag: ''
+  },
+  {
+    id: 'humeid',
+    name: 'Sheikh Abdallah Humeid',
+    sub: 'Kenya (Mombasa) · complete recording of Surah An-Nahl',
+    source: 'archive-humeid-parts',
     ayah: false,
     surahOnly: true,
     tag: ''
@@ -2542,7 +2554,7 @@ let selectedReciterId = qmStorageGet('qm_reciter') || 'alafasy';
 if (!RECITERS.some(r => r.id === selectedReciterId)) selectedReciterId = 'alafasy';
 
 /* Returns a per-ayah audio URL for the CURRENTLY SELECTED reciter. If that
-   reciter has no per-ayah audio (Shakir Qasmi, Abdul Rahman Mossad), this
+   reciter has no per-ayah audio (Shakir Qasmi, Mossad, Humeid), this
    safely falls back to the app's original default per-ayah source so
    single-verse playback never breaks. */
 function ayahAudioUrl(ayahGlobalNumber, ayahInSurah){
@@ -2559,11 +2571,13 @@ function ayahAudioUrl(ayahGlobalNumber, ayahInSurah){
    selected reciter — a real recording, not per-ayah files stitched
    together — used by the modern player's progress bar / seek / duration.
    Returns null when that reciter has no recording of this particular
-   surah, which the player treats as an automatic, graceful fallback. */
+   surah, which the player treats as an automatic, graceful fallback.
+   (Sheikh Abdallah Humeid's multi-part recordings are handled separately
+   by playPartsChain(), since his audio is split across several files.) */
 function surahAudioUrl(surahNumber){
   const r = getReciter(selectedReciterId);
   if (r.source === 'archive-shakir') return SHAKIR_QASMI_SURAH_AUDIO[surahNumber] || null;
-  if (r.source === 'tvquran-mossad') return MOSSAD_SURAH_AUDIO[surahNumber] || null;
+  if (r.source === 'archive-mossad') return MOSSAD_SURAH_AUDIO[surahNumber] || null;
   if (r.source === 'everyayah') return `https://download.quranicaudio.com/quran/${r.quranicaudioSlug}/${String(surahNumber).padStart(3, '0')}.mp3`;
   const edition = r.edition || AUDIO_EDITION;
   return `https://cdn.islamic.network/quran/audio-surah/128/${edition}/${surahNumber}.mp3`;
@@ -2647,10 +2661,10 @@ function reciterNoteText(r){
     return `Qari Shakir Qasmi's voice is used only for full-surah playback — his recitation is available only as complete surah recordings, so "Play surah" streams his real, complete audio. Verse-by-verse playback on individual ayahs isn't available in his voice, so it automatically uses Mishary Al-Afasy audio instead.`;
   }
   if (r.id === 'mossad'){
-    return `Sheikh Abdul Rahman Mossad's voice is used only for full-surah playback, and only for the surahs he has recorded (As-Sajdah, Al-Muzzammil, An-Naba, Al-A'la, Al-Ghashiyah, Al-Adiyat and Al-Ma'un). For any other surah, and for verse-by-verse playback, this automatically uses Mishary Al-Afasy audio instead.`;
+    return `Sheikh Abdul Rahman Mossad's voice is used only for full-surah playback, and only for the one surah currently available in this app (an extended excerpt of Al-Ankabut). For any other surah, and for verse-by-verse playback, this automatically uses Mishary Al-Afasy audio instead.`;
   }
-  if (r.id === 'sudais'){
-    return `${r.name} leads prayers as Imam of Masjid al-Haram in Makkah, the mosque that surrounds the Ka'bah. Verse-by-verse and full-surah audio both stream from his recitation.`;
+  if (r.id === 'humeid'){
+    return `Sheikh Abdallah Humeid's voice is used only for full-surah playback, and only for Surah An-Nahl, the one surah currently available complete in this app. For any other surah, and for verse-by-verse playback, this automatically uses Mishary Al-Afasy audio instead.`;
   }
   if (r.id === 'yasser'){
     return `${r.name} has served as an Imam of Masjid al-Haram in Makkah, the mosque that surrounds the Ka'bah, since 2005. Verse-by-verse and full-surah audio both stream from his recitation.`;
@@ -3156,6 +3170,13 @@ function playSurahFrom(index){
    be loaded for any reason, it automatically falls back to the app's
    normal working ayah-by-ayah playback so the player never breaks. */
 function playFullSurah(surahNumber){
+  const r = getReciter(selectedReciterId);
+  if (r.source === 'archive-humeid-parts'){
+    const parts = HUMEID_SURAH_PARTS[surahNumber];
+    if (parts && parts.length){ playPartsChain(parts, 0, surahNumber); return; }
+    playSurahFrom(0);
+    return;
+  }
   const url = surahAudioUrl(surahNumber);
   if (!url){ playSurahFrom(0); return; }
   stopAudio();
@@ -3163,12 +3184,35 @@ function playFullSurah(surahNumber){
   currentAudio = new Audio(url);
   currentAudio.volume = qmVolume;
   attachProgressEvents(currentAudio);
-  const r = getReciter(selectedReciterId);
   const surahMeta = surahList.find(s => s.number === surahNumber);
   showPlayerBar(`${r.name} · ${surahMeta ? surahMeta.englishName : 'Surah ' + surahNumber} (full surah)`);
   setPlayPauseIcon(true);
   currentAudio.play().catch(()=>{});
   currentAudio.onended = ()=>{ stopAudio(); };
+  currentAudio.onerror = ()=>{
+    fullSurahAudioMode = false;
+    playSurahFrom(0);
+  };
+}
+
+/* Plays a real recitation that is split across several audio files (used
+   for Sheikh Abdallah Humeid, whose Surah An-Nahl recording is provided
+   as five sequential files) back-to-back as one continuous "Play surah"
+   experience. If any part fails to load, this falls back to the app's
+   normal ayah-by-ayah playback so the player never breaks. */
+function playPartsChain(parts, index, surahNumber){
+  if (index >= parts.length){ stopAudio(); return; }
+  if (index === 0) stopAudio();
+  fullSurahAudioMode = true;
+  currentAudio = new Audio(parts[index]);
+  currentAudio.volume = qmVolume;
+  attachProgressEvents(currentAudio);
+  const r = getReciter(selectedReciterId);
+  const surahMeta = surahList.find(s => s.number === surahNumber);
+  showPlayerBar(`${r.name} · ${surahMeta ? surahMeta.englishName : 'Surah ' + surahNumber} (part ${index + 1} of ${parts.length})`);
+  setPlayPauseIcon(true);
+  currentAudio.play().catch(()=>{});
+  currentAudio.onended = ()=> playPartsChain(parts, index + 1, surahNumber);
   currentAudio.onerror = ()=>{
     fullSurahAudioMode = false;
     playSurahFrom(0);
