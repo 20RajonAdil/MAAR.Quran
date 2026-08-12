@@ -6,7 +6,7 @@
 <title>Quran Maar — Read Qur'an Online with Audio Recitation, Prayer Times &amp; Hadith</title>
 
 <!-- ============ TECHNICAL SEO ============ -->
-<meta name="description" content="Quran Maar: read the Holy Qur'an online in Arabic with translations in 20 languages, listen to audio recitation by Qari Shakir Qasmi, Mishary Al-Afasy, the Imam of Masjid al-Haram (Makkah) and more, track live prayer times, explore Hadith collections, follow the Hijri calendar, and view a real-time Islamic moon phase. 100% free and private — everything is saved only on your device.">
+<meta name="description" content="Quran Maar: read the Holy Qur'an online in Arabic with translations in 20 languages, listen to audio recitation by Qari Shakir Qasmi, Mishary Al-Afasy, Abdul Rahman Mossad and more, track live prayer times, explore Hadith collections, follow the Hijri calendar, and view a real-time Islamic moon phase. 100% free and private — everything is saved only on your device.">
 <meta name="keywords" content="Quran online, read Quran, Quran audio, Quran recitation, Qari Shakir Qasmi, Mishary Al-Afasy, prayer times, Hijri calendar, Hadith, Islamic moon phase, Quran Maar">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="author" content="Md Adil Ahmed Rajon">
@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Quran Maar">
 <meta property="og:title" content="Quran Maar — Read Qur'an Online with Audio Recitation, Prayer Times &amp; Hadith">
-<meta property="og:description" content="Read the Qur'an with translations and multi-reciter audio (including Qari Shakir Qasmi and the Imam of Masjid al-Haram), track live prayer times, explore Hadith, follow the Hijri calendar, and view a real-time Islamic moon phase — 100% free and private.">
+<meta property="og:description" content="Read the Qur'an with translations and multi-reciter audio (including Qari Shakir Qasmi, Mishary Al-Afasy and Abdul Rahman Mossad), track live prayer times, explore Hadith, follow the Hijri calendar, and view a real-time Islamic moon phase — 100% free and private.">
 <meta property="og:url" content="https://20rajonadil.github.io/MAAR.Quran/">
 <meta property="og:image" content="https://20rajonadil.github.io/MAAR.Quran/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -29,7 +29,7 @@
 <!-- Twitter / X Card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Quran Maar — Read Qur'an Online with Audio Recitation, Prayer Times &amp; Hadith">
-<meta name="twitter:description" content="Read the Qur'an with translations and multi-reciter audio (Qari Shakir Qasmi, Mishary Al-Afasy, the Imam of Masjid al-Haram &amp; more), track prayer times, explore Hadith, and follow the Hijri calendar — 100% free and private.">
+<meta name="twitter:description" content="Read the Qur'an with translations and multi-reciter audio (Qari Shakir Qasmi, Mishary Al-Afasy, Abdul Rahman Mossad &amp; more), track prayer times, explore Hadith, and follow the Hijri calendar — 100% free and private.">
 <meta name="twitter:image" content="https://20rajonadil.github.io/MAAR.Quran/og-image.png">
 <meta name="twitter:image:alt" content="Quran Maar — Light, Time, Guidance">
 
@@ -58,7 +58,7 @@
       "@id": "https://20rajonadil.github.io/MAAR.Quran/#webapp",
       "name": "Quran Maar",
       "url": "https://20rajonadil.github.io/MAAR.Quran/",
-      "description": "A free, private Islamic companion app: read the Qur'an in Arabic with translations in 20 languages, listen to audio recitation from multiple reciters including Qari Shakir Qasmi and the Imam of Masjid al-Haram, track daily prayer times, explore Hadith collections, follow the Hijri calendar, and view a real-time moon phase. All data stays on your device.",
+      "description": "A free, private Islamic companion app: read the Qur'an in Arabic with translations in 20 languages, listen to audio recitation from multiple reciters including Qari Shakir Qasmi, Mishary Al-Afasy and Abdul Rahman Mossad, track daily prayer times, explore Hadith collections, follow the Hijri calendar, and view a real-time moon phase. All data stays on your device.",
       "applicationCategory": "LifestyleApplication",
       "operatingSystem": "Any",
       "browserRequirements": "Requires JavaScript",
@@ -1249,8 +1249,8 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
         <div class="footer-heading">Reciters available</div>
         <span class="footer-static">Mishary Al-Afasy</span>
         <span class="footer-static">Qari Shakir Qasmi</span>
-        <span class="footer-static">Imam of Masjid al-Haram (Al-Dosari)</span>
         <span class="footer-static">Al-Husary &amp; Al-Minshawi</span>
+        <span class="footer-static">Abdul Rahman Mossad</span>
       </div>
     </nav>
   </div>
@@ -2461,23 +2461,15 @@ const SHAKIR_QASMI_SURAH_AUDIO = {
    list, and all single-verse playback, safely falls back to Mishary
    Al-Afasy audio. */
 const MOSSAD_SURAH_AUDIO = {
-  29: 'https://archive.org/download/beautiful-quran-recitation-46/Sheikh%20Abdul%20Rahman%20Mossad%20%5B%20Al-Ankabut%20Ayat%2046-69%20%5D.mp3'
-};
-
-/* Sheikh Abdallah Humeid — Imam in Mombasa, Kenya. Verified real,
-   hotlinkable recordings from the Internet Archive. His complete
-   recitation of Surah An-Nahl (16) is split across five real audio
-   files that together cover all 128 verses, played back-to-back as one
-   continuous "Play surah" experience. Other surahs, and single-verse
-   playback, safely fall back to Mishary Al-Afasy audio. */
-const HUMEID_SURAH_PARTS = {
-  16: [
-    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%2001-34%20%5D.mp3',
-    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%2035-72%20%5D.mp3',
-    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%2073-89%20%5D.mp3',
-    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%20090-110%20%5D.mp3',
-    'https://archive.org/download/beautiful-quran-recitation-56/Sheikh%20Abdallah%20Humeid%20%5B%20An-Nahl%20Ayat%20111-128%20%5D.mp3'
-  ]
+  29: 'https://archive.org/download/abdulrahman-mosad/029%20Al-Ankabut%20%D8%A7%D9%84%D8%B9%D9%86%D9%83%D8%A8%D9%88%D8%AA.mp3',
+  32: 'https://archive.org/download/abdulrahman-mosad/032%20As-Sajdah%20%D8%A7%D9%84%D8%B3%D8%AC%D8%AF%D8%A9.mp3',
+  49: 'https://archive.org/download/abdulrahman-mosad/049%20Al-Hujurat%20%D8%A7%D9%84%D8%AD%D8%AC%D8%B1%D8%A7%D8%AA.mp3',
+  73: 'https://archive.org/download/abdulrahman-mosad/073%20Al-Muzzammil%20%D8%A7%D9%84%D9%85%D8%B2%D9%85%D9%84.mp3',
+  78: 'https://archive.org/download/abdulrahman-mosad/078%20An-Naba%20%D8%A7%D9%84%D9%86%D8%A8%D8%A3.mp3',
+  87: 'https://archive.org/download/abdulrahman-mosad/087%20Al-Ala%20%D8%A7%D9%84%D8%A3%D8%B9%D9%84%D9%89.mp3',
+  88: 'https://archive.org/download/abdulrahman-mosad/088%20Al-Ghashiyah%20%D8%A7%D9%84%D8%BA%D8%A7%D8%B4%D9%8A%D8%A9.mp3',
+  100: 'https://archive.org/download/abdulrahman-mosad/100%20Al-Adiyat%20%D8%A7%D9%84%D8%B9%D8%A7%D8%AF%D9%8A%D8%A7%D8%AA.mp3',
+  107: 'https://archive.org/download/abdulrahman-mosad/107%20Al-Ma%27un%20%D8%A7%D9%84%D9%85%D8%A7%D8%B9%D9%88%D9%86.mp3'
 };
 
 const RECITERS = [
@@ -2500,16 +2492,6 @@ const RECITERS = [
     tag: 'Featured'
   },
   {
-    id: 'yasser',
-    name: 'Sheikh Yasser Al-Dosari',
-    sub: "Imam of Masjid al-Haram (the Ka'bah), Makkah, since 2005",
-    source: 'everyayah',
-    everyayahDir: 'Yasser_Ad-Dussary_128kbps',
-    quranicaudioSlug: 'yasser_ad-dussary',
-    ayah: true,
-    tag: 'Kaʿbah Imam'
-  },
-  {
     id: 'husary',
     name: 'Sheikh Mahmoud Khalil Al-Husary',
     sub: 'Egypt · classic, measured Murattal style',
@@ -2530,17 +2512,8 @@ const RECITERS = [
   {
     id: 'mossad',
     name: 'Sheikh Abdul Rahman Mossad',
-    sub: "Egypt · emotive recitation (Surah Al-Ankabut excerpt)",
+    sub: 'Egypt · complete recordings of 9 surahs',
     source: 'archive-mossad',
-    ayah: false,
-    surahOnly: true,
-    tag: ''
-  },
-  {
-    id: 'humeid',
-    name: 'Sheikh Abdallah Humeid',
-    sub: 'Kenya (Mombasa) · complete recording of Surah An-Nahl',
-    source: 'archive-humeid-parts',
     ayah: false,
     surahOnly: true,
     tag: ''
@@ -2554,31 +2527,24 @@ let selectedReciterId = qmStorageGet('qm_reciter') || 'alafasy';
 if (!RECITERS.some(r => r.id === selectedReciterId)) selectedReciterId = 'alafasy';
 
 /* Returns a per-ayah audio URL for the CURRENTLY SELECTED reciter. If that
-   reciter has no per-ayah audio (Shakir Qasmi, Mossad, Humeid), this
-   safely falls back to the app's original default per-ayah source so
-   single-verse playback never breaks. */
+   reciter has no per-ayah audio (Shakir Qasmi, Mossad), this safely falls
+   back to the app's original default per-ayah source so single-verse
+   playback never breaks. */
 function ayahAudioUrl(ayahGlobalNumber, ayahInSurah){
   const r = getReciter(selectedReciterId);
-  if (r.ayah && r.source === 'everyayah' && currentSurahNumber && ayahInSurah){
-    const s = String(currentSurahNumber).padStart(3, '0');
-    const a = String(ayahInSurah).padStart(3, '0');
-    return `https://everyayah.com/data/${r.everyayahDir}/${s}${a}.mp3`;
-  }
   const edition = (r.ayah && r.source === 'cdn' && r.edition) ? r.edition : AUDIO_EDITION;
   return `https://cdn.islamic.network/quran/audio/128/${edition}/${ayahGlobalNumber}.mp3`;
 }
 /* Returns a single, continuous full-surah audio file for the currently
-   selected reciter — a real recording, not per-ayah files stitched
-   together — used by the modern player's progress bar / seek / duration.
-   Returns null when that reciter has no recording of this particular
-   surah, which the player treats as an automatic, graceful fallback.
-   (Sheikh Abdallah Humeid's multi-part recordings are handled separately
-   by playPartsChain(), since his audio is split across several files.) */
+   selected reciter — one real recording, exactly like Qari Shakir Qasmi's
+   files above — used by the modern player's progress bar / seek /
+   duration. Returns null when that reciter has no recording of this
+   particular surah, which the player treats as an automatic, graceful
+   fallback to Mishary Al-Afasy. */
 function surahAudioUrl(surahNumber){
   const r = getReciter(selectedReciterId);
   if (r.source === 'archive-shakir') return SHAKIR_QASMI_SURAH_AUDIO[surahNumber] || null;
   if (r.source === 'archive-mossad') return MOSSAD_SURAH_AUDIO[surahNumber] || null;
-  if (r.source === 'everyayah') return `https://download.quranicaudio.com/quran/${r.quranicaudioSlug}/${String(surahNumber).padStart(3, '0')}.mp3`;
   const edition = r.edition || AUDIO_EDITION;
   return `https://cdn.islamic.network/quran/audio-surah/128/${edition}/${surahNumber}.mp3`;
 }
@@ -2661,13 +2627,7 @@ function reciterNoteText(r){
     return `Qari Shakir Qasmi's voice is used only for full-surah playback — his recitation is available only as complete surah recordings, so "Play surah" streams his real, complete audio. Verse-by-verse playback on individual ayahs isn't available in his voice, so it automatically uses Mishary Al-Afasy audio instead.`;
   }
   if (r.id === 'mossad'){
-    return `Sheikh Abdul Rahman Mossad's voice is used only for full-surah playback, and only for the one surah currently available in this app (an extended excerpt of Al-Ankabut). For any other surah, and for verse-by-verse playback, this automatically uses Mishary Al-Afasy audio instead.`;
-  }
-  if (r.id === 'humeid'){
-    return `Sheikh Abdallah Humeid's voice is used only for full-surah playback, and only for Surah An-Nahl, the one surah currently available complete in this app. For any other surah, and for verse-by-verse playback, this automatically uses Mishary Al-Afasy audio instead.`;
-  }
-  if (r.id === 'yasser'){
-    return `${r.name} has served as an Imam of Masjid al-Haram in Makkah, the mosque that surrounds the Ka'bah, since 2005. Verse-by-verse and full-surah audio both stream from his recitation.`;
+    return `Sheikh Abdul Rahman Mossad's voice is used only for full-surah playback, and only for the 9 surahs he has recorded complete (Al-Ankabut, As-Sajdah, Al-Hujurat, Al-Muzzammil, An-Naba, Al-A'la, Al-Ghashiyah, Al-Adiyat and Al-Ma'un). For any other surah, and for verse-by-verse playback, this automatically uses Mishary Al-Afasy audio instead.`;
   }
   return `Verse-by-verse and full-surah audio both stream from ${r.name}'s recitation.`;
 }
@@ -3171,12 +3131,6 @@ function playSurahFrom(index){
    normal working ayah-by-ayah playback so the player never breaks. */
 function playFullSurah(surahNumber){
   const r = getReciter(selectedReciterId);
-  if (r.source === 'archive-humeid-parts'){
-    const parts = HUMEID_SURAH_PARTS[surahNumber];
-    if (parts && parts.length){ playPartsChain(parts, 0, surahNumber); return; }
-    playSurahFrom(0);
-    return;
-  }
   const url = surahAudioUrl(surahNumber);
   if (!url){ playSurahFrom(0); return; }
   stopAudio();
@@ -3189,30 +3143,6 @@ function playFullSurah(surahNumber){
   setPlayPauseIcon(true);
   currentAudio.play().catch(()=>{});
   currentAudio.onended = ()=>{ stopAudio(); };
-  currentAudio.onerror = ()=>{
-    fullSurahAudioMode = false;
-    playSurahFrom(0);
-  };
-}
-
-/* Plays a real recitation that is split across several audio files (used
-   for Sheikh Abdallah Humeid, whose Surah An-Nahl recording is provided
-   as five sequential files) back-to-back as one continuous "Play surah"
-   experience. If any part fails to load, this falls back to the app's
-   normal ayah-by-ayah playback so the player never breaks. */
-function playPartsChain(parts, index, surahNumber){
-  if (index >= parts.length){ stopAudio(); return; }
-  if (index === 0) stopAudio();
-  fullSurahAudioMode = true;
-  currentAudio = new Audio(parts[index]);
-  currentAudio.volume = qmVolume;
-  attachProgressEvents(currentAudio);
-  const r = getReciter(selectedReciterId);
-  const surahMeta = surahList.find(s => s.number === surahNumber);
-  showPlayerBar(`${r.name} · ${surahMeta ? surahMeta.englishName : 'Surah ' + surahNumber} (part ${index + 1} of ${parts.length})`);
-  setPlayPauseIcon(true);
-  currentAudio.play().catch(()=>{});
-  currentAudio.onended = ()=> playPartsChain(parts, index + 1, surahNumber);
   currentAudio.onerror = ()=>{
     fullSurahAudioMode = false;
     playSurahFrom(0);
