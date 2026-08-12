@@ -857,6 +857,15 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
   transition:.2s;
 }
 .surah-card:hover{background:rgba(34,211,238,.08);border-color:rgba(34,211,238,.3);transform:translateY(-1px);}
+.surah-card.reciter-available{
+  border-color:rgba(251,191,36,.55);background:rgba(251,191,36,.08);
+  box-shadow:0 0 0 1px rgba(251,191,36,.2) inset;
+}
+.surah-card.reciter-available:hover{border-color:rgba(251,191,36,.8);background:rgba(251,191,36,.14);}
+.surah-card .voice-badge{
+  display:inline-block;font-size:9px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;
+  color:var(--gold);background:rgba(251,191,36,.16);border-radius:999px;padding:2px 7px;margin-top:5px;
+}
 .surah-card .num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.06);font-size:11px;color:var(--accent);margin-right:6px;}
 .surah-card .ar{font-family:'Amiri',serif;float:right;color:var(--text);font-size:16px;}
 .surah-card .en{font-size:13px;font-weight:600;margin-top:4px;}
@@ -2647,6 +2656,15 @@ function renderReciterGrid(){
       qmStorageSet('qm_reciter', selectedReciterId);
       stopAudio();
       renderReciterGrid();
+      if (typeof surahList !== 'undefined' && surahList.length){
+        const q = document.getElementById('surahSearch').value.trim().toLowerCase();
+        renderSurahGrid(q ? surahList.filter(s =>
+          s.englishName.toLowerCase().includes(q) ||
+          s.englishNameTranslation.toLowerCase().includes(q) ||
+          String(s.number) === q ||
+          s.name.includes(q)
+        ) : surahList);
+      }
     };
   });
   const note = document.getElementById('reciterNote');
@@ -2872,14 +2890,21 @@ async function loadSurahList(){
 function renderSurahGrid(list){
   const grid = document.getElementById('surahGrid');
   if(!list.length){ grid.innerHTML = '<div class="small">No surah matches your search.</div>'; return; }
-  grid.innerHTML = list.map(s=>`
-    <div class="surah-card" data-n="${s.number}">
+  const r = getReciter(selectedReciterId);
+  const availableSurahs = (r.source === 'archive-shakir') ? SHAKIR_QASMI_SURAH_AUDIO
+    : (r.source === 'archive-mossad') ? MOSSAD_SURAH_AUDIO
+    : null;
+  grid.innerHTML = list.map(s=>{
+    const hasVoice = availableSurahs && !!availableSurahs[s.number];
+    return `
+    <div class="surah-card${hasVoice ? ' reciter-available' : ''}" data-n="${s.number}">
       <span class="ar">${s.name}</span>
       <span class="num">${s.number}</span>
       <div class="en">${s.englishName}</div>
       <div class="meta">${s.englishNameTranslation} · ${s.numberOfAyahs} ayahs · ${s.revelationType}</div>
+      ${hasVoice ? `<span class="voice-badge">${r.name.replace('Sheikh ', '').replace('Qari ', '')}'s voice</span>` : ''}
     </div>
-  `).join('');
+  `;}).join('');
   grid.querySelectorAll('.surah-card').forEach(card=>{
     card.onclick = ()=> openSurah(parseInt(card.dataset.n));
   });
