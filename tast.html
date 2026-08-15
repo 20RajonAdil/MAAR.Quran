@@ -1032,39 +1032,18 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
   box-shadow:var(--shadow-deep), inset 0 0 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
   flex-shrink:0;
 }
-.qb-ring{
+/* Fixed dial face — never rotates. Ticks and N/NE/E/SE/S/SW/W/NW labels are
+   printed on it, exactly like a normal analogue compass card. */
+.qb-dial{
   position:absolute;inset:0;border-radius:50%;
+}
+/* The needle is the ONLY part that rotates, driven purely by device heading —
+   a classic two-tone red (north) / blue (south) needle, like a real compass. */
+.qb-needle{
+  position:absolute;inset:0;
   transition:transform .15s linear;
   will-change:transform;
-}
-.qb-ring.qb-ring-animated{transition:transform .35s cubic-bezier(.2,.8,.2,1);}
-.qb-tick{position:absolute;left:50%;top:2%;width:1.5px;height:6%;background:rgba(255,255,255,.28);transform-origin:50% 2400%;}
-.qb-tick.qb-tick-major{width:2px;background:rgba(255,255,255,.55);height:8%;}
-.qb-dir-label{
-  position:absolute;left:50%;top:9%;transform-origin:50% 1650%;
-  font-family:'Outfit';font-weight:700;font-size:14px;color:var(--text);
-  translate:-50% 0;
-}
-.qb-dir-label.qb-dir-n{color:var(--accent2);font-size:16px;}
-.qb-deg-label{
-  position:absolute;left:50%;top:16%;transform-origin:50% 1000%;
-  font-size:9px;color:var(--muted);translate:-50% 0;
-}
-.qb-kaaba-marker{
-  position:absolute;left:50%;top:6%;transform-origin:50% 1900%;
-  translate:-50% 0;display:flex;flex-direction:column;align-items:center;gap:2px;
-}
-.qb-kaaba-icon{
-  width:16px;height:16px;border-radius:3px;background:linear-gradient(150deg,#2b2b2b,#0a0a0a);
-  border:1.5px solid var(--gold);box-shadow:0 0 10px rgba(251,191,36,.65),0 0 2px rgba(251,191,36,.9);
-}
-.qb-kaaba-line{width:2px;flex:1;min-height:14px;background:linear-gradient(180deg,var(--gold),transparent);}
-
-/* Fixed elements — do not rotate */
-.qb-fixed-pointer{
-  position:absolute;left:50%;top:-2px;translate:-50% 0;width:0;height:0;
-  border-left:9px solid transparent;border-right:9px solid transparent;border-top:16px solid var(--accent);
-  filter:drop-shadow(0 0 6px rgba(34,211,238,.7));z-index:3;
+  visibility:hidden;
 }
 .qb-center-hub{
   position:absolute;left:50%;top:50%;translate:-50% -50%;width:14px;height:14px;border-radius:50%;
@@ -1076,16 +1055,9 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 .qb-heading-readout .qb-heading-deg{font-family:'Outfit';font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;}
 .qb-heading-readout .qb-heading-lbl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
 
-/* Static (no live orientation) bearing diagram */
-.qb-static-arrow{
-  position:absolute;left:50%;top:50%;width:3px;height:38%;background:linear-gradient(180deg,var(--gold),rgba(251,191,36,.15));
-  transform-origin:50% 100%;translate:-50% -100%;border-radius:2px;box-shadow:0 0 10px rgba(251,191,36,.6);
-  display:none;
-}
-.qb-compass-housing.qb-mode-static .qb-static-arrow{display:block;}
-.qb-compass-housing.qb-mode-static .qb-fixed-pointer{display:none;}
-.qb-compass-housing.qb-mode-static .qb-ring{transform:none !important;}
-.qb-compass-housing.qb-facing .qb-kaaba-icon{box-shadow:0 0 16px rgba(251,191,36,1),0 0 4px #fff;transform:scale(1.15);}
+/* No live sensor: dial stays put, needle is hidden rather than faked */
+.qb-compass-housing.qb-mode-static .qb-needle{visibility:hidden;}
+
 .qb-compass-housing.qb-facing::after{
   content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(52,211,153,.55);
   box-shadow:0 0 22px rgba(52,211,153,.35);pointer-events:none;
@@ -1365,11 +1337,12 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 
       <div class="qb-compass-wrap">
         <div class="qb-compass-housing" id="qbHousing" aria-hidden="true">
-          <div class="qb-ring" id="qbRing">
-            <!-- ticks, dir labels, degree labels and the Qibla marker are injected by JS -->
+          <div class="qb-dial" id="qbDial">
+            <!-- ticks and N/NE/E/SE/S/SW/W/NW labels are injected by JS; this face never rotates -->
           </div>
-          <div class="qb-static-arrow" id="qbStaticArrow"></div>
-          <div class="qb-fixed-pointer"></div>
+          <div class="qb-needle" id="qbNeedle">
+            <!-- classic red (north) / blue (south) needle; injected by JS, rotates with device heading -->
+          </div>
           <div class="qb-center-hub"></div>
           <div class="qb-heading-readout" id="qbHeadingReadout" style="display:none;">
             <div class="qb-heading-deg" id="qbHeadingDeg">--°</div>
@@ -3633,14 +3606,16 @@ function qbCompassPointName(bearing){
 
 let qbEls = {};
 function qbCacheEls(){
-  const ids=['qbLocationBadge','qbStatusNote','qbHousing','qbRing','qbFixedPointerWrap','qbHeadingReadout',
+  const ids=['qbLocationBadge','qbStatusNote','qbHousing','qbDial','qbNeedle','qbHeadingReadout',
     'qbHeadingDeg','qbFacingBanner','qbDirectionVal','qbBearingVal','qbDistanceVal','qbLocationVal',
     'qbCompassStatusNote','qbCalibrationNote','qbAccuracyNote','qbEnableCompassBtn','qbRetryLocationBtn',
     'qbToggleSearchBtn','qbSearchWrap','qbSearchInput','qbSearchResults'];
   ids.forEach(id=>{ qbEls[id]=document.getElementById(id); });
 }
 
-function qbBuildRingSvg(){
+/* The dial face: fixed ticks + N/NE/E/SE/S/SW/W/NW labels, printed once and
+   never rotated — exactly like the face of a normal analogue compass. */
+function qbBuildDialSvg(){
   let ticks='', labels='';
   for (let deg=0; deg<360; deg+=15){
     const major = deg % 45 === 0;
@@ -3651,7 +3626,7 @@ function qbBuildRingSvg(){
     const deg=i*45;
     labels += `<text x="150" y="52" text-anchor="middle" class="${n==='N'?'qb-svg-label-n':'qb-svg-label'}" transform="rotate(${deg} 150 150)">${n}</text>`;
   });
-  qbEls.qbRing.innerHTML = `
+  qbEls.qbDial.innerHTML = `
     <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;overflow:visible;">
       <style>
         .qb-svg-tick{stroke:rgba(255,255,255,.28);stroke-width:1.5px;}
@@ -3661,12 +3636,20 @@ function qbBuildRingSvg(){
       </style>
       <circle cx="150" cy="150" r="144" fill="none" stroke="rgba(255,255,255,.08)"/>
       ${ticks}${labels}
-      <g id="qbKaabaMarker" transform="rotate(0 150 150)">
-        <line x1="150" y1="34" x2="150" y2="64" stroke="var(--gold)" stroke-width="2.5" stroke-linecap="round"/>
-        <rect x="141" y="16" width="18" height="18" rx="3" fill="#0a0a0a" stroke="var(--gold)" stroke-width="2" id="qbKaabaIcon"/>
-      </g>
     </svg>`;
-  qbEls.qbKaabaMarker = document.getElementById('qbKaabaMarker');
+}
+
+/* The needle: the only moving part. Classic two-tone design — red tip
+   points to North, blue tail points to South — rotated live from the
+   device's compass heading. This is a normal compass needle; it carries
+   no Qibla information of its own. */
+function qbBuildNeedleSvg(){
+  qbEls.qbNeedle.innerHTML = `
+    <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;overflow:visible;">
+      <polygon points="150,38 163,150 137,150" fill="#e11d1d" stroke="#7a0f0f" stroke-width="1"/>
+      <polygon points="150,262 163,150 137,150" fill="#2563eb" stroke="#0f2f7a" stroke-width="1"/>
+      <circle cx="150" cy="150" r="7" fill="#d9dde3" stroke="#333" stroke-width="1"/>
+    </svg>`;
 }
 
 function qbSetStatus(msg,type){
@@ -3700,7 +3683,6 @@ function qbRecalcQibla(){
   qbEls.qbDistanceVal.textContent = QB.distanceKm >= 1
     ? Math.round(QB.distanceKm).toLocaleString() + ' km'
     : Math.round(QB.distanceKm*1000) + ' m';
-  if (qbEls.qbKaabaMarker) qbEls.qbKaabaMarker.setAttribute('transform', `rotate(${QB.bearing} 150 150)`);
   qbUpdateFacingState();
 }
 
@@ -3951,7 +3933,8 @@ function qbHandleOrientationEvent(e){
     }
     qbSetCompassStatus('Live compass active — rotate your phone and the compass follows automatically.', 'ok');
   }
-  qbEls.qbRing.style.transform = `rotate(${-heading}deg)`;
+  qbEls.qbNeedle.style.transform = `rotate(${-heading}deg)`;
+  qbEls.qbNeedle.style.visibility = 'visible';
   qbEls.qbHeadingDeg.textContent = Math.round(heading) + '°';
   qbUpdateFacingState();
 }
@@ -3972,7 +3955,8 @@ function qbInit(){
   if (QB.inited) return;
   QB.inited = true;
   qbCacheEls();
-  qbBuildRingSvg();
+  qbBuildDialSvg();
+  qbBuildNeedleSvg();
 
   qbEls.qbRetryLocationBtn.addEventListener('click', qbDetectLocation);
   qbEls.qbToggleSearchBtn.addEventListener('click', ()=>{
