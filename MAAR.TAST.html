@@ -996,6 +996,107 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
   .player-time{font-size:10px;}
   .player-volume{width:100%;}
 }
+
+/* ================= QIBLA COMPASS ================= */
+.qb-note{
+  padding:11px 14px;border-radius:12px;font-size:12.5px;line-height:1.6;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);color:var(--muted);
+  margin-top:10px;
+}
+.qb-note b{color:var(--text);}
+.qb-note.qb-warn{background:rgba(251,191,36,.09);border-color:rgba(251,191,36,.3);color:var(--text);}
+.qb-note.qb-err{background:rgba(248,113,113,.09);border-color:rgba(248,113,113,.32);color:var(--text);}
+.qb-note.qb-ok{background:rgba(52,211,153,.09);border-color:rgba(52,211,153,.3);color:var(--text);}
+
+.qb-badge{
+  display:inline-flex;align-items:center;gap:5px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(34,211,238,.12);color:var(--accent);
+  white-space:nowrap;
+}
+.qb-badge.qb-badge-ip{background:rgba(251,191,36,.14);color:var(--gold);}
+.qb-badge.qb-badge-manual{background:rgba(168,139,250,.16);color:#c4b5fd;}
+.qb-badge.qb-badge-live{background:rgba(52,211,153,.15);color:var(--accent2);}
+.qb-badge.qb-badge-static{background:rgba(148,163,184,.16);color:var(--muted);}
+
+.qb-head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:2px;}
+
+/* Compass housing */
+.qb-compass-wrap{
+  display:flex;flex-direction:column;align-items:center;gap:14px;margin:18px auto 6px;max-width:340px;
+}
+.qb-compass-housing{
+  position:relative;width:min(78vw,300px);height:min(78vw,300px);border-radius:50%;
+  background:radial-gradient(circle at 32% 28%, rgba(255,255,255,.06), rgba(0,0,0,.25) 75%),
+             linear-gradient(160deg, rgba(255,255,255,.04), rgba(0,0,0,.15));
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:var(--shadow-deep), inset 0 0 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+  flex-shrink:0;
+}
+/* Fixed dial face — never rotates. Ticks and N/NE/E/SE/S/SW/W/NW labels are
+   printed on it, exactly like a normal analogue compass card. */
+.qb-dial{
+  position:absolute;inset:0;border-radius:50%;
+}
+/* The needle is the ONLY part that rotates, driven purely by device heading —
+   a classic two-tone red (north) / blue (south) needle, like a real compass. */
+.qb-needle{
+  position:absolute;inset:0;
+  transition:transform .15s linear;
+  will-change:transform;
+}
+.qb-center-hub{
+  position:absolute;left:50%;top:50%;translate:-50% -50%;width:14px;height:14px;border-radius:50%;
+  background:var(--text);box-shadow:0 0 0 4px rgba(255,255,255,.08),0 0 10px rgba(0,0,0,.5);z-index:3;
+}
+.qb-heading-readout{
+  position:absolute;left:50%;bottom:14%;translate:-50% 0;text-align:center;z-index:2;
+}
+.qb-heading-readout .qb-heading-deg{font-family:'Outfit';font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;}
+.qb-heading-readout .qb-heading-lbl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+
+/* No live sensor: dial and needle stay put at rest (needle points to the
+   printed N) instead of disappearing — only its live rotation is unavailable */
+
+.qb-compass-housing.qb-facing::after{
+  content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(52,211,153,.55);
+  box-shadow:0 0 22px rgba(52,211,153,.35);pointer-events:none;
+}
+
+.qb-facing-banner{
+  font-size:12.5px;font-weight:700;color:var(--accent2);text-align:center;min-height:18px;
+  opacity:0;transition:opacity .25s ease;
+}
+.qb-facing-banner.qb-show{opacity:1;}
+
+/* Info grid */
+.qb-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;}
+.qb-info-box{
+  padding:12px 12px;border-radius:12px;text-align:center;
+  background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.01));
+  border:1px solid rgba(255,255,255,.07);
+}
+.qb-info-box .qb-info-val{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;}
+.qb-info-box .qb-info-lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:3px;}
+
+.qb-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.qb-actions button{flex:1 1 auto;font-size:12.5px;}
+
+.qb-search-wrap{margin-top:12px;position:relative;}
+.qb-search-results{
+  margin-top:6px;border-radius:12px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(10,17,32,.96);backdrop-filter:blur(10px);overflow:hidden;max-height:260px;overflow-y:auto;
+  display:none;
+}
+.qb-search-results.qb-show{display:block;}
+.qb-search-item{padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);}
+.qb-search-item:last-child{border-bottom:none;}
+.qb-search-item:hover,.qb-search-item:focus-visible{background:rgba(34,211,238,.1);}
+.qb-search-item .qb-search-sub{display:block;font-size:11px;color:var(--muted);margin-top:1px;}
+
+@media(max-width:420px){
+  .qb-info-grid{grid-template-columns:1fr 1fr;}
+  .qb-actions button{flex:1 1 100%;}
+}
 </style>
 </head>
 <body>
@@ -1031,6 +1132,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
       <div class="tab active" data-tab="home" role="tab" aria-selected="true" tabindex="0">Home</div>
       <div class="tab" data-tab="quran" role="tab" aria-selected="false" tabindex="0">Qur'an</div>
       <div class="tab" data-tab="hadith" role="tab" aria-selected="false" tabindex="0">Hadith</div>
+      <div class="tab" data-tab="qibla" role="tab" aria-selected="false" tabindex="0">Qibla</div>
       <div class="tab" data-tab="about" role="tab" aria-selected="false" tabindex="0">About</div>
     </div>
 
@@ -1216,6 +1318,80 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
     </div>
   </section>
 
+  <!-- QIBLA -->
+  <section id="qibla" class="page">
+    <div class="panel">
+      <div class="qb-head-row">
+        <div>
+          <div class="eyebrow">Direction</div>
+          <h2 style="font-size:22px;margin-top:4px;">Qibla Compass</h2>
+        </div>
+        <span class="qb-badge" id="qbLocationBadge" style="display:none;"></span>
+      </div>
+      <p class="small" style="margin-top:6px;">
+        A normal digital compass, plus the direction to the Kaaba calculated separately from your coordinates.
+      </p>
+
+      <div id="qbStatusNote" class="qb-note">Working out how to determine your location…</div>
+
+      <div class="qb-compass-wrap">
+        <div class="qb-compass-housing" id="qbHousing" aria-hidden="true">
+          <div class="qb-dial" id="qbDial">
+            <!-- ticks and N/NE/E/SE/S/SW/W/NW labels are injected by JS; this face never rotates -->
+          </div>
+          <div class="qb-needle" id="qbNeedle">
+            <!-- classic red (north) / blue (south) needle; injected by JS, rotates with device heading -->
+          </div>
+          <div class="qb-center-hub"></div>
+          <div class="qb-heading-readout" id="qbHeadingReadout" style="display:none;">
+            <div class="qb-heading-deg" id="qbHeadingDeg">--°</div>
+            <div class="qb-heading-lbl">Heading</div>
+          </div>
+        </div>
+        <div class="qb-facing-banner" id="qbFacingBanner">You're facing the Qibla ✓</div>
+      </div>
+
+      <div class="qb-info-grid">
+        <div class="qb-info-box">
+          <div class="qb-info-val" id="qbDirectionVal">--</div>
+          <div class="qb-info-lbl">Qibla direction</div>
+        </div>
+        <div class="qb-info-box">
+          <div class="qb-info-val" id="qbBearingVal">--°</div>
+          <div class="qb-info-lbl">Bearing from true north</div>
+        </div>
+        <div class="qb-info-box">
+          <div class="qb-info-val" id="qbDistanceVal">--</div>
+          <div class="qb-info-lbl">Distance to the Kaaba</div>
+        </div>
+        <div class="qb-info-box">
+          <div class="qb-info-val" id="qbLocationVal">--</div>
+          <div class="qb-info-lbl">Detected location</div>
+        </div>
+      </div>
+
+      <div id="qbCompassStatusNote" class="qb-note" style="display:none;"></div>
+      <div id="qbCalibrationNote" class="qb-note qb-warn" style="display:none;"></div>
+      <div id="qbAccuracyNote" class="qb-note" style="display:none;"></div>
+
+      <div class="qb-actions">
+        <button class="ghost" id="qbEnableCompassBtn" style="display:none;">Enable compass</button>
+        <button class="ghost" id="qbRetryLocationBtn" style="display:none;">Retry device location</button>
+        <button class="ghost" id="qbToggleSearchBtn">Search for a location manually</button>
+      </div>
+
+      <div class="qb-search-wrap" id="qbSearchWrap" style="display:none;">
+        <input type="text" id="qbSearchInput" placeholder="e.g. Tokyo, Japan or a full address" autocomplete="off" style="width:100%;">
+        <div class="qb-search-results" id="qbSearchResults"></div>
+      </div>
+
+      <p class="small" style="margin-top:14px;opacity:.75;">
+        The Qibla bearing is calculated fresh from your coordinates and the Kaaba's fixed location
+        (21.4225° N, 39.8262° E) every time your location changes — it is never a fixed or assumed direction.
+      </p>
+    </div>
+  </section>
+
   <!-- ABOUT -->
   <section id="about" class="page">
     <div class="panel about-panel">
@@ -1252,6 +1428,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
         <a href="#home" class="footer-tab-link" data-tab="home">Home · Prayer Times &amp; Moon</a>
         <a href="#quran" class="footer-tab-link" data-tab="quran">Read the Qur'an &amp; Listen to Recitation</a>
         <a href="#hadith" class="footer-tab-link" data-tab="hadith">Hadith Collections</a>
+        <a href="#qibla" class="footer-tab-link" data-tab="qibla">Qibla Compass</a>
         <a href="#about" class="footer-tab-link" data-tab="about">About the Creator</a>
       </div>
       <div>
@@ -1370,6 +1547,7 @@ document.querySelectorAll('.tab').forEach(t=>{
 function openTab(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  if (id === 'qibla' && typeof qbInit === 'function') qbInit();
 }
 function selectTab(id){
   document.querySelectorAll('.tab').forEach(x=>{
@@ -3383,6 +3561,442 @@ document.getElementById('hadithJumpBtn').onclick = ()=>{
 
 refreshHadithLangOptions();
 loadHadithCollection();
+
+/* ================= QIBLA COMPASS =================
+   Two independent systems, kept deliberately separate:
+     1. The normal compass — shows where the device is physically pointing,
+        driven only by the device orientation sensor.
+     2. The Qibla calculation — the bearing to the Kaaba, computed purely
+        from the user's coordinates. It never assumes or hard-codes a
+        direction; it is recalculated whenever the location changes.
+   Location cascade: device GPS -> IP-based estimate -> manual search.
+   Orientation cascade: live sensor -> static calculated bearing if no
+   sensor, sensor is denied, or no events are ever received. */
+const QB_KAABA_LAT = 21.4225, QB_KAABA_LON = 39.8262;
+const QB_POINTS = ['North','North-northeast','Northeast','East-northeast','East','East-southeast',
+  'Southeast','South-southeast','South','South-southwest','Southwest','West-southwest',
+  'West','West-northwest','Northwest','North-northwest'];
+
+const QB = {
+  inited:false,
+  coords:null, locSource:null, accuracy:null, placeName:null,
+  bearing:null, distanceKm:null,
+  orientationChecked:false, orientationActive:false, lastHeading:null, headingType:null,
+  watchId:null, orientationWatchdog:null, lastGeocodedCoords:null
+};
+
+function qbToRad(d){ return d*Math.PI/180; }
+function qbToDeg(r){ return r*180/Math.PI; }
+
+function qbCalcBearing(lat1,lon1,lat2,lon2){
+  const φ1=qbToRad(lat1), φ2=qbToRad(lat2), Δλ=qbToRad(lon2-lon1);
+  const y=Math.sin(Δλ)*Math.cos(φ2);
+  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return (qbToDeg(Math.atan2(y,x))+360)%360;
+}
+function qbCalcDistanceKm(lat1,lon1,lat2,lon2){
+  const R=6371, φ1=qbToRad(lat1), φ2=qbToRad(lat2), Δφ=qbToRad(lat2-lat1), Δλ=qbToRad(lon2-lon1);
+  const a=Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function qbCompassPointName(bearing){
+  return QB_POINTS[Math.round(bearing/22.5)%16];
+}
+
+let qbEls = {};
+function qbCacheEls(){
+  const ids=['qbLocationBadge','qbStatusNote','qbHousing','qbDial','qbNeedle','qbHeadingReadout',
+    'qbHeadingDeg','qbFacingBanner','qbDirectionVal','qbBearingVal','qbDistanceVal','qbLocationVal',
+    'qbCompassStatusNote','qbCalibrationNote','qbAccuracyNote','qbEnableCompassBtn','qbRetryLocationBtn',
+    'qbToggleSearchBtn','qbSearchWrap','qbSearchInput','qbSearchResults'];
+  ids.forEach(id=>{ qbEls[id]=document.getElementById(id); });
+}
+
+/* The dial face: fixed ticks + N/NE/E/SE/S/SW/W/NW labels, printed once and
+   never rotated — exactly like the face of a normal analogue compass. */
+function qbBuildDialSvg(){
+  let ticks='', labels='';
+  for (let deg=0; deg<360; deg+=15){
+    const major = deg % 45 === 0;
+    ticks += `<line x1="150" y1="${major?16:20}" x2="150" y2="30" class="${major?'qb-svg-tick-major':'qb-svg-tick'}" transform="rotate(${deg} 150 150)"/>`;
+  }
+  const names=['N','NE','E','SE','S','SW','W','NW'];
+  names.forEach((n,i)=>{
+    const deg=i*45;
+    labels += `<text x="150" y="52" text-anchor="middle" class="${n==='N'?'qb-svg-label-n':'qb-svg-label'}" transform="rotate(${deg} 150 150)">${n}</text>`;
+  });
+  qbEls.qbDial.innerHTML = `
+    <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;overflow:visible;">
+      <style>
+        .qb-svg-tick{stroke:rgba(255,255,255,.28);stroke-width:1.5px;}
+        .qb-svg-tick-major{stroke:rgba(255,255,255,.55);stroke-width:2px;}
+        .qb-svg-label{fill:var(--text);font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;}
+        .qb-svg-label-n{fill:var(--accent2);font-family:'Outfit',sans-serif;font-weight:800;font-size:17px;}
+      </style>
+      <circle cx="150" cy="150" r="144" fill="none" stroke="rgba(255,255,255,.08)"/>
+      ${ticks}${labels}
+    </svg>`;
+}
+
+/* The needle: the only moving part. Classic two-tone design — red tip
+   points to North, blue tail points to South — rotated live from the
+   device's compass heading. This is a normal compass needle; it carries
+   no Qibla information of its own. */
+function qbBuildNeedleSvg(){
+  qbEls.qbNeedle.innerHTML = `
+    <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;overflow:visible;">
+      <defs>
+        <linearGradient id="qbNeedleRedGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#ff8a8a"/>
+          <stop offset="45%" stop-color="#e11d1d"/>
+          <stop offset="100%" stop-color="#7f1414"/>
+        </linearGradient>
+        <linearGradient id="qbNeedleBlueGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#8fb4ff"/>
+          <stop offset="45%" stop-color="#2563eb"/>
+          <stop offset="100%" stop-color="#122a63"/>
+        </linearGradient>
+        <radialGradient id="qbHubGrad" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="45%" stop-color="#cbd2db"/>
+          <stop offset="100%" stop-color="#4b5563"/>
+        </radialGradient>
+      </defs>
+      <g style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));">
+        <path d="M150,72 C157,92 159,116 150,150 C141,116 143,92 150,72 Z" fill="url(#qbNeedleRedGrad)" stroke="#6b1010" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M150,228 C157,208 159,184 150,150 C141,184 143,208 150,228 Z" fill="url(#qbNeedleBlueGrad)" stroke="#0d1f4d" stroke-width="1" stroke-linejoin="round"/>
+        <line x1="147" y1="80" x2="147" y2="142" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".45"/>
+        <line x1="147" y1="158" x2="147" y2="220" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".3"/>
+      </g>
+      <circle cx="150" cy="150" r="9" fill="url(#qbHubGrad)" stroke="#1f2937" stroke-width="1.2"/>
+    </svg>`;
+}
+
+function qbSetStatus(msg,type){
+  if (!msg){ qbEls.qbStatusNote.style.display='none'; return; }
+  qbEls.qbStatusNote.style.display='block';
+  qbEls.qbStatusNote.textContent = msg;
+  qbEls.qbStatusNote.className = 'qb-note' + (type ? ' qb-'+type : '');
+}
+function qbSetCompassStatus(msg,type){
+  if (!msg){ qbEls.qbCompassStatusNote.style.display='none'; return; }
+  qbEls.qbCompassStatusNote.style.display='block';
+  qbEls.qbCompassStatusNote.textContent = msg;
+  qbEls.qbCompassStatusNote.className = 'qb-note' + (type ? ' qb-'+type : '');
+}
+function qbShowCalibration(show,msg){
+  qbEls.qbCalibrationNote.style.display = show ? 'block' : 'none';
+  if (show) qbEls.qbCalibrationNote.textContent = msg || 'Your compass may need calibrating. Try moving your phone slowly in a figure-8 motion a few times.';
+}
+function qbShowAccuracyNote(msg){
+  if (!msg){ qbEls.qbAccuracyNote.style.display='none'; return; }
+  qbEls.qbAccuracyNote.style.display='block';
+  qbEls.qbAccuracyNote.textContent = msg;
+}
+
+function qbRecalcQibla(){
+  if (!QB.coords) return;
+  QB.bearing = qbCalcBearing(QB.coords.lat, QB.coords.lon, QB_KAABA_LAT, QB_KAABA_LON);
+  QB.distanceKm = qbCalcDistanceKm(QB.coords.lat, QB.coords.lon, QB_KAABA_LAT, QB_KAABA_LON);
+  qbEls.qbDirectionVal.textContent = qbCompassPointName(QB.bearing);
+  qbEls.qbBearingVal.textContent = QB.bearing.toFixed(1) + '°';
+  qbEls.qbDistanceVal.textContent = QB.distanceKm >= 1
+    ? Math.round(QB.distanceKm).toLocaleString() + ' km'
+    : Math.round(QB.distanceKm*1000) + ' m';
+  qbUpdateFacingState();
+}
+
+function qbUpdateLocationUI(){
+  const src = QB.locSource;
+  const badgeMap = {
+    gps:{text:'Device GPS', cls:'qb-badge-live'},
+    ip:{text:'Estimated (IP)', cls:'qb-badge-ip'},
+    manual:{text:'Manual selection', cls:'qb-badge-manual'}
+  };
+  const b = badgeMap[src];
+  if (b){
+    qbEls.qbLocationBadge.textContent = b.text;
+    qbEls.qbLocationBadge.className = 'qb-badge ' + b.cls;
+    qbEls.qbLocationBadge.style.display = 'inline-flex';
+  } else {
+    qbEls.qbLocationBadge.style.display = 'none';
+  }
+
+  qbEls.qbLocationVal.textContent = QB.placeName
+    ? QB.placeName
+    : (QB.coords ? `${QB.coords.lat.toFixed(3)}°, ${QB.coords.lon.toFixed(3)}°` : '--');
+
+  if (src === 'gps'){
+    qbSetStatus('Location detected using your device' + (QB.accuracy ? ` (accuracy ~${Math.round(QB.accuracy)} m)` : '') + '.', 'ok');
+    qbEls.qbRetryLocationBtn.style.display = 'none';
+  } else if (src === 'ip'){
+    qbSetStatus('Location estimated from your IP address — this is usually only accurate to city level, not exact. ' +
+      (QB.placeName ? `Detected near ${QB.placeName}. ` : '') +
+      'Use "Retry device location" or search manually for a more precise result.', 'warn');
+    qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
+  } else if (src === 'manual'){
+    qbSetStatus('Qibla calculated from your selected location.', 'ok');
+    qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
+  }
+}
+
+function qbApplyLocation(lat, lon, source, accuracy, placeName){
+  const prev = QB.coords;
+  QB.coords = { lat, lon };
+  QB.locSource = source;
+  QB.accuracy = accuracy || null;
+  if (placeName) QB.placeName = placeName;
+  else if (source !== 'gps') QB.placeName = null;
+
+  qbRecalcQibla();
+  qbUpdateLocationUI();
+
+  if (source === 'gps'){
+    const moved = !QB.lastGeocodedCoords || qbCalcDistanceKm(lat,lon,QB.lastGeocodedCoords.lat,QB.lastGeocodedCoords.lon) > 2;
+    if (moved){
+      QB.lastGeocodedCoords = {lat,lon};
+      qbReverseGeocode(lat,lon);
+    }
+  }
+  if (!QB.orientationChecked) qbSetupOrientation();
+}
+
+function qbReverseGeocode(lat,lon){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), 6000);
+  fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10`, {signal:ctrl.signal})
+    .then(r=>r.json())
+    .then(j=>{
+      clearTimeout(t);
+      const a = j && j.address;
+      if (!a) return;
+      const name = [a.city||a.town||a.village||a.county, a.country].filter(Boolean).join(', ');
+      if (name && QB.locSource === 'gps'){
+        QB.placeName = name;
+        qbEls.qbLocationVal.textContent = name;
+      }
+    })
+    .catch(()=>{ clearTimeout(t); });
+}
+
+function qbFallbackToIp(reason){
+  qbSetStatus(reason + ' Estimating your location from your IP address instead…', 'warn');
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), 7000);
+  fetch('https://ipapi.co/json/', {signal:ctrl.signal})
+    .then(r=>r.json())
+    .then(j=>{
+      clearTimeout(t);
+      if (!j || typeof j.latitude !== 'number') throw new Error('no coords');
+      const place = [j.city, j.country_name].filter(Boolean).join(', ');
+      qbApplyLocation(j.latitude, j.longitude, 'ip', null, place);
+    })
+    .catch(()=>{
+      clearTimeout(t);
+      fetch('https://ipwho.is/').then(r=>r.json()).then(j=>{
+        if (!j || j.success === false || typeof j.latitude !== 'number') throw new Error('no coords');
+        const place = [j.city, j.country].filter(Boolean).join(', ');
+        qbApplyLocation(j.latitude, j.longitude, 'ip', null, place);
+      }).catch(()=>{
+        qbSetStatus('We couldn\'t automatically detect your location using your device or your IP address. Please search for your city, place, or address below.', 'err');
+        qbShowSearch(true);
+        qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
+      });
+    });
+}
+
+function qbDetectLocation(){
+  qbSetStatus('Requesting your device location…');
+  if (!navigator.geolocation){
+    qbFallbackToIp('Your browser does not support device geolocation.');
+    return;
+  }
+  if (QB.watchId !== null){ navigator.geolocation.clearWatch(QB.watchId); QB.watchId = null; }
+  let resolved = false;
+  QB.watchId = navigator.geolocation.watchPosition(
+    pos=>{
+      resolved = true;
+      qbApplyLocation(pos.coords.latitude, pos.coords.longitude, 'gps', pos.coords.accuracy);
+    },
+    err=>{
+      if (resolved) return; // a later transient error shouldn't discard a working live fix
+      let msg = 'Could not get your device location.';
+      if (err.code === 1) msg = 'Location permission was denied.';
+      else if (err.code === 2) msg = 'Your device location is currently unavailable.';
+      else if (err.code === 3) msg = 'Getting your device location timed out.';
+      qbFallbackToIp(msg);
+    },
+    { enableHighAccuracy:true, timeout:9000, maximumAge:30000 }
+  );
+}
+
+/* ---- Manual location search (Nominatim/OpenStreetMap) ---- */
+function qbShowSearch(show){
+  qbEls.qbSearchWrap.style.display = show ? 'block' : 'none';
+  if (show) qbEls.qbSearchInput.focus();
+}
+let qbSearchDebounce = null;
+function qbRunSearch(q){
+  if (!q || q.trim().length < 2){ qbEls.qbSearchResults.classList.remove('qb-show'); qbEls.qbSearchResults.innerHTML=''; return; }
+  fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=0&limit=6&q=${encodeURIComponent(q)}`)
+    .then(r=>r.json())
+    .then(results=>{
+      if (!Array.isArray(results) || !results.length){
+        qbEls.qbSearchResults.innerHTML = '<div class="qb-search-item small">No matching places found.</div>';
+        qbEls.qbSearchResults.classList.add('qb-show');
+        return;
+      }
+      qbEls.qbSearchResults.innerHTML = results.map((r,i)=>{
+        const parts = r.display_name.split(',');
+        const main = parts[0].trim();
+        const sub = parts.slice(1,3).join(',').trim();
+        return `<div class="qb-search-item" tabindex="0" data-idx="${i}"><span>${main}</span><span class="qb-search-sub">${sub}</span></div>`;
+      }).join('');
+      qbEls.qbSearchResults.classList.add('qb-show');
+      Array.from(qbEls.qbSearchResults.querySelectorAll('.qb-search-item[data-idx]')).forEach(el=>{
+        const pick = ()=>{
+          const r = results[parseInt(el.dataset.idx)];
+          const name = r.display_name.split(',').slice(0,3).join(', ');
+          qbEls.qbSearchResults.classList.remove('qb-show');
+          qbEls.qbSearchInput.value = '';
+          qbApplyLocation(parseFloat(r.lat), parseFloat(r.lon), 'manual', null, name);
+          qbShowSearch(false);
+        };
+        el.addEventListener('click', pick);
+        el.addEventListener('keydown', e=>{ if (e.key==='Enter'){ e.preventDefault(); pick(); } });
+      });
+    })
+    .catch(()=>{
+      qbEls.qbSearchResults.innerHTML = '<div class="qb-search-item small">Search failed — check your connection and try again.</div>';
+      qbEls.qbSearchResults.classList.add('qb-show');
+    });
+}
+
+/* ---- Device orientation (the normal compass) ---- */
+function qbOrientationUnsupported(){
+  qbEls.qbHousing.classList.add('qb-mode-static');
+  qbSetCompassStatus('Your device or browser doesn\'t support a live orientation/compass sensor, so a rotating compass can\'t be shown here. The Qibla direction and bearing above are still calculated accurately from your location.', '');
+}
+function qbOrientationDenied(){
+  qbEls.qbHousing.classList.add('qb-mode-static');
+  qbSetCompassStatus('Compass permission wasn\'t granted, so a live rotating compass isn\'t available. The Qibla direction and bearing above are still calculated from your location — you can line them up using a separate physical compass if you have one.', 'warn');
+}
+function qbSetupOrientation(){
+  QB.orientationChecked = true;
+  if (!window.DeviceOrientationEvent){
+    qbOrientationUnsupported();
+    return;
+  }
+  if (typeof DeviceOrientationEvent.requestPermission === 'function'){
+    qbEls.qbEnableCompassBtn.style.display = 'inline-flex';
+    qbSetCompassStatus('Tap "Enable compass" to allow MAAR to use your device\'s compass sensor for a live, rotating Qibla compass.', '');
+    qbEls.qbEnableCompassBtn.onclick = ()=>{
+      DeviceOrientationEvent.requestPermission().then(state=>{
+        if (state === 'granted'){
+          qbEls.qbEnableCompassBtn.style.display = 'none';
+          qbAttachOrientationListener();
+        } else {
+          qbOrientationDenied();
+        }
+      }).catch(()=> qbOrientationDenied());
+    };
+  } else {
+    qbAttachOrientationListener();
+  }
+}
+function qbAttachOrientationListener(){
+  let received = false;
+  const eventName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+  function handler(e){
+    if (e.alpha === null && typeof e.webkitCompassHeading !== 'number') return;
+    received = true;
+    qbHandleOrientationEvent(e);
+  }
+  window.addEventListener(eventName, handler, true);
+  QB.orientationWatchdog = setTimeout(()=>{
+    if (!received){
+      window.removeEventListener(eventName, handler, true);
+      qbOrientationUnsupported();
+    }
+  }, 2500);
+}
+function qbHandleOrientationEvent(e){
+  if (QB.orientationWatchdog){ clearTimeout(QB.orientationWatchdog); QB.orientationWatchdog = null; }
+  if (!QB.orientationActive){
+    QB.orientationActive = true;
+    qbEls.qbHousing.classList.remove('qb-mode-static');
+    qbEls.qbHeadingReadout.style.display = 'block';
+    qbEls.qbEnableCompassBtn.style.display = 'none';
+  }
+  let heading, type;
+  if (typeof e.webkitCompassHeading === 'number'){
+    // iOS: already a compass heading (clockwise from magnetic north) and
+    // already accounts for the current screen orientation — do not adjust further.
+    heading = e.webkitCompassHeading;
+    type = 'magnetic';
+    const acc = e.webkitCompassAccuracy;
+    qbShowCalibration(typeof acc === 'number' && (acc < 0 || acc > 25));
+  } else if (e.alpha !== null){
+    // Standard DeviceOrientation: alpha is measured counter-clockwise from
+    // the device's initial "natural" orientation, so first convert to a
+    // clockwise compass heading, then subtract the screen's current
+    // rotation (screen.orientation.angle) so it stays correct in both
+    // portrait and landscape.
+    const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+    heading = 360 - e.alpha - screenAngle;
+    heading = ((heading % 360) + 360) % 360;
+    type = e.absolute ? 'true-approx' : 'magnetic-uncalibrated';
+  } else {
+    return;
+  }
+
+  QB.lastHeading = heading;
+  if (QB.headingType !== type){
+    QB.headingType = type;
+    if (type === 'magnetic' || type === 'magnetic-uncalibrated'){
+      qbShowAccuracyNote('Heading is based on magnetic north from your device sensor, which can differ slightly from true north depending on your location. Treat the compass as a close guide rather than a millimetre-precise instrument.');
+    } else {
+      qbShowAccuracyNote('Heading is device-reported and best-effort — sensor quality varies by device and can drift, so use it as a reliable guide rather than a guaranteed-exact reading.');
+    }
+    qbSetCompassStatus('Live compass active — rotate your phone and the compass follows automatically.', 'ok');
+  }
+  qbEls.qbNeedle.style.transform = `rotate(${-heading}deg)`;
+  qbEls.qbHeadingDeg.textContent = Math.round(heading) + '°';
+  qbUpdateFacingState();
+}
+function qbUpdateFacingState(){
+  if (QB.bearing == null || QB.lastHeading == null || !QB.orientationActive){
+    qbEls.qbHousing.classList.remove('qb-facing');
+    qbEls.qbFacingBanner.classList.remove('qb-show');
+    return;
+  }
+  let diff = Math.abs(QB.bearing - QB.lastHeading);
+  if (diff > 180) diff = 360 - diff;
+  const facing = diff <= 6;
+  qbEls.qbHousing.classList.toggle('qb-facing', facing);
+  qbEls.qbFacingBanner.classList.toggle('qb-show', facing);
+}
+
+function qbInit(){
+  if (QB.inited) return;
+  QB.inited = true;
+  qbCacheEls();
+  qbBuildDialSvg();
+  qbBuildNeedleSvg();
+
+  qbEls.qbRetryLocationBtn.addEventListener('click', qbDetectLocation);
+  qbEls.qbToggleSearchBtn.addEventListener('click', ()=>{
+    const showing = qbEls.qbSearchWrap.style.display === 'block';
+    qbShowSearch(!showing);
+  });
+  qbEls.qbSearchInput.addEventListener('input', ()=>{
+    clearTimeout(qbSearchDebounce);
+    const val = qbEls.qbSearchInput.value;
+    qbSearchDebounce = setTimeout(()=> qbRunSearch(val), 450);
+  });
+
+  qbDetectLocation();
+}
 
 /* ================= Disable Right-Click ================= */
 document.addEventListener('contextmenu', e=>e.preventDefault());
