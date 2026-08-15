@@ -1038,7 +1038,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
   position:absolute;inset:0;border-radius:50%;
 }
 /* The needle is the ONLY part that rotates, driven purely by device heading —
-   a classic two-tone red (north) / blue (south) needle, like a real compass. */
+   a classic two-tone red (north) / black (south) needle, like a real compass. */
 .qb-needle{
   position:absolute;inset:0;
   transition:transform .15s linear;
@@ -1056,6 +1056,20 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 
 /* No live sensor: dial and needle stay put at rest (needle points to the
    printed N) instead of disappearing — only its live rotation is unavailable */
+
+/* Manual Compass Mode — the housing itself becomes a drag/rotate control
+   (mouse-drag on desktop, two-finger rotate on touch) so the user can align
+   the red needle with north themselves when no live sensor is available. */
+.qb-compass-housing.qb-mode-manual{
+  cursor:grab;touch-action:none;user-select:none;
+  box-shadow:var(--shadow-deep), inset 0 0 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06),
+             0 0 0 3px rgba(34,211,238,.22);
+}
+.qb-compass-housing.qb-mode-manual .qb-needle{transition:none;}
+.qb-note.qb-manual{
+  background:rgba(34,211,238,.13);border-color:rgba(34,211,238,.45);color:var(--text);
+  font-weight:600;text-align:center;
+}
 
 .qb-compass-housing.qb-facing::after{
   content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(52,211,153,.55);
@@ -1334,13 +1348,14 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 
       <div id="qbStatusNote" class="qb-note">Working out how to determine your location…</div>
 
+      <div id="qbManualNote" class="qb-note qb-manual" style="display:none;"></div>
       <div class="qb-compass-wrap">
         <div class="qb-compass-housing" id="qbHousing" aria-hidden="true">
           <div class="qb-dial" id="qbDial">
             <!-- ticks and N/NE/E/SE/S/SW/W/NW labels are injected by JS; this face never rotates -->
           </div>
           <div class="qb-needle" id="qbNeedle">
-            <!-- classic red (north) / blue (south) needle; injected by JS, rotates with device heading -->
+            <!-- classic red (north) / black (south) needle; injected by JS, rotates with device heading -->
           </div>
           <div class="qb-center-hub"></div>
           <div class="qb-heading-readout" id="qbHeadingReadout" style="display:none;">
@@ -3582,7 +3597,8 @@ const QB = {
   coords:null, locSource:null, accuracy:null, placeName:null,
   bearing:null, distanceKm:null,
   orientationChecked:false, orientationActive:false, lastHeading:null, headingType:null,
-  watchId:null, orientationWatchdog:null, lastGeocodedCoords:null
+  watchId:null, orientationWatchdog:null, lastGeocodedCoords:null,
+  manualMode:false, manualAngleDeg:0, manualListenersAttached:false
 };
 
 function qbToRad(d){ return d*Math.PI/180; }
@@ -3608,7 +3624,7 @@ function qbCacheEls(){
   const ids=['qbLocationBadge','qbStatusNote','qbHousing','qbDial','qbNeedle','qbHeadingReadout',
     'qbHeadingDeg','qbFacingBanner','qbDirectionVal','qbBearingVal','qbDistanceVal','qbLocationVal',
     'qbCompassStatusNote','qbCalibrationNote','qbAccuracyNote','qbEnableCompassBtn','qbRetryLocationBtn',
-    'qbToggleSearchBtn','qbSearchWrap','qbSearchInput','qbSearchResults'];
+    'qbToggleSearchBtn','qbSearchWrap','qbSearchInput','qbSearchResults','qbManualNote'];
   ids.forEach(id=>{ qbEls[id]=document.getElementById(id); });
 }
 
@@ -3639,9 +3655,10 @@ function qbBuildDialSvg(){
 }
 
 /* The needle: the only moving part. Classic two-tone design — red tip
-   points to North, blue tail points to South — rotated live from the
-   device's compass heading. This is a normal compass needle; it carries
-   no Qibla information of its own. */
+   points to (magnetic) North, black tail points to South — exactly like
+   the needle on a real analogue compass, rotated live from the device's
+   compass heading. This is a normal compass needle; it carries no Qibla
+   information of its own. */
 function qbBuildNeedleSvg(){
   qbEls.qbNeedle.innerHTML = `
     <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;overflow:visible;">
@@ -3651,10 +3668,10 @@ function qbBuildNeedleSvg(){
           <stop offset="45%" stop-color="#e11d1d"/>
           <stop offset="100%" stop-color="#7f1414"/>
         </linearGradient>
-        <linearGradient id="qbNeedleBlueGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#8fb4ff"/>
-          <stop offset="45%" stop-color="#2563eb"/>
-          <stop offset="100%" stop-color="#122a63"/>
+        <linearGradient id="qbNeedleBlackGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#6b7280"/>
+          <stop offset="45%" stop-color="#1f2328"/>
+          <stop offset="100%" stop-color="#000000"/>
         </linearGradient>
         <radialGradient id="qbHubGrad" cx="35%" cy="30%" r="75%">
           <stop offset="0%" stop-color="#ffffff"/>
@@ -3664,9 +3681,9 @@ function qbBuildNeedleSvg(){
       </defs>
       <g style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));">
         <path d="M150,72 C157,92 159,116 150,150 C141,116 143,92 150,72 Z" fill="url(#qbNeedleRedGrad)" stroke="#6b1010" stroke-width="1" stroke-linejoin="round"/>
-        <path d="M150,228 C157,208 159,184 150,150 C141,184 143,208 150,228 Z" fill="url(#qbNeedleBlueGrad)" stroke="#0d1f4d" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M150,228 C157,208 159,184 150,150 C141,184 143,208 150,228 Z" fill="url(#qbNeedleBlackGrad)" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
         <line x1="147" y1="80" x2="147" y2="142" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".45"/>
-        <line x1="147" y1="158" x2="147" y2="220" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".3"/>
+        <line x1="147" y1="158" x2="147" y2="220" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".18"/>
       </g>
       <circle cx="150" cy="150" r="9" fill="url(#qbHubGrad)" stroke="#1f2937" stroke-width="1.2"/>
     </svg>`;
@@ -3875,11 +3892,95 @@ function qbRunSearch(q){
 /* ---- Device orientation (the normal compass) ---- */
 function qbOrientationUnsupported(){
   qbEls.qbHousing.classList.add('qb-mode-static');
-  qbSetCompassStatus('Your device or browser doesn\'t support a live orientation/compass sensor, so a rotating compass can\'t be shown here. The Qibla direction and bearing above are still calculated accurately from your location.', '');
+  qbSetCompassStatus('Your device or browser doesn\'t support a live orientation/compass sensor, so the needle can\'t track automatically. The Qibla direction and bearing above are still calculated accurately from your location.', '');
+  qbEnableManualMode();
 }
 function qbOrientationDenied(){
   qbEls.qbHousing.classList.add('qb-mode-static');
-  qbSetCompassStatus('Compass permission wasn\'t granted, so a live rotating compass isn\'t available. The Qibla direction and bearing above are still calculated from your location — you can line them up using a separate physical compass if you have one.', 'warn');
+  qbSetCompassStatus('Compass permission wasn\'t granted, so the needle can\'t track automatically. The Qibla direction and bearing above are still calculated from your location.', 'warn');
+  qbEnableManualMode();
+}
+
+/* ---- Manual Compass Mode ----
+   Used whenever a live orientation sensor isn't available or was denied.
+   Nothing is faked: the needle simply stops trying to auto-track, and the
+   user rotates it themselves (mouse-drag on desktop, two-finger rotate on
+   touch) against a known reference — e.g. the sun, a landmark, or a
+   physical compass — to align the red (north) tip with true/magnetic north. */
+function qbEnableManualMode(){
+  if (QB.manualMode) return;
+  QB.manualMode = true;
+  qbEls.qbHousing.classList.add('qb-mode-manual');
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  qbEls.qbManualNote.textContent = isTouch
+    ? 'Manual Compass Mode — use two fingers to rotate the compass and align the red needle with North for manual calibration.'
+    : 'Manual Compass Mode — click and drag to rotate the compass and align the red needle with North for manual calibration.';
+  qbEls.qbManualNote.style.display = 'block';
+  qbEls.qbHeadingReadout.style.display = 'block';
+  qbShowAccuracyNote('You are aligning the needle yourself using a known reference (such as the sun, a landmark, or a physical compass) — MAAR is not measuring your heading automatically in this mode.');
+  qbSetManualAngle(QB.manualAngleDeg || 0);
+  qbAttachManualRotationHandlers();
+}
+function qbAngleFromPoint(clientX, clientY){
+  const rect = qbEls.qbHousing.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+  const dx = clientX - cx, dy = clientY - cy;
+  return Math.atan2(dx, -dy) * 180 / Math.PI; // 0° = up, clockwise positive
+}
+function qbAngleBetweenTouches(touches){
+  const dx = touches[1].clientX - touches[0].clientX;
+  const dy = touches[1].clientY - touches[0].clientY;
+  return Math.atan2(dy, dx) * 180 / Math.PI;
+}
+function qbSetManualAngle(angleDeg){
+  const angle = ((angleDeg % 360) + 360) % 360;
+  QB.manualAngleDeg = angle;
+  QB.headingType = 'manual';
+  QB.lastHeading = (360 - angle) % 360; // consistent with rotate(-heading) used for live mode
+  qbEls.qbNeedle.style.transform = `rotate(${angle}deg)`;
+  qbEls.qbHeadingDeg.textContent = Math.round(QB.lastHeading) + '°';
+  qbUpdateFacingState();
+}
+function qbAttachManualRotationHandlers(){
+  if (QB.manualListenersAttached) return;
+  QB.manualListenersAttached = true;
+  const housing = qbEls.qbHousing;
+
+  housing.addEventListener('mousedown', e=>{
+    if (!QB.manualMode) return;
+    e.preventDefault();
+    const startPointer = qbAngleFromPoint(e.clientX, e.clientY);
+    const startManual = QB.manualAngleDeg;
+    housing.style.cursor = 'grabbing';
+    function onMove(ev){ qbSetManualAngle(startManual + (qbAngleFromPoint(ev.clientX, ev.clientY) - startPointer)); }
+    function onUp(){
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      housing.style.cursor = 'grab';
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
+  let touchStartAngle = null, touchStartManual = 0;
+  housing.addEventListener('touchstart', e=>{
+    if (!QB.manualMode) return;
+    if (e.touches.length === 2){
+      e.preventDefault();
+      touchStartAngle = qbAngleBetweenTouches(e.touches);
+      touchStartManual = QB.manualAngleDeg;
+    }
+  }, {passive:false});
+  housing.addEventListener('touchmove', e=>{
+    if (!QB.manualMode) return;
+    if (e.touches.length === 2 && touchStartAngle !== null){
+      e.preventDefault();
+      qbSetManualAngle(touchStartManual + (qbAngleBetweenTouches(e.touches) - touchStartAngle));
+    }
+  }, {passive:false});
+  housing.addEventListener('touchend', e=>{
+    if (e.touches.length < 2) touchStartAngle = null;
+  });
 }
 function qbSetupOrientation(){
   QB.orientationChecked = true;
@@ -3927,21 +4028,34 @@ function qbHandleOrientationEvent(e){
     qbEls.qbHousing.classList.remove('qb-mode-static');
     qbEls.qbHeadingReadout.style.display = 'block';
     qbEls.qbEnableCompassBtn.style.display = 'none';
+    if (QB.manualMode){
+      QB.manualMode = false;
+      qbEls.qbHousing.classList.remove('qb-mode-manual');
+      qbEls.qbHousing.style.cursor = '';
+      qbEls.qbManualNote.style.display = 'none';
+    }
   }
   let heading, type;
   if (typeof e.webkitCompassHeading === 'number'){
+    // iOS: already a compass heading (clockwise from magnetic north) and
+    // already accounts for the current screen orientation — do not adjust further.
     heading = e.webkitCompassHeading;
     type = 'magnetic';
     const acc = e.webkitCompassAccuracy;
     qbShowCalibration(typeof acc === 'number' && (acc < 0 || acc > 25));
   } else if (e.alpha !== null){
-    heading = 360 - e.alpha;
+    // Standard DeviceOrientation: alpha is measured counter-clockwise from
+    // the device's initial "natural" orientation, so first convert to a
+    // clockwise compass heading, then subtract the screen's current
+    // rotation (screen.orientation.angle) so it stays correct in both
+    // portrait and landscape.
+    const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+    heading = 360 - e.alpha - screenAngle;
+    heading = ((heading % 360) + 360) % 360;
     type = e.absolute ? 'true-approx' : 'magnetic-uncalibrated';
   } else {
     return;
   }
-  const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
-  heading = (heading + screenAngle + 360) % 360;
 
   QB.lastHeading = heading;
   if (QB.headingType !== type){
