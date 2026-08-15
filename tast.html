@@ -1043,7 +1043,6 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
   position:absolute;inset:0;
   transition:transform .15s linear;
   will-change:transform;
-  visibility:hidden;
 }
 .qb-center-hub{
   position:absolute;left:50%;top:50%;translate:-50% -50%;width:14px;height:14px;border-radius:50%;
@@ -1055,8 +1054,8 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 .qb-heading-readout .qb-heading-deg{font-family:'Outfit';font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;}
 .qb-heading-readout .qb-heading-lbl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
 
-/* No live sensor: dial stays put, needle is hidden rather than faked */
-.qb-compass-housing.qb-mode-static .qb-needle{visibility:hidden;}
+/* No live sensor: dial and needle stay put at rest (needle points to the
+   printed N) instead of disappearing — only its live rotation is unavailable */
 
 .qb-compass-housing.qb-facing::after{
   content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(52,211,153,.55);
@@ -3646,9 +3645,30 @@ function qbBuildDialSvg(){
 function qbBuildNeedleSvg(){
   qbEls.qbNeedle.innerHTML = `
     <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;overflow:visible;">
-      <polygon points="150,38 163,150 137,150" fill="#e11d1d" stroke="#7a0f0f" stroke-width="1"/>
-      <polygon points="150,262 163,150 137,150" fill="#2563eb" stroke="#0f2f7a" stroke-width="1"/>
-      <circle cx="150" cy="150" r="7" fill="#d9dde3" stroke="#333" stroke-width="1"/>
+      <defs>
+        <linearGradient id="qbNeedleRedGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#ff8a8a"/>
+          <stop offset="45%" stop-color="#e11d1d"/>
+          <stop offset="100%" stop-color="#7f1414"/>
+        </linearGradient>
+        <linearGradient id="qbNeedleBlueGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#8fb4ff"/>
+          <stop offset="45%" stop-color="#2563eb"/>
+          <stop offset="100%" stop-color="#122a63"/>
+        </linearGradient>
+        <radialGradient id="qbHubGrad" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="45%" stop-color="#cbd2db"/>
+          <stop offset="100%" stop-color="#4b5563"/>
+        </radialGradient>
+      </defs>
+      <g style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));">
+        <path d="M150,72 C157,92 159,116 150,150 C141,116 143,92 150,72 Z" fill="url(#qbNeedleRedGrad)" stroke="#6b1010" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M150,228 C157,208 159,184 150,150 C141,184 143,208 150,228 Z" fill="url(#qbNeedleBlueGrad)" stroke="#0d1f4d" stroke-width="1" stroke-linejoin="round"/>
+        <line x1="147" y1="80" x2="147" y2="142" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".45"/>
+        <line x1="147" y1="158" x2="147" y2="220" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".3"/>
+      </g>
+      <circle cx="150" cy="150" r="9" fill="url(#qbHubGrad)" stroke="#1f2937" stroke-width="1.2"/>
     </svg>`;
 }
 
@@ -3934,7 +3954,6 @@ function qbHandleOrientationEvent(e){
     qbSetCompassStatus('Live compass active — rotate your phone and the compass follows automatically.', 'ok');
   }
   qbEls.qbNeedle.style.transform = `rotate(${-heading}deg)`;
-  qbEls.qbNeedle.style.visibility = 'visible';
   qbEls.qbHeadingDeg.textContent = Math.round(heading) + '°';
   qbUpdateFacingState();
 }
