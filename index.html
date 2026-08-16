@@ -87,6 +87,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 
 <!-- Sun & moon position engine, inlined directly (v1.9.0, MIT/BSD licensed,
      (c) Vladimir Agafonkin) so there is no external CDN to fail to load. -->
@@ -996,7 +997,104 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
   .player-time{font-size:10px;}
   .player-volume{width:100%;}
 }
+
+/* ================= QIBLA COMPASS ================= */
+.qb-note{
+  padding:11px 14px;border-radius:12px;font-size:12.5px;line-height:1.6;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);color:var(--muted);
+  margin-top:10px;
+}
+.qb-note b{color:var(--text);}
+.qb-note.qb-warn{background:rgba(251,191,36,.09);border-color:rgba(251,191,36,.3);color:var(--text);}
+.qb-note.qb-err{background:rgba(248,113,113,.09);border-color:rgba(248,113,113,.32);color:var(--text);}
+.qb-note.qb-ok{background:rgba(52,211,153,.09);border-color:rgba(52,211,153,.3);color:var(--text);}
+
+.qb-badge{
+  display:inline-flex;align-items:center;gap:5px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(34,211,238,.12);color:var(--accent);
+  white-space:nowrap;
+}
+.qb-badge.qb-badge-ip{background:rgba(251,191,36,.14);color:var(--gold);}
+.qb-badge.qb-badge-manual{background:rgba(168,139,250,.16);color:#c4b5fd;}
+.qb-badge.qb-badge-live{background:rgba(52,211,153,.15);color:var(--accent2);}
+.qb-badge.qb-badge-static{background:rgba(148,163,184,.16);color:var(--muted);}
+
+.qb-head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:2px;}
+
+/* Map view — the user's location and the Kaaba, connected by the actual
+   great-circle path (it will appear to curve on the map the further away
+   you are, exactly like the curvature of the Earth means it should — this
+   is not a rendering bug). */
+.qb-map-wrap{
+  position:relative;margin:18px 0 6px;border-radius:16px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.12);box-shadow:var(--shadow-deep);
+}
+.qb-map{width:100%;height:320px;background:#0b1220;}
+.qb-map .leaflet-control-attribution{background:rgba(10,17,32,.75)!important;color:var(--muted)!important;font-size:9.5px!important;}
+.qb-map .leaflet-control-attribution a{color:var(--accent)!important;}
+.qb-map .leaflet-control-zoom a{background:rgba(10,17,32,.85)!important;color:var(--text)!important;border-color:rgba(255,255,255,.15)!important;}
+.qb-user-marker{position:relative;width:120px;height:120px;}
+.qb-user-heading-cone{
+  position:absolute;left:0;top:0;width:120px;height:120px;
+  transform-origin:50% 50%;transform:rotate(0deg);
+  pointer-events:none;display:none;transition:transform .35s cubic-bezier(.25,.7,.35,1);
+}
+.qb-user-dot{
+  position:absolute;left:50%;top:50%;translate:-50% -50%;
+  width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid #fff;
+  box-shadow:0 0 0 4px rgba(34,211,238,.35),0 2px 6px rgba(0,0,0,.5);z-index:2;
+}
+.qb-kaaba-pin{width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:17px;
+  background:radial-gradient(circle,#1a1a1a,#000);border:2px solid var(--gold);border-radius:6px;
+  box-shadow:0 0 10px rgba(251,191,36,.6),0 2px 6px rgba(0,0,0,.5);}
+
+/* Small fixed N/S–E/W reference widget in the map corner. The map itself
+   is always drawn north-up, so this needs no live sensor — it's simply a
+   printed axis (N/S vertical, E/W horizontal, NE/NW/SE/SW crossbars) with
+   a gold arrow rotated to the calculated Qibla bearing. */
+.qb-map-compass{
+  position:absolute;top:10px;right:10px;width:82px;height:82px;border-radius:50%;
+  background:rgba(10,17,32,.82);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.18);
+  box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:500;
+}
+
+.qb-facing-banner{
+  font-size:12.5px;font-weight:700;color:var(--accent2);text-align:center;min-height:18px;
+  opacity:0;transition:opacity .25s ease;
+}
+.qb-facing-banner.qb-show{opacity:1;}
+
+/* Info grid */
+.qb-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;}
+.qb-info-box{
+  padding:12px 12px;border-radius:12px;text-align:center;
+  background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.01));
+  border:1px solid rgba(255,255,255,.07);
+}
+.qb-info-box .qb-info-val{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;}
+.qb-info-box .qb-info-lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:3px;}
+
+.qb-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.qb-actions button{flex:1 1 auto;font-size:12.5px;}
+
+.qb-search-wrap{margin-top:12px;position:relative;}
+.qb-search-results{
+  margin-top:6px;border-radius:12px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(10,17,32,.96);backdrop-filter:blur(10px);overflow:hidden;max-height:260px;overflow-y:auto;
+  display:none;
+}
+.qb-search-results.qb-show{display:block;}
+.qb-search-item{padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);}
+.qb-search-item:last-child{border-bottom:none;}
+.qb-search-item:hover,.qb-search-item:focus-visible{background:rgba(34,211,238,.1);}
+.qb-search-item .qb-search-sub{display:block;font-size:11px;color:var(--muted);margin-top:1px;}
+
+@media(max-width:420px){
+  .qb-info-grid{grid-template-columns:1fr 1fr;}
+  .qb-actions button{flex:1 1 100%;}
+}
 </style>
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -1031,6 +1129,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
       <div class="tab active" data-tab="home" role="tab" aria-selected="true" tabindex="0">Home</div>
       <div class="tab" data-tab="quran" role="tab" aria-selected="false" tabindex="0">Qur'an</div>
       <div class="tab" data-tab="hadith" role="tab" aria-selected="false" tabindex="0">Hadith</div>
+      <div class="tab" data-tab="qibla" role="tab" aria-selected="false" tabindex="0">Qibla</div>
       <div class="tab" data-tab="about" role="tab" aria-selected="false" tabindex="0">About</div>
     </div>
 
@@ -1216,6 +1315,70 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
     </div>
   </section>
 
+  <!-- QIBLA -->
+  <section id="qibla" class="page">
+    <div class="panel">
+      <div class="qb-head-row">
+        <div>
+          <div class="eyebrow">Direction</div>
+          <h2 style="font-size:22px;margin-top:4px;">Qibla Finder</h2>
+        </div>
+        <span class="qb-badge" id="qbLocationBadge" style="display:none;"></span>
+      </div>
+      <p class="small" style="margin-top:6px;">
+        Your location and the Kaaba, connected by the actual great-circle path — the direction to face is calculated separately from your coordinates.
+      </p>
+
+      <div id="qbStatusNote" class="qb-note">Working out how to determine your location…</div>
+
+      <div class="qb-map-wrap">
+        <div id="qbMap" class="qb-map"></div>
+        <div class="qb-map-compass" id="qbMapCompass" aria-hidden="true">
+          <!-- fixed N/S–E/W reference widget with a gold Qibla-bearing arrow; injected by JS -->
+        </div>
+      </div>
+      <div class="qb-facing-banner" id="qbFacingBanner"></div>
+
+      <div class="qb-info-grid">
+        <div class="qb-info-box">
+          <div class="qb-info-val" id="qbDirectionVal">--</div>
+          <div class="qb-info-lbl">Qibla direction</div>
+        </div>
+        <div class="qb-info-box">
+          <div class="qb-info-val" id="qbBearingVal">--°</div>
+          <div class="qb-info-lbl">Bearing from true north</div>
+        </div>
+        <div class="qb-info-box">
+          <div class="qb-info-val" id="qbDistanceVal">--</div>
+          <div class="qb-info-lbl">Distance to the Kaaba</div>
+        </div>
+        <div class="qb-info-box">
+          <div class="qb-info-val" id="qbLocationVal">--</div>
+          <div class="qb-info-lbl">Detected location</div>
+        </div>
+      </div>
+
+      <div id="qbAccuracyNote" class="qb-note" style="display:none;"></div>
+      <div id="qbHeadingNote" class="qb-note" style="display:none;"></div>
+
+      <div class="qb-actions">
+        <button class="ghost" id="qbEnableHeadingBtn" style="display:none;">Enable live heading</button>
+        <button class="ghost" id="qbRetryLocationBtn" style="display:none;">Retry device location</button>
+        <button class="ghost" id="qbToggleSearchBtn">Search for a location manually</button>
+      </div>
+
+      <div class="qb-search-wrap" id="qbSearchWrap" style="display:none;">
+        <input type="text" id="qbSearchInput" placeholder="e.g. Tokyo, Japan or a full address" autocomplete="off" style="width:100%;">
+        <div class="qb-search-results" id="qbSearchResults"></div>
+      </div>
+
+      <p class="small" style="margin-top:14px;opacity:.75;">
+        The Qibla bearing is calculated fresh from your coordinates and the Kaaba's fixed location
+        (21.4224779° N, 39.8251832° E) every time your location changes — it is never a fixed or assumed direction.
+      </p>
+    </div>
+  </section>
+
   <!-- ABOUT -->
   <section id="about" class="page">
     <div class="panel about-panel">
@@ -1252,6 +1415,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
         <a href="#home" class="footer-tab-link" data-tab="home">Home · Prayer Times &amp; Moon</a>
         <a href="#quran" class="footer-tab-link" data-tab="quran">Read the Qur'an &amp; Listen to Recitation</a>
         <a href="#hadith" class="footer-tab-link" data-tab="hadith">Hadith Collections</a>
+        <a href="#qibla" class="footer-tab-link" data-tab="qibla">Qibla Finder</a>
         <a href="#about" class="footer-tab-link" data-tab="about">About the Creator</a>
       </div>
       <div>
@@ -1370,6 +1534,7 @@ document.querySelectorAll('.tab').forEach(t=>{
 function openTab(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  if (id === 'qibla' && typeof qbInit === 'function') qbInit();
 }
 function selectTab(id){
   document.querySelectorAll('.tab').forEach(x=>{
@@ -3383,6 +3548,480 @@ document.getElementById('hadithJumpBtn').onclick = ()=>{
 
 refreshHadithLangOptions();
 loadHadithCollection();
+
+/* ================= QIBLA FINDER (map-based) =================
+   Two independent pieces of information, always kept separate:
+     1. The user's location — device GPS first, IP-based estimate as a
+        fallback, or a manual place search as a last resort. Never faked.
+     2. The Qibla bearing — the initial great-circle bearing from the
+        user's coordinates to the Kaaba, recalculated fresh every time the
+        location changes. Never hard-coded, never guessed from a country.
+   The map shows both: the user's position, the Kaaba, and the real
+   great-circle line between them (which will visibly curve at long
+   distances — that's correct, not a bug, exactly like Google's own Qibla
+   Finder explains). A small fixed N/S–E/W widget in the corner needs no
+   device sensor at all, since the map itself is always drawn north-up. */
+const QB_KAABA_LAT = 21.4224779, QB_KAABA_LON = 39.8251832; // Kaaba, Masjid al-Haram, Makkah
+const QB_POINTS = ['North','North-northeast','Northeast','East-northeast','East','East-southeast',
+  'Southeast','South-southeast','South','South-southwest','Southwest','West-southwest',
+  'West','West-northwest','Northwest','North-northwest'];
+
+const QB = {
+  inited:false,
+  coords:null, locSource:null, accuracy:null, placeName:null,
+  bearing:null, distanceKm:null,
+  watchId:null, lastGeocodedCoords:null,
+  map:null, userMarker:null, kaabaMarker:null, pathLine:null,
+  orientationChecked:false, lastHeading:null,
+  headingSmoothSin:null, headingSmoothCos:null, headingDisplayedDeg:null
+};
+
+function qbToRad(d){ return d*Math.PI/180; }
+function qbToDeg(r){ return r*180/Math.PI; }
+
+function qbCalcBearing(lat1,lon1,lat2,lon2){
+  const φ1=qbToRad(lat1), φ2=qbToRad(lat2), Δλ=qbToRad(lon2-lon1);
+  const y=Math.sin(Δλ)*Math.cos(φ2);
+  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return (qbToDeg(Math.atan2(y,x))+360)%360;
+}
+function qbCalcDistanceKm(lat1,lon1,lat2,lon2){
+  const R=6371, φ1=qbToRad(lat1), φ2=qbToRad(lat2), Δφ=qbToRad(lat2-lat1), Δλ=qbToRad(lon2-lon1);
+  const a=Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function qbCompassPointName(bearing){
+  return QB_POINTS[Math.round(bearing/22.5)%16];
+}
+/* Interpolates points along the real great-circle (shortest-path) route
+   between two coordinates, using spherical linear interpolation — this is
+   what makes the line on the map curve realistically instead of being a
+   straight (and technically wrong) line drawn on a flat projection. */
+function qbGreatCirclePoints(lat1, lon1, lat2, lon2, n){
+  n = n || 128;
+  const φ1=qbToRad(lat1), λ1=qbToRad(lon1), φ2=qbToRad(lat2), λ2=qbToRad(lon2);
+  const d = 2*Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2));
+  const pts = [];
+  if (d === 0) return [[lat1,lon1],[lat2,lon2]];
+  for (let i=0;i<=n;i++){
+    const f = i/n;
+    const A = Math.sin((1-f)*d)/Math.sin(d), B = Math.sin(f*d)/Math.sin(d);
+    const x = A*Math.cos(φ1)*Math.cos(λ1) + B*Math.cos(φ2)*Math.cos(λ2);
+    const y = A*Math.cos(φ1)*Math.sin(λ1) + B*Math.cos(φ2)*Math.sin(λ2);
+    const z = A*Math.sin(φ1) + B*Math.sin(φ2);
+    pts.push([qbToDeg(Math.atan2(z, Math.sqrt(x*x+y*y))), qbToDeg(Math.atan2(y,x))]);
+  }
+  return pts;
+}
+
+let qbEls = {};
+function qbCacheEls(){
+  const ids=['qbLocationBadge','qbStatusNote','qbMap','qbMapCompass','qbFacingBanner','qbDirectionVal',
+    'qbBearingVal','qbDistanceVal','qbLocationVal','qbAccuracyNote','qbHeadingNote','qbEnableHeadingBtn',
+    'qbRetryLocationBtn','qbToggleSearchBtn','qbSearchWrap','qbSearchInput','qbSearchResults'];
+  ids.forEach(id=>{ qbEls[id]=document.getElementById(id); });
+}
+
+/* Fixed N/S–E/W reference widget with a crossbar for the diagonals
+   (NE/NW/SE/SW) and a gold arrow rotated to the calculated Qibla bearing.
+   The map is always north-up, so this stays accurate without any sensor. */
+function qbBuildMapCompassWidget(){
+  qbEls.qbMapCompass.innerHTML = `
+    <svg viewBox="0 0 100 100" style="width:100%;height:100%;display:block;">
+      <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,.22)"/>
+      <line x1="50" y1="7" x2="50" y2="93" stroke="rgba(255,255,255,.32)" stroke-width="1"/>
+      <line x1="7" y1="50" x2="93" y2="50" stroke="rgba(255,255,255,.32)" stroke-width="1"/>
+      <line x1="19" y1="19" x2="81" y2="81" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+      <line x1="81" y1="19" x2="19" y2="81" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+      <text x="50" y="15" text-anchor="middle" font-family="Outfit" font-weight="800" font-size="11" fill="var(--accent2)">N</text>
+      <text x="50" y="93" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="10" fill="var(--text)">S</text>
+      <text x="91" y="54" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="10" fill="var(--text)">E</text>
+      <text x="9" y="54" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="10" fill="var(--text)">W</text>
+      <text x="75" y="27" text-anchor="middle" font-size="7.5" fill="var(--muted)">NE</text>
+      <text x="25" y="27" text-anchor="middle" font-size="7.5" fill="var(--muted)">NW</text>
+      <text x="75" y="79" text-anchor="middle" font-size="7.5" fill="var(--muted)">SE</text>
+      <text x="25" y="79" text-anchor="middle" font-size="7.5" fill="var(--muted)">SW</text>
+      <g id="qbMapCompassArrow" transform="rotate(0 50 50)" style="transition:transform .4s ease;">
+        <line x1="50" y1="50" x2="50" y2="18" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+        <polygon points="50,10 44,21 56,21" fill="var(--gold)"/>
+      </g>
+      <circle cx="50" cy="50" r="3" fill="var(--text)"/>
+    </svg>`;
+  qbEls.qbMapCompassArrow = document.getElementById('qbMapCompassArrow');
+}
+
+function qbSetStatus(msg,type){
+  if (!msg){ qbEls.qbStatusNote.style.display='none'; return; }
+  qbEls.qbStatusNote.style.display='block';
+  qbEls.qbStatusNote.textContent = msg;
+  qbEls.qbStatusNote.className = 'qb-note' + (type ? ' qb-'+type : '');
+}
+function qbShowAccuracyNote(msg){
+  if (!msg){ qbEls.qbAccuracyNote.style.display='none'; return; }
+  qbEls.qbAccuracyNote.style.display='block';
+  qbEls.qbAccuracyNote.textContent = msg;
+}
+
+/* ---- Map ---- */
+function qbEnsureMap(){
+  if (QB.map || typeof L === 'undefined') return;
+  QB.map = L.map(qbEls.qbMap, { attributionControl:true, zoomControl:true });
+  QB.map.setView([20, 20], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+  }).addTo(QB.map);
+  const kaabaIcon = L.divIcon({ className:'', html:'<div class="qb-kaaba-pin">🕋</div>', iconSize:[26,26], iconAnchor:[13,13] });
+  QB.kaabaMarker = L.marker([QB_KAABA_LAT, QB_KAABA_LON], { icon:kaabaIcon, title:'The Kaaba, Makkah' }).addTo(QB.map);
+}
+function qbUpdateMap(lat, lon){
+  qbEnsureMap();
+  if (!QB.map) return; // Leaflet failed to load (e.g. offline) — info panel below still works
+  if (QB.pathLine) QB.map.removeLayer(QB.pathLine);
+
+  if (QB.userMarker){
+    // Move the existing marker instead of recreating it, so the live
+    // heading cone's current rotation isn't lost on every GPS update.
+    QB.userMarker.setLatLng([lat, lon]);
+  } else {
+    const userIcon = L.divIcon({
+      className:'',
+      html:`<div class="qb-user-marker">
+              <svg class="qb-user-heading-cone" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <radialGradient id="qbHeadGrad" cx="50%" cy="50%" r="55%">
+                    <stop offset="0%" stop-color="rgba(66,133,244,.55)"/>
+                    <stop offset="65%" stop-color="rgba(66,133,244,.22)"/>
+                    <stop offset="100%" stop-color="rgba(66,133,244,0)"/>
+                  </radialGradient>
+                </defs>
+                <path d="M60,60 L33,2 A62,62 0 0,1 87,2 Z" fill="url(#qbHeadGrad)"/>
+              </svg>
+              <div class="qb-user-dot"></div>
+            </div>`,
+      iconSize:[120,120], iconAnchor:[60,60]
+    });
+    QB.userMarker = L.marker([lat, lon], { icon:userIcon, title:'Your location', zIndexOffset:1000 }).addTo(QB.map);
+    if (QB.lastHeading != null) qbApplyHeadingToMarker(QB.lastHeading);
+  }
+
+  const pathPts = qbGreatCirclePoints(lat, lon, QB_KAABA_LAT, QB_KAABA_LON);
+  QB.pathLine = L.polyline(pathPts, { color:'#fbbf24', weight:3, opacity:.85, dashArray:'2 8' }).addTo(QB.map);
+
+  const bounds = L.latLngBounds([[lat,lon],[QB_KAABA_LAT,QB_KAABA_LON]]);
+  QB.map.fitBounds(bounds, { padding:[36,36], maxZoom:6 });
+}
+
+/* ---- Live heading cone (which way the device is currently facing) ----
+   Kept entirely separate from the Qibla bearing: this only reflects real
+   device-orientation-sensor data, exactly like the blue "field of view"
+   wedge on your own location dot in Google Maps. If no sensor is
+   available or permission is refused, the cone simply never appears —
+   nothing here is ever simulated or guessed.
+   Two things make this feel smooth instead of jerky, matching Google's
+   behaviour:
+     1. Raw sensor readings are noisy, so they're smoothed with a circular
+        (vector) exponential moving average rather than used directly.
+     2. The displayed rotation is "unwrapped" (allowed to exceed 0–360°)
+        so the CSS transition always animates the shortest way around,
+        instead of visibly spinning the long way whenever the heading
+        crosses the 0°/360° boundary. */
+function qbApplyHeadingToMarker(heading){
+  if (!QB.userMarker) return;
+  const el = QB.userMarker.getElement();
+  if (!el) return;
+  const cone = el.querySelector('.qb-user-heading-cone');
+  if (!cone) return;
+
+  if (QB.headingDisplayedDeg === null){
+    QB.headingDisplayedDeg = heading;
+  } else {
+    const current = ((QB.headingDisplayedDeg % 360) + 360) % 360;
+    let delta = heading - current;
+    delta = ((delta + 180) % 360 + 360) % 360 - 180; // shortest signed path, -180..180
+    QB.headingDisplayedDeg += delta;
+  }
+  cone.style.display = 'block';
+  cone.style.transform = `rotate(${QB.headingDisplayedDeg}deg)`;
+}
+function qbShowHeadingNote(msg){
+  if (!msg){ qbEls.qbHeadingNote.style.display='none'; return; }
+  qbEls.qbHeadingNote.style.display='block';
+  qbEls.qbHeadingNote.textContent = msg;
+}
+function qbSetupHeadingSensor(){
+  if (QB.orientationChecked) return;
+  QB.orientationChecked = true;
+  if (!window.DeviceOrientationEvent){
+    qbShowHeadingNote("Live facing direction isn't available on this device or browser, so the heading cone can't be shown — the map and Qibla bearing above are unaffected.");
+    return;
+  }
+  if (typeof DeviceOrientationEvent.requestPermission === 'function'){
+    qbEls.qbEnableHeadingBtn.style.display = 'inline-flex';
+    qbEls.qbEnableHeadingBtn.onclick = ()=>{
+      DeviceOrientationEvent.requestPermission().then(state=>{
+        if (state === 'granted'){
+          qbEls.qbEnableHeadingBtn.style.display = 'none';
+          qbAttachHeadingListener();
+        } else {
+          qbShowHeadingNote("Facing-direction permission wasn't granted, so the live heading cone can't be shown.");
+        }
+      }).catch(()=> qbShowHeadingNote("Facing-direction permission wasn't granted, so the live heading cone can't be shown."));
+    };
+  } else {
+    qbAttachHeadingListener();
+  }
+}
+function qbAttachHeadingListener(){
+  let received = false;
+  const eventName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+  function handler(e){
+    if (e.alpha === null && typeof e.webkitCompassHeading !== 'number') return;
+    received = true;
+    qbHandleHeadingEvent(e);
+  }
+  window.addEventListener(eventName, handler, true);
+  setTimeout(()=>{
+    if (!received){
+      window.removeEventListener(eventName, handler, true);
+      qbShowHeadingNote("Live facing direction isn't available on this device or browser, so the heading cone can't be shown — the map and Qibla bearing above are unaffected.");
+    }
+  }, 2500);
+}
+function qbHandleHeadingEvent(e){
+  let rawHeading;
+  if (typeof e.webkitCompassHeading === 'number'){
+    // iOS: already a compass heading, already accounts for screen orientation.
+    rawHeading = e.webkitCompassHeading;
+  } else if (e.alpha !== null){
+    const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+    rawHeading = 360 - e.alpha - screenAngle;
+    rawHeading = ((rawHeading % 360) + 360) % 360;
+  } else {
+    return;
+  }
+
+  // Circular smoothing (average the unit-vector, not the raw degrees) so
+  // small sensor jitter doesn't make the cone twitch, and so averaging
+  // never breaks at the 0°/360° wraparound the way averaging raw degrees would.
+  const rad = rawHeading * Math.PI / 180;
+  const alpha = 0.25; // smoothing factor: lower = smoother but more lag
+  if (QB.headingSmoothSin === null){
+    QB.headingSmoothSin = Math.sin(rad);
+    QB.headingSmoothCos = Math.cos(rad);
+  } else {
+    QB.headingSmoothSin += alpha * (Math.sin(rad) - QB.headingSmoothSin);
+    QB.headingSmoothCos += alpha * (Math.cos(rad) - QB.headingSmoothCos);
+  }
+  const smoothedHeading = ((Math.atan2(QB.headingSmoothSin, QB.headingSmoothCos) * 180 / Math.PI) + 360) % 360;
+
+  QB.lastHeading = smoothedHeading;
+  qbApplyHeadingToMarker(smoothedHeading);
+  qbShowHeadingNote('');
+}
+
+function qbRecalcQibla(){
+  if (!QB.coords) return;
+  QB.bearing = qbCalcBearing(QB.coords.lat, QB.coords.lon, QB_KAABA_LAT, QB_KAABA_LON);
+  QB.distanceKm = qbCalcDistanceKm(QB.coords.lat, QB.coords.lon, QB_KAABA_LAT, QB_KAABA_LON);
+  qbEls.qbDirectionVal.textContent = qbCompassPointName(QB.bearing);
+  qbEls.qbBearingVal.textContent = QB.bearing.toFixed(1) + '°';
+  qbEls.qbDistanceVal.textContent = QB.distanceKm >= 1
+    ? Math.round(QB.distanceKm).toLocaleString() + ' km'
+    : Math.round(QB.distanceKm*1000) + ' m';
+  qbEls.qbFacingBanner.textContent = `From your location, the Qibla is ${qbCompassPointName(QB.bearing).toLowerCase()} — bearing ${QB.bearing.toFixed(1)}° from true north.`;
+  qbEls.qbFacingBanner.classList.add('qb-show');
+  if (qbEls.qbMapCompassArrow) qbEls.qbMapCompassArrow.setAttribute('transform', `rotate(${QB.bearing} 50 50)`);
+  qbUpdateMap(QB.coords.lat, QB.coords.lon);
+}
+
+function qbUpdateLocationUI(){
+  const src = QB.locSource;
+  const badgeMap = {
+    gps:{text:'Device GPS', cls:'qb-badge-live'},
+    ip:{text:'Estimated (IP)', cls:'qb-badge-ip'},
+    manual:{text:'Manual selection', cls:'qb-badge-manual'}
+  };
+  const b = badgeMap[src];
+  if (b){
+    qbEls.qbLocationBadge.textContent = b.text;
+    qbEls.qbLocationBadge.className = 'qb-badge ' + b.cls;
+    qbEls.qbLocationBadge.style.display = 'inline-flex';
+  } else {
+    qbEls.qbLocationBadge.style.display = 'none';
+  }
+
+  qbEls.qbLocationVal.textContent = QB.placeName
+    ? QB.placeName
+    : (QB.coords ? `${QB.coords.lat.toFixed(3)}°, ${QB.coords.lon.toFixed(3)}°` : '--');
+
+  if (src === 'gps'){
+    qbSetStatus('Location detected using your device' + (QB.accuracy ? ` (accuracy ~${Math.round(QB.accuracy)} m)` : '') + '.', 'ok');
+    qbEls.qbRetryLocationBtn.style.display = 'none';
+    qbShowAccuracyNote('');
+  } else if (src === 'ip'){
+    qbSetStatus('Location estimated from your IP address — this is usually only accurate to city level, not exact. ' +
+      (QB.placeName ? `Detected near ${QB.placeName}. ` : '') +
+      'Use "Retry device location" or search manually for a more precise result.', 'warn');
+    qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
+    qbShowAccuracyNote('Because this location is IP-estimated rather than GPS, the marker and line on the map — and the bearing below — are only as precise as your IP-based city estimate.');
+  } else if (src === 'manual'){
+    qbSetStatus('Qibla calculated from your selected location.', 'ok');
+    qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
+    qbShowAccuracyNote('');
+  }
+}
+
+function qbApplyLocation(lat, lon, source, accuracy, placeName){
+  QB.coords = { lat, lon };
+  QB.locSource = source;
+  QB.accuracy = accuracy || null;
+  if (placeName) QB.placeName = placeName;
+  else if (source !== 'gps') QB.placeName = null;
+
+  qbRecalcQibla();
+  qbUpdateLocationUI();
+
+  if (source === 'gps'){
+    const moved = !QB.lastGeocodedCoords || qbCalcDistanceKm(lat,lon,QB.lastGeocodedCoords.lat,QB.lastGeocodedCoords.lon) > 2;
+    if (moved){
+      QB.lastGeocodedCoords = {lat,lon};
+      qbReverseGeocode(lat,lon);
+    }
+  }
+}
+
+function qbReverseGeocode(lat,lon){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), 6000);
+  fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10`, {signal:ctrl.signal})
+    .then(r=>r.json())
+    .then(j=>{
+      clearTimeout(t);
+      const a = j && j.address;
+      if (!a) return;
+      const name = [a.city||a.town||a.village||a.county, a.country].filter(Boolean).join(', ');
+      if (name && QB.locSource === 'gps'){
+        QB.placeName = name;
+        qbEls.qbLocationVal.textContent = name;
+      }
+    })
+    .catch(()=>{ clearTimeout(t); });
+}
+
+function qbFallbackToIp(reason){
+  qbSetStatus(reason + ' Estimating your location from your IP address instead…', 'warn');
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), 7000);
+  fetch('https://ipapi.co/json/', {signal:ctrl.signal})
+    .then(r=>r.json())
+    .then(j=>{
+      clearTimeout(t);
+      if (!j || typeof j.latitude !== 'number') throw new Error('no coords');
+      const place = [j.city, j.country_name].filter(Boolean).join(', ');
+      qbApplyLocation(j.latitude, j.longitude, 'ip', null, place);
+    })
+    .catch(()=>{
+      clearTimeout(t);
+      fetch('https://ipwho.is/').then(r=>r.json()).then(j=>{
+        if (!j || j.success === false || typeof j.latitude !== 'number') throw new Error('no coords');
+        const place = [j.city, j.country].filter(Boolean).join(', ');
+        qbApplyLocation(j.latitude, j.longitude, 'ip', null, place);
+      }).catch(()=>{
+        qbSetStatus("We couldn't automatically detect your location using your device or your IP address. Please search for your city, place, or address below.", 'err');
+        qbShowSearch(true);
+        qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
+      });
+    });
+}
+
+function qbDetectLocation(){
+  qbSetStatus('Requesting your device location…');
+  if (!navigator.geolocation){
+    qbFallbackToIp('Your browser does not support device geolocation.');
+    return;
+  }
+  if (QB.watchId !== null){ navigator.geolocation.clearWatch(QB.watchId); QB.watchId = null; }
+  let resolved = false;
+  QB.watchId = navigator.geolocation.watchPosition(
+    pos=>{
+      resolved = true;
+      qbApplyLocation(pos.coords.latitude, pos.coords.longitude, 'gps', pos.coords.accuracy);
+    },
+    err=>{
+      if (resolved) return; // a later transient error shouldn't discard a working live fix
+      let msg = 'Could not get your device location.';
+      if (err.code === 1) msg = 'Location permission was denied.';
+      else if (err.code === 2) msg = 'Your device location is currently unavailable.';
+      else if (err.code === 3) msg = 'Getting your device location timed out.';
+      qbFallbackToIp(msg);
+    },
+    { enableHighAccuracy:true, timeout:9000, maximumAge:30000 }
+  );
+}
+
+/* ---- Manual location search (Nominatim/OpenStreetMap) ---- */
+function qbShowSearch(show){
+  qbEls.qbSearchWrap.style.display = show ? 'block' : 'none';
+  if (show) qbEls.qbSearchInput.focus();
+}
+let qbSearchDebounce = null;
+function qbRunSearch(q){
+  if (!q || q.trim().length < 2){ qbEls.qbSearchResults.classList.remove('qb-show'); qbEls.qbSearchResults.innerHTML=''; return; }
+  fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=0&limit=6&q=${encodeURIComponent(q)}`)
+    .then(r=>r.json())
+    .then(results=>{
+      if (!Array.isArray(results) || !results.length){
+        qbEls.qbSearchResults.innerHTML = '<div class="qb-search-item small">No matching places found.</div>';
+        qbEls.qbSearchResults.classList.add('qb-show');
+        return;
+      }
+      qbEls.qbSearchResults.innerHTML = results.map((r,i)=>{
+        const parts = r.display_name.split(',');
+        const main = parts[0].trim();
+        const sub = parts.slice(1,3).join(',').trim();
+        return `<div class="qb-search-item" tabindex="0" data-idx="${i}"><span>${main}</span><span class="qb-search-sub">${sub}</span></div>`;
+      }).join('');
+      qbEls.qbSearchResults.classList.add('qb-show');
+      Array.from(qbEls.qbSearchResults.querySelectorAll('.qb-search-item[data-idx]')).forEach(el=>{
+        const pick = ()=>{
+          const r = results[parseInt(el.dataset.idx)];
+          const name = r.display_name.split(',').slice(0,3).join(', ');
+          qbEls.qbSearchResults.classList.remove('qb-show');
+          qbEls.qbSearchInput.value = '';
+          qbApplyLocation(parseFloat(r.lat), parseFloat(r.lon), 'manual', null, name);
+          qbShowSearch(false);
+        };
+        el.addEventListener('click', pick);
+        el.addEventListener('keydown', e=>{ if (e.key==='Enter'){ e.preventDefault(); pick(); } });
+      });
+    })
+    .catch(()=>{
+      qbEls.qbSearchResults.innerHTML = '<div class="qb-search-item small">Search failed — check your connection and try again.</div>';
+      qbEls.qbSearchResults.classList.add('qb-show');
+    });
+}
+
+function qbInit(){
+  if (QB.inited) return;
+  QB.inited = true;
+  qbCacheEls();
+  qbBuildMapCompassWidget();
+
+  qbEls.qbRetryLocationBtn.addEventListener('click', qbDetectLocation);
+  qbEls.qbToggleSearchBtn.addEventListener('click', ()=>{
+    const showing = qbEls.qbSearchWrap.style.display === 'block';
+    qbShowSearch(!showing);
+  });
+  qbEls.qbSearchInput.addEventListener('input', ()=>{
+    clearTimeout(qbSearchDebounce);
+    const val = qbEls.qbSearchInput.value;
+    qbSearchDebounce = setTimeout(()=> qbRunSearch(val), 450);
+  });
+
+  qbDetectLocation();
+  qbSetupHeadingSensor();
+}
 
 /* ================= Disable Right-Click ================= */
 document.addEventListener('contextmenu', e=>e.preventDefault());
