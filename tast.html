@@ -87,6 +87,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 
 <!-- Sun & moon position engine, inlined directly (v1.9.0, MIT/BSD licensed,
      (c) Vladimir Agafonkin) so there is no external CDN to fail to load. -->
@@ -1020,60 +1021,41 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 
 .qb-head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:2px;}
 
-/* Compass housing */
-.qb-compass-wrap{
-  display:flex;flex-direction:column;align-items:center;gap:14px;margin:18px auto 6px;max-width:340px;
+/* Map view — the user's location and the Kaaba, connected by the actual
+   great-circle path (it will appear to curve on the map the further away
+   you are, exactly like the curvature of the Earth means it should — this
+   is not a rendering bug). */
+.qb-map-wrap{
+  position:relative;margin:18px 0 6px;border-radius:16px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.12);box-shadow:var(--shadow-deep);
 }
-.qb-compass-housing{
-  position:relative;width:min(78vw,300px);height:min(78vw,300px);border-radius:50%;
-  background:radial-gradient(circle at 32% 28%, rgba(255,255,255,.06), rgba(0,0,0,.25) 75%),
-             linear-gradient(160deg, rgba(255,255,255,.04), rgba(0,0,0,.15));
-  border:1px solid rgba(255,255,255,.12);
-  box-shadow:var(--shadow-deep), inset 0 0 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
-  flex-shrink:0;
+.qb-map{width:100%;height:320px;background:#0b1220;}
+.qb-map .leaflet-control-attribution{background:rgba(10,17,32,.75)!important;color:var(--muted)!important;font-size:9.5px!important;}
+.qb-map .leaflet-control-attribution a{color:var(--accent)!important;}
+.qb-map .leaflet-control-zoom a{background:rgba(10,17,32,.85)!important;color:var(--text)!important;border-color:rgba(255,255,255,.15)!important;}
+.qb-user-marker{position:relative;width:120px;height:120px;}
+.qb-user-heading-cone{
+  position:absolute;left:0;top:0;width:120px;height:120px;
+  transform-origin:50% 50%;transform:rotate(0deg);
+  pointer-events:none;display:none;transition:transform .12s linear;
 }
-/* Fixed dial face — never rotates. Ticks and N/NE/E/SE/S/SW/W/NW labels are
-   printed on it, exactly like a normal analogue compass card. */
-.qb-dial{
-  position:absolute;inset:0;border-radius:50%;
+.qb-user-dot{
+  position:absolute;left:50%;top:50%;translate:-50% -50%;
+  width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid #fff;
+  box-shadow:0 0 0 4px rgba(34,211,238,.35),0 2px 6px rgba(0,0,0,.5);z-index:2;
 }
-/* The needle is the ONLY part that rotates, driven purely by device heading —
-   a classic two-tone red (north) / black (south) needle, like a real compass. */
-.qb-needle{
-  position:absolute;inset:0;
-  transition:transform .15s linear;
-  will-change:transform;
-}
-.qb-center-hub{
-  position:absolute;left:50%;top:50%;translate:-50% -50%;width:14px;height:14px;border-radius:50%;
-  background:var(--text);box-shadow:0 0 0 4px rgba(255,255,255,.08),0 0 10px rgba(0,0,0,.5);z-index:3;
-}
-.qb-heading-readout{
-  position:absolute;left:50%;bottom:14%;translate:-50% 0;text-align:center;z-index:2;
-}
-.qb-heading-readout .qb-heading-deg{font-family:'Outfit';font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;}
-.qb-heading-readout .qb-heading-lbl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.qb-kaaba-pin{width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:17px;
+  background:radial-gradient(circle,#1a1a1a,#000);border:2px solid var(--gold);border-radius:6px;
+  box-shadow:0 0 10px rgba(251,191,36,.6),0 2px 6px rgba(0,0,0,.5);}
 
-/* No live sensor: dial and needle stay put at rest (needle points to the
-   printed N) instead of disappearing — only its live rotation is unavailable */
-
-/* Manual Compass Mode — the housing itself becomes a drag/rotate control
-   (mouse-drag on desktop, two-finger rotate on touch) so the user can align
-   the red needle with north themselves when no live sensor is available. */
-.qb-compass-housing.qb-mode-manual{
-  cursor:grab;touch-action:none;user-select:none;
-  box-shadow:var(--shadow-deep), inset 0 0 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06),
-             0 0 0 3px rgba(34,211,238,.22);
-}
-.qb-compass-housing.qb-mode-manual .qb-needle{transition:none;}
-.qb-note.qb-manual{
-  background:rgba(34,211,238,.13);border-color:rgba(34,211,238,.45);color:var(--text);
-  font-weight:600;text-align:center;
-}
-
-.qb-compass-housing.qb-facing::after{
-  content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(52,211,153,.55);
-  box-shadow:0 0 22px rgba(52,211,153,.35);pointer-events:none;
+/* Small fixed N/S–E/W reference widget in the map corner. The map itself
+   is always drawn north-up, so this needs no live sensor — it's simply a
+   printed axis (N/S vertical, E/W horizontal, NE/NW/SE/SW crossbars) with
+   a gold arrow rotated to the calculated Qibla bearing. */
+.qb-map-compass{
+  position:absolute;top:10px;right:10px;width:82px;height:82px;border-radius:50%;
+  background:rgba(10,17,32,.82);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.18);
+  box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:500;
 }
 
 .qb-facing-banner{
@@ -1112,6 +1094,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
   .qb-actions button{flex:1 1 100%;}
 }
 </style>
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -1338,33 +1321,23 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
       <div class="qb-head-row">
         <div>
           <div class="eyebrow">Direction</div>
-          <h2 style="font-size:22px;margin-top:4px;">Qibla Compass</h2>
+          <h2 style="font-size:22px;margin-top:4px;">Qibla Finder</h2>
         </div>
         <span class="qb-badge" id="qbLocationBadge" style="display:none;"></span>
       </div>
       <p class="small" style="margin-top:6px;">
-        A normal digital compass, plus the direction to the Kaaba calculated separately from your coordinates.
+        Your location and the Kaaba, connected by the actual great-circle path — the direction to face is calculated separately from your coordinates.
       </p>
 
       <div id="qbStatusNote" class="qb-note">Working out how to determine your location…</div>
 
-      <div id="qbManualNote" class="qb-note qb-manual" style="display:none;"></div>
-      <div class="qb-compass-wrap">
-        <div class="qb-compass-housing" id="qbHousing" aria-hidden="true">
-          <div class="qb-dial" id="qbDial">
-            <!-- ticks and N/NE/E/SE/S/SW/W/NW labels are injected by JS; this face never rotates -->
-          </div>
-          <div class="qb-needle" id="qbNeedle">
-            <!-- classic red (north) / black (south) needle; injected by JS, rotates with device heading -->
-          </div>
-          <div class="qb-center-hub"></div>
-          <div class="qb-heading-readout" id="qbHeadingReadout" style="display:none;">
-            <div class="qb-heading-deg" id="qbHeadingDeg">--°</div>
-            <div class="qb-heading-lbl">Heading</div>
-          </div>
+      <div class="qb-map-wrap">
+        <div id="qbMap" class="qb-map"></div>
+        <div class="qb-map-compass" id="qbMapCompass" aria-hidden="true">
+          <!-- fixed N/S–E/W reference widget with a gold Qibla-bearing arrow; injected by JS -->
         </div>
-        <div class="qb-facing-banner" id="qbFacingBanner">You're facing the Qibla ✓</div>
       </div>
+      <div class="qb-facing-banner" id="qbFacingBanner"></div>
 
       <div class="qb-info-grid">
         <div class="qb-info-box">
@@ -1385,12 +1358,11 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
         </div>
       </div>
 
-      <div id="qbCompassStatusNote" class="qb-note" style="display:none;"></div>
-      <div id="qbCalibrationNote" class="qb-note qb-warn" style="display:none;"></div>
       <div id="qbAccuracyNote" class="qb-note" style="display:none;"></div>
+      <div id="qbHeadingNote" class="qb-note" style="display:none;"></div>
 
       <div class="qb-actions">
-        <button class="ghost" id="qbEnableCompassBtn" style="display:none;">Enable compass</button>
+        <button class="ghost" id="qbEnableHeadingBtn" style="display:none;">Enable live heading</button>
         <button class="ghost" id="qbRetryLocationBtn" style="display:none;">Retry device location</button>
         <button class="ghost" id="qbToggleSearchBtn">Search for a location manually</button>
       </div>
@@ -1402,7 +1374,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 
       <p class="small" style="margin-top:14px;opacity:.75;">
         The Qibla bearing is calculated fresh from your coordinates and the Kaaba's fixed location
-        (21.4225° N, 39.8262° E) every time your location changes — it is never a fixed or assumed direction.
+        (21.4224779° N, 39.8251832° E) every time your location changes — it is never a fixed or assumed direction.
       </p>
     </div>
   </section>
@@ -1443,7 +1415,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
         <a href="#home" class="footer-tab-link" data-tab="home">Home · Prayer Times &amp; Moon</a>
         <a href="#quran" class="footer-tab-link" data-tab="quran">Read the Qur'an &amp; Listen to Recitation</a>
         <a href="#hadith" class="footer-tab-link" data-tab="hadith">Hadith Collections</a>
-        <a href="#qibla" class="footer-tab-link" data-tab="qibla">Qibla Compass</a>
+        <a href="#qibla" class="footer-tab-link" data-tab="qibla">Qibla Finder</a>
         <a href="#about" class="footer-tab-link" data-tab="about">About the Creator</a>
       </div>
       <div>
@@ -3577,17 +3549,19 @@ document.getElementById('hadithJumpBtn').onclick = ()=>{
 refreshHadithLangOptions();
 loadHadithCollection();
 
-/* ================= QIBLA COMPASS =================
-   Two independent systems, kept deliberately separate:
-     1. The normal compass — shows where the device is physically pointing,
-        driven only by the device orientation sensor.
-     2. The Qibla calculation — the bearing to the Kaaba, computed purely
-        from the user's coordinates. It never assumes or hard-codes a
-        direction; it is recalculated whenever the location changes.
-   Location cascade: device GPS -> IP-based estimate -> manual search.
-   Orientation cascade: live sensor -> static calculated bearing if no
-   sensor, sensor is denied, or no events are ever received. */
-const QB_KAABA_LAT = 21.4225, QB_KAABA_LON = 39.8262;
+/* ================= QIBLA FINDER (map-based) =================
+   Two independent pieces of information, always kept separate:
+     1. The user's location — device GPS first, IP-based estimate as a
+        fallback, or a manual place search as a last resort. Never faked.
+     2. The Qibla bearing — the initial great-circle bearing from the
+        user's coordinates to the Kaaba, recalculated fresh every time the
+        location changes. Never hard-coded, never guessed from a country.
+   The map shows both: the user's position, the Kaaba, and the real
+   great-circle line between them (which will visibly curve at long
+   distances — that's correct, not a bug, exactly like Google's own Qibla
+   Finder explains). A small fixed N/S–E/W widget in the corner needs no
+   device sensor at all, since the map itself is always drawn north-up. */
+const QB_KAABA_LAT = 21.4224779, QB_KAABA_LON = 39.8251832; // Kaaba, Masjid al-Haram, Makkah
 const QB_POINTS = ['North','North-northeast','Northeast','East-northeast','East','East-southeast',
   'Southeast','South-southeast','South','South-southwest','Southwest','West-southwest',
   'West','West-northwest','Northwest','North-northwest'];
@@ -3596,9 +3570,9 @@ const QB = {
   inited:false,
   coords:null, locSource:null, accuracy:null, placeName:null,
   bearing:null, distanceKm:null,
-  orientationChecked:false, orientationActive:false, lastHeading:null, headingType:null,
-  watchId:null, orientationWatchdog:null, lastGeocodedCoords:null,
-  manualMode:false, manualAngleDeg:0, manualListenersAttached:false
+  watchId:null, lastGeocodedCoords:null,
+  map:null, userMarker:null, kaabaMarker:null, pathLine:null,
+  orientationChecked:false, lastHeading:null
 };
 
 function qbToRad(d){ return d*Math.PI/180; }
@@ -3618,75 +3592,61 @@ function qbCalcDistanceKm(lat1,lon1,lat2,lon2){
 function qbCompassPointName(bearing){
   return QB_POINTS[Math.round(bearing/22.5)%16];
 }
+/* Interpolates points along the real great-circle (shortest-path) route
+   between two coordinates, using spherical linear interpolation — this is
+   what makes the line on the map curve realistically instead of being a
+   straight (and technically wrong) line drawn on a flat projection. */
+function qbGreatCirclePoints(lat1, lon1, lat2, lon2, n){
+  n = n || 128;
+  const φ1=qbToRad(lat1), λ1=qbToRad(lon1), φ2=qbToRad(lat2), λ2=qbToRad(lon2);
+  const d = 2*Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2));
+  const pts = [];
+  if (d === 0) return [[lat1,lon1],[lat2,lon2]];
+  for (let i=0;i<=n;i++){
+    const f = i/n;
+    const A = Math.sin((1-f)*d)/Math.sin(d), B = Math.sin(f*d)/Math.sin(d);
+    const x = A*Math.cos(φ1)*Math.cos(λ1) + B*Math.cos(φ2)*Math.cos(λ2);
+    const y = A*Math.cos(φ1)*Math.sin(λ1) + B*Math.cos(φ2)*Math.sin(λ2);
+    const z = A*Math.sin(φ1) + B*Math.sin(φ2);
+    pts.push([qbToDeg(Math.atan2(z, Math.sqrt(x*x+y*y))), qbToDeg(Math.atan2(y,x))]);
+  }
+  return pts;
+}
 
 let qbEls = {};
 function qbCacheEls(){
-  const ids=['qbLocationBadge','qbStatusNote','qbHousing','qbDial','qbNeedle','qbHeadingReadout',
-    'qbHeadingDeg','qbFacingBanner','qbDirectionVal','qbBearingVal','qbDistanceVal','qbLocationVal',
-    'qbCompassStatusNote','qbCalibrationNote','qbAccuracyNote','qbEnableCompassBtn','qbRetryLocationBtn',
-    'qbToggleSearchBtn','qbSearchWrap','qbSearchInput','qbSearchResults','qbManualNote'];
+  const ids=['qbLocationBadge','qbStatusNote','qbMap','qbMapCompass','qbFacingBanner','qbDirectionVal',
+    'qbBearingVal','qbDistanceVal','qbLocationVal','qbAccuracyNote','qbHeadingNote','qbEnableHeadingBtn',
+    'qbRetryLocationBtn','qbToggleSearchBtn','qbSearchWrap','qbSearchInput','qbSearchResults'];
   ids.forEach(id=>{ qbEls[id]=document.getElementById(id); });
 }
 
-/* The dial face: fixed ticks + N/NE/E/SE/S/SW/W/NW labels, printed once and
-   never rotated — exactly like the face of a normal analogue compass. */
-function qbBuildDialSvg(){
-  let ticks='', labels='';
-  for (let deg=0; deg<360; deg+=15){
-    const major = deg % 45 === 0;
-    ticks += `<line x1="150" y1="${major?16:20}" x2="150" y2="30" class="${major?'qb-svg-tick-major':'qb-svg-tick'}" transform="rotate(${deg} 150 150)"/>`;
-  }
-  const names=['N','NE','E','SE','S','SW','W','NW'];
-  names.forEach((n,i)=>{
-    const deg=i*45;
-    labels += `<text x="150" y="52" text-anchor="middle" class="${n==='N'?'qb-svg-label-n':'qb-svg-label'}" transform="rotate(${deg} 150 150)">${n}</text>`;
-  });
-  qbEls.qbDial.innerHTML = `
-    <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;overflow:visible;">
-      <style>
-        .qb-svg-tick{stroke:rgba(255,255,255,.28);stroke-width:1.5px;}
-        .qb-svg-tick-major{stroke:rgba(255,255,255,.55);stroke-width:2px;}
-        .qb-svg-label{fill:var(--text);font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;}
-        .qb-svg-label-n{fill:var(--accent2);font-family:'Outfit',sans-serif;font-weight:800;font-size:17px;}
-      </style>
-      <circle cx="150" cy="150" r="144" fill="none" stroke="rgba(255,255,255,.08)"/>
-      ${ticks}${labels}
-    </svg>`;
-}
-
-/* The needle: the only moving part. Classic two-tone design — red tip
-   points to (magnetic) North, black tail points to South — exactly like
-   the needle on a real analogue compass, rotated live from the device's
-   compass heading. This is a normal compass needle; it carries no Qibla
-   information of its own. */
-function qbBuildNeedleSvg(){
-  qbEls.qbNeedle.innerHTML = `
-    <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;overflow:visible;">
-      <defs>
-        <linearGradient id="qbNeedleRedGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#ff8a8a"/>
-          <stop offset="45%" stop-color="#e11d1d"/>
-          <stop offset="100%" stop-color="#7f1414"/>
-        </linearGradient>
-        <linearGradient id="qbNeedleBlackGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#6b7280"/>
-          <stop offset="45%" stop-color="#1f2328"/>
-          <stop offset="100%" stop-color="#000000"/>
-        </linearGradient>
-        <radialGradient id="qbHubGrad" cx="35%" cy="30%" r="75%">
-          <stop offset="0%" stop-color="#ffffff"/>
-          <stop offset="45%" stop-color="#cbd2db"/>
-          <stop offset="100%" stop-color="#4b5563"/>
-        </radialGradient>
-      </defs>
-      <g style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));">
-        <path d="M150,72 C157,92 159,116 150,150 C141,116 143,92 150,72 Z" fill="url(#qbNeedleRedGrad)" stroke="#6b1010" stroke-width="1" stroke-linejoin="round"/>
-        <path d="M150,228 C157,208 159,184 150,150 C141,184 143,208 150,228 Z" fill="url(#qbNeedleBlackGrad)" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
-        <line x1="147" y1="80" x2="147" y2="142" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".45"/>
-        <line x1="147" y1="158" x2="147" y2="220" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".18"/>
+/* Fixed N/S–E/W reference widget with a crossbar for the diagonals
+   (NE/NW/SE/SW) and a gold arrow rotated to the calculated Qibla bearing.
+   The map is always north-up, so this stays accurate without any sensor. */
+function qbBuildMapCompassWidget(){
+  qbEls.qbMapCompass.innerHTML = `
+    <svg viewBox="0 0 100 100" style="width:100%;height:100%;display:block;">
+      <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,.22)"/>
+      <line x1="50" y1="7" x2="50" y2="93" stroke="rgba(255,255,255,.32)" stroke-width="1"/>
+      <line x1="7" y1="50" x2="93" y2="50" stroke="rgba(255,255,255,.32)" stroke-width="1"/>
+      <line x1="19" y1="19" x2="81" y2="81" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+      <line x1="81" y1="19" x2="19" y2="81" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+      <text x="50" y="15" text-anchor="middle" font-family="Outfit" font-weight="800" font-size="11" fill="var(--accent2)">N</text>
+      <text x="50" y="93" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="10" fill="var(--text)">S</text>
+      <text x="91" y="54" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="10" fill="var(--text)">E</text>
+      <text x="9" y="54" text-anchor="middle" font-family="Outfit" font-weight="700" font-size="10" fill="var(--text)">W</text>
+      <text x="75" y="27" text-anchor="middle" font-size="7.5" fill="var(--muted)">NE</text>
+      <text x="25" y="27" text-anchor="middle" font-size="7.5" fill="var(--muted)">NW</text>
+      <text x="75" y="79" text-anchor="middle" font-size="7.5" fill="var(--muted)">SE</text>
+      <text x="25" y="79" text-anchor="middle" font-size="7.5" fill="var(--muted)">SW</text>
+      <g id="qbMapCompassArrow" transform="rotate(0 50 50)" style="transition:transform .4s ease;">
+        <line x1="50" y1="50" x2="50" y2="18" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+        <polygon points="50,10 44,21 56,21" fill="var(--gold)"/>
       </g>
-      <circle cx="150" cy="150" r="9" fill="url(#qbHubGrad)" stroke="#1f2937" stroke-width="1.2"/>
+      <circle cx="50" cy="50" r="3" fill="var(--text)"/>
     </svg>`;
+  qbEls.qbMapCompassArrow = document.getElementById('qbMapCompassArrow');
 }
 
 function qbSetStatus(msg,type){
@@ -3695,20 +3655,136 @@ function qbSetStatus(msg,type){
   qbEls.qbStatusNote.textContent = msg;
   qbEls.qbStatusNote.className = 'qb-note' + (type ? ' qb-'+type : '');
 }
-function qbSetCompassStatus(msg,type){
-  if (!msg){ qbEls.qbCompassStatusNote.style.display='none'; return; }
-  qbEls.qbCompassStatusNote.style.display='block';
-  qbEls.qbCompassStatusNote.textContent = msg;
-  qbEls.qbCompassStatusNote.className = 'qb-note' + (type ? ' qb-'+type : '');
-}
-function qbShowCalibration(show,msg){
-  qbEls.qbCalibrationNote.style.display = show ? 'block' : 'none';
-  if (show) qbEls.qbCalibrationNote.textContent = msg || 'Your compass may need calibrating. Try moving your phone slowly in a figure-8 motion a few times.';
-}
 function qbShowAccuracyNote(msg){
   if (!msg){ qbEls.qbAccuracyNote.style.display='none'; return; }
   qbEls.qbAccuracyNote.style.display='block';
   qbEls.qbAccuracyNote.textContent = msg;
+}
+
+/* ---- Map ---- */
+function qbEnsureMap(){
+  if (QB.map || typeof L === 'undefined') return;
+  QB.map = L.map(qbEls.qbMap, { attributionControl:true, zoomControl:true });
+  QB.map.setView([20, 20], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+  }).addTo(QB.map);
+  const kaabaIcon = L.divIcon({ className:'', html:'<div class="qb-kaaba-pin">🕋</div>', iconSize:[26,26], iconAnchor:[13,13] });
+  QB.kaabaMarker = L.marker([QB_KAABA_LAT, QB_KAABA_LON], { icon:kaabaIcon, title:'The Kaaba, Makkah' }).addTo(QB.map);
+}
+function qbUpdateMap(lat, lon){
+  qbEnsureMap();
+  if (!QB.map) return; // Leaflet failed to load (e.g. offline) — info panel below still works
+  if (QB.pathLine) QB.map.removeLayer(QB.pathLine);
+
+  if (QB.userMarker){
+    // Move the existing marker instead of recreating it, so the live
+    // heading cone's current rotation isn't lost on every GPS update.
+    QB.userMarker.setLatLng([lat, lon]);
+  } else {
+    const userIcon = L.divIcon({
+      className:'',
+      html:`<div class="qb-user-marker">
+              <svg class="qb-user-heading-cone" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <radialGradient id="qbHeadGrad" cx="50%" cy="50%" r="55%">
+                    <stop offset="0%" stop-color="rgba(66,133,244,.55)"/>
+                    <stop offset="65%" stop-color="rgba(66,133,244,.22)"/>
+                    <stop offset="100%" stop-color="rgba(66,133,244,0)"/>
+                  </radialGradient>
+                </defs>
+                <path d="M60,60 L33,2 A62,62 0 0,1 87,2 Z" fill="url(#qbHeadGrad)"/>
+              </svg>
+              <div class="qb-user-dot"></div>
+            </div>`,
+      iconSize:[120,120], iconAnchor:[60,60]
+    });
+    QB.userMarker = L.marker([lat, lon], { icon:userIcon, title:'Your location', zIndexOffset:1000 }).addTo(QB.map);
+    if (QB.lastHeading != null) qbApplyHeadingToMarker(QB.lastHeading);
+  }
+
+  const pathPts = qbGreatCirclePoints(lat, lon, QB_KAABA_LAT, QB_KAABA_LON);
+  QB.pathLine = L.polyline(pathPts, { color:'#fbbf24', weight:3, opacity:.85, dashArray:'2 8' }).addTo(QB.map);
+
+  const bounds = L.latLngBounds([[lat,lon],[QB_KAABA_LAT,QB_KAABA_LON]]);
+  QB.map.fitBounds(bounds, { padding:[36,36], maxZoom:6 });
+}
+
+/* ---- Live heading cone (which way the device is currently facing) ----
+   Kept entirely separate from the Qibla bearing: this only reflects real
+   device-orientation-sensor data, exactly like the blue "field of view"
+   wedge on your own location dot in Google Maps. If no sensor is
+   available or permission is refused, the cone simply never appears —
+   nothing here is ever simulated or guessed. */
+function qbApplyHeadingToMarker(heading){
+  if (!QB.userMarker) return;
+  const el = QB.userMarker.getElement();
+  if (!el) return;
+  const cone = el.querySelector('.qb-user-heading-cone');
+  if (!cone) return;
+  cone.style.display = 'block';
+  cone.style.transform = `rotate(${heading}deg)`;
+}
+function qbShowHeadingNote(msg){
+  if (!msg){ qbEls.qbHeadingNote.style.display='none'; return; }
+  qbEls.qbHeadingNote.style.display='block';
+  qbEls.qbHeadingNote.textContent = msg;
+}
+function qbSetupHeadingSensor(){
+  if (QB.orientationChecked) return;
+  QB.orientationChecked = true;
+  if (!window.DeviceOrientationEvent){
+    qbShowHeadingNote("Live facing direction isn't available on this device or browser, so the heading cone can't be shown — the map and Qibla bearing above are unaffected.");
+    return;
+  }
+  if (typeof DeviceOrientationEvent.requestPermission === 'function'){
+    qbEls.qbEnableHeadingBtn.style.display = 'inline-flex';
+    qbEls.qbEnableHeadingBtn.onclick = ()=>{
+      DeviceOrientationEvent.requestPermission().then(state=>{
+        if (state === 'granted'){
+          qbEls.qbEnableHeadingBtn.style.display = 'none';
+          qbAttachHeadingListener();
+        } else {
+          qbShowHeadingNote("Facing-direction permission wasn't granted, so the live heading cone can't be shown.");
+        }
+      }).catch(()=> qbShowHeadingNote("Facing-direction permission wasn't granted, so the live heading cone can't be shown."));
+    };
+  } else {
+    qbAttachHeadingListener();
+  }
+}
+function qbAttachHeadingListener(){
+  let received = false;
+  const eventName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+  function handler(e){
+    if (e.alpha === null && typeof e.webkitCompassHeading !== 'number') return;
+    received = true;
+    qbHandleHeadingEvent(e);
+  }
+  window.addEventListener(eventName, handler, true);
+  setTimeout(()=>{
+    if (!received){
+      window.removeEventListener(eventName, handler, true);
+      qbShowHeadingNote("Live facing direction isn't available on this device or browser, so the heading cone can't be shown — the map and Qibla bearing above are unaffected.");
+    }
+  }, 2500);
+}
+function qbHandleHeadingEvent(e){
+  let heading;
+  if (typeof e.webkitCompassHeading === 'number'){
+    // iOS: already a compass heading, already accounts for screen orientation.
+    heading = e.webkitCompassHeading;
+  } else if (e.alpha !== null){
+    const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+    heading = 360 - e.alpha - screenAngle;
+    heading = ((heading % 360) + 360) % 360;
+  } else {
+    return;
+  }
+  QB.lastHeading = heading;
+  qbApplyHeadingToMarker(heading);
+  qbShowHeadingNote('');
 }
 
 function qbRecalcQibla(){
@@ -3720,7 +3796,10 @@ function qbRecalcQibla(){
   qbEls.qbDistanceVal.textContent = QB.distanceKm >= 1
     ? Math.round(QB.distanceKm).toLocaleString() + ' km'
     : Math.round(QB.distanceKm*1000) + ' m';
-  qbUpdateFacingState();
+  qbEls.qbFacingBanner.textContent = `From your location, the Qibla is ${qbCompassPointName(QB.bearing).toLowerCase()} — bearing ${QB.bearing.toFixed(1)}° from true north.`;
+  qbEls.qbFacingBanner.classList.add('qb-show');
+  if (qbEls.qbMapCompassArrow) qbEls.qbMapCompassArrow.setAttribute('transform', `rotate(${QB.bearing} 50 50)`);
+  qbUpdateMap(QB.coords.lat, QB.coords.lon);
 }
 
 function qbUpdateLocationUI(){
@@ -3746,19 +3825,21 @@ function qbUpdateLocationUI(){
   if (src === 'gps'){
     qbSetStatus('Location detected using your device' + (QB.accuracy ? ` (accuracy ~${Math.round(QB.accuracy)} m)` : '') + '.', 'ok');
     qbEls.qbRetryLocationBtn.style.display = 'none';
+    qbShowAccuracyNote('');
   } else if (src === 'ip'){
     qbSetStatus('Location estimated from your IP address — this is usually only accurate to city level, not exact. ' +
       (QB.placeName ? `Detected near ${QB.placeName}. ` : '') +
       'Use "Retry device location" or search manually for a more precise result.', 'warn');
     qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
+    qbShowAccuracyNote('Because this location is IP-estimated rather than GPS, the marker and line on the map — and the bearing below — are only as precise as your IP-based city estimate.');
   } else if (src === 'manual'){
     qbSetStatus('Qibla calculated from your selected location.', 'ok');
     qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
+    qbShowAccuracyNote('');
   }
 }
 
 function qbApplyLocation(lat, lon, source, accuracy, placeName){
-  const prev = QB.coords;
   QB.coords = { lat, lon };
   QB.locSource = source;
   QB.accuracy = accuracy || null;
@@ -3775,7 +3856,6 @@ function qbApplyLocation(lat, lon, source, accuracy, placeName){
       qbReverseGeocode(lat,lon);
     }
   }
-  if (!QB.orientationChecked) qbSetupOrientation();
 }
 
 function qbReverseGeocode(lat,lon){
@@ -3815,7 +3895,7 @@ function qbFallbackToIp(reason){
         const place = [j.city, j.country].filter(Boolean).join(', ');
         qbApplyLocation(j.latitude, j.longitude, 'ip', null, place);
       }).catch(()=>{
-        qbSetStatus('We couldn\'t automatically detect your location using your device or your IP address. Please search for your city, place, or address below.', 'err');
+        qbSetStatus("We couldn't automatically detect your location using your device or your IP address. Please search for your city, place, or address below.", 'err');
         qbShowSearch(true);
         qbEls.qbRetryLocationBtn.style.display = 'inline-flex';
       });
@@ -3889,207 +3969,11 @@ function qbRunSearch(q){
     });
 }
 
-/* ---- Device orientation (the normal compass) ---- */
-function qbOrientationUnsupported(){
-  qbEls.qbHousing.classList.add('qb-mode-static');
-  qbSetCompassStatus('Your device or browser doesn\'t support a live orientation/compass sensor, so the needle can\'t track automatically. The Qibla direction and bearing above are still calculated accurately from your location.', '');
-  qbEnableManualMode();
-}
-function qbOrientationDenied(){
-  qbEls.qbHousing.classList.add('qb-mode-static');
-  qbSetCompassStatus('Compass permission wasn\'t granted, so the needle can\'t track automatically. The Qibla direction and bearing above are still calculated from your location.', 'warn');
-  qbEnableManualMode();
-}
-
-/* ---- Manual Compass Mode ----
-   Used whenever a live orientation sensor isn't available or was denied.
-   Nothing is faked: the needle simply stops trying to auto-track, and the
-   user rotates it themselves (mouse-drag on desktop, two-finger rotate on
-   touch) against a known reference — e.g. the sun, a landmark, or a
-   physical compass — to align the red (north) tip with true/magnetic north. */
-function qbEnableManualMode(){
-  if (QB.manualMode) return;
-  QB.manualMode = true;
-  qbEls.qbHousing.classList.add('qb-mode-manual');
-  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-  qbEls.qbManualNote.textContent = isTouch
-    ? 'Manual Compass Mode — use two fingers to rotate the compass and align the red needle with North for manual calibration.'
-    : 'Manual Compass Mode — click and drag to rotate the compass and align the red needle with North for manual calibration.';
-  qbEls.qbManualNote.style.display = 'block';
-  qbEls.qbHeadingReadout.style.display = 'block';
-  qbShowAccuracyNote('You are aligning the needle yourself using a known reference (such as the sun, a landmark, or a physical compass) — MAAR is not measuring your heading automatically in this mode.');
-  qbSetManualAngle(QB.manualAngleDeg || 0);
-  qbAttachManualRotationHandlers();
-}
-function qbAngleFromPoint(clientX, clientY){
-  const rect = qbEls.qbHousing.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-  const dx = clientX - cx, dy = clientY - cy;
-  return Math.atan2(dx, -dy) * 180 / Math.PI; // 0° = up, clockwise positive
-}
-function qbAngleBetweenTouches(touches){
-  const dx = touches[1].clientX - touches[0].clientX;
-  const dy = touches[1].clientY - touches[0].clientY;
-  return Math.atan2(dy, dx) * 180 / Math.PI;
-}
-function qbSetManualAngle(angleDeg){
-  const angle = ((angleDeg % 360) + 360) % 360;
-  QB.manualAngleDeg = angle;
-  QB.headingType = 'manual';
-  QB.lastHeading = (360 - angle) % 360; // consistent with rotate(-heading) used for live mode
-  qbEls.qbNeedle.style.transform = `rotate(${angle}deg)`;
-  qbEls.qbHeadingDeg.textContent = Math.round(QB.lastHeading) + '°';
-  qbUpdateFacingState();
-}
-function qbAttachManualRotationHandlers(){
-  if (QB.manualListenersAttached) return;
-  QB.manualListenersAttached = true;
-  const housing = qbEls.qbHousing;
-
-  housing.addEventListener('mousedown', e=>{
-    if (!QB.manualMode) return;
-    e.preventDefault();
-    const startPointer = qbAngleFromPoint(e.clientX, e.clientY);
-    const startManual = QB.manualAngleDeg;
-    housing.style.cursor = 'grabbing';
-    function onMove(ev){ qbSetManualAngle(startManual + (qbAngleFromPoint(ev.clientX, ev.clientY) - startPointer)); }
-    function onUp(){
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      housing.style.cursor = 'grab';
-    }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  });
-
-  let touchStartAngle = null, touchStartManual = 0;
-  housing.addEventListener('touchstart', e=>{
-    if (!QB.manualMode) return;
-    if (e.touches.length === 2){
-      e.preventDefault();
-      touchStartAngle = qbAngleBetweenTouches(e.touches);
-      touchStartManual = QB.manualAngleDeg;
-    }
-  }, {passive:false});
-  housing.addEventListener('touchmove', e=>{
-    if (!QB.manualMode) return;
-    if (e.touches.length === 2 && touchStartAngle !== null){
-      e.preventDefault();
-      qbSetManualAngle(touchStartManual + (qbAngleBetweenTouches(e.touches) - touchStartAngle));
-    }
-  }, {passive:false});
-  housing.addEventListener('touchend', e=>{
-    if (e.touches.length < 2) touchStartAngle = null;
-  });
-}
-function qbSetupOrientation(){
-  QB.orientationChecked = true;
-  if (!window.DeviceOrientationEvent){
-    qbOrientationUnsupported();
-    return;
-  }
-  if (typeof DeviceOrientationEvent.requestPermission === 'function'){
-    qbEls.qbEnableCompassBtn.style.display = 'inline-flex';
-    qbSetCompassStatus('Tap "Enable compass" to allow MAAR to use your device\'s compass sensor for a live, rotating Qibla compass.', '');
-    qbEls.qbEnableCompassBtn.onclick = ()=>{
-      DeviceOrientationEvent.requestPermission().then(state=>{
-        if (state === 'granted'){
-          qbEls.qbEnableCompassBtn.style.display = 'none';
-          qbAttachOrientationListener();
-        } else {
-          qbOrientationDenied();
-        }
-      }).catch(()=> qbOrientationDenied());
-    };
-  } else {
-    qbAttachOrientationListener();
-  }
-}
-function qbAttachOrientationListener(){
-  let received = false;
-  const eventName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
-  function handler(e){
-    if (e.alpha === null && typeof e.webkitCompassHeading !== 'number') return;
-    received = true;
-    qbHandleOrientationEvent(e);
-  }
-  window.addEventListener(eventName, handler, true);
-  QB.orientationWatchdog = setTimeout(()=>{
-    if (!received){
-      window.removeEventListener(eventName, handler, true);
-      qbOrientationUnsupported();
-    }
-  }, 2500);
-}
-function qbHandleOrientationEvent(e){
-  if (QB.orientationWatchdog){ clearTimeout(QB.orientationWatchdog); QB.orientationWatchdog = null; }
-  if (!QB.orientationActive){
-    QB.orientationActive = true;
-    qbEls.qbHousing.classList.remove('qb-mode-static');
-    qbEls.qbHeadingReadout.style.display = 'block';
-    qbEls.qbEnableCompassBtn.style.display = 'none';
-    if (QB.manualMode){
-      QB.manualMode = false;
-      qbEls.qbHousing.classList.remove('qb-mode-manual');
-      qbEls.qbHousing.style.cursor = '';
-      qbEls.qbManualNote.style.display = 'none';
-    }
-  }
-  let heading, type;
-  if (typeof e.webkitCompassHeading === 'number'){
-    // iOS: already a compass heading (clockwise from magnetic north) and
-    // already accounts for the current screen orientation — do not adjust further.
-    heading = e.webkitCompassHeading;
-    type = 'magnetic';
-    const acc = e.webkitCompassAccuracy;
-    qbShowCalibration(typeof acc === 'number' && (acc < 0 || acc > 25));
-  } else if (e.alpha !== null){
-    // Standard DeviceOrientation: alpha is measured counter-clockwise from
-    // the device's initial "natural" orientation, so first convert to a
-    // clockwise compass heading, then subtract the screen's current
-    // rotation (screen.orientation.angle) so it stays correct in both
-    // portrait and landscape.
-    const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
-    heading = 360 - e.alpha - screenAngle;
-    heading = ((heading % 360) + 360) % 360;
-    type = e.absolute ? 'true-approx' : 'magnetic-uncalibrated';
-  } else {
-    return;
-  }
-
-  QB.lastHeading = heading;
-  if (QB.headingType !== type){
-    QB.headingType = type;
-    if (type === 'magnetic' || type === 'magnetic-uncalibrated'){
-      qbShowAccuracyNote('Heading is based on magnetic north from your device sensor, which can differ slightly from true north depending on your location. Treat the compass as a close guide rather than a millimetre-precise instrument.');
-    } else {
-      qbShowAccuracyNote('Heading is device-reported and best-effort — sensor quality varies by device and can drift, so use it as a reliable guide rather than a guaranteed-exact reading.');
-    }
-    qbSetCompassStatus('Live compass active — rotate your phone and the compass follows automatically.', 'ok');
-  }
-  qbEls.qbNeedle.style.transform = `rotate(${-heading}deg)`;
-  qbEls.qbHeadingDeg.textContent = Math.round(heading) + '°';
-  qbUpdateFacingState();
-}
-function qbUpdateFacingState(){
-  if (QB.bearing == null || QB.lastHeading == null || !QB.orientationActive){
-    qbEls.qbHousing.classList.remove('qb-facing');
-    qbEls.qbFacingBanner.classList.remove('qb-show');
-    return;
-  }
-  let diff = Math.abs(QB.bearing - QB.lastHeading);
-  if (diff > 180) diff = 360 - diff;
-  const facing = diff <= 6;
-  qbEls.qbHousing.classList.toggle('qb-facing', facing);
-  qbEls.qbFacingBanner.classList.toggle('qb-show', facing);
-}
-
 function qbInit(){
   if (QB.inited) return;
   QB.inited = true;
   qbCacheEls();
-  qbBuildDialSvg();
-  qbBuildNeedleSvg();
+  qbBuildMapCompassWidget();
 
   qbEls.qbRetryLocationBtn.addEventListener('click', qbDetectLocation);
   qbEls.qbToggleSearchBtn.addEventListener('click', ()=>{
@@ -4103,6 +3987,7 @@ function qbInit(){
   });
 
   qbDetectLocation();
+  qbSetupHeadingSensor();
 }
 
 /* ================= Disable Right-Click ================= */
