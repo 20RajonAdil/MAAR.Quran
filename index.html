@@ -1563,14 +1563,25 @@ const ICON_SAVE = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="cur
 /* ================= STORAGE NAMESPACING ================= */
 const QM_NAMESPACE = (location.pathname.split('/').filter(Boolean)[0] || 'quran-maar') + '::';
 let memoryStorage = {};
+let qmStorageBroken = false;
+
+function qmWarnStorageBroken(){
+  if (qmStorageBroken) return; // only warn once
+  qmStorageBroken = true;
+  const banner = document.createElement('div');
+  banner.textContent = "This app can't save data on your device right now (device or browser storage is blocked), so bookmarks and settings won't be remembered after you close it.";
+  banner.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:400;padding:12px 16px;border-radius:12px;background:rgba(248,113,113,.14);border:1px solid rgba(248,113,113,.4);color:#fff;font-size:12.5px;text-align:center;box-shadow:0 10px 24px -8px rgba(0,0,0,.5);';
+  document.body.appendChild(banner);
+  setTimeout(()=>{ banner.style.transition='opacity .4s'; banner.style.opacity='0'; setTimeout(()=>banner.remove(), 500); }, 9000);
+}
 
 function qmStorageGet(key) {
-  try { return localStorage.getItem(QM_NAMESPACE + key); } 
-  catch (e) { return memoryStorage[QM_NAMESPACE + key] || null; }
+  try { return localStorage.getItem(QM_NAMESPACE + key); }
+  catch (e) { qmWarnStorageBroken(); return memoryStorage[QM_NAMESPACE + key] || null; }
 }
 function qmStorageSet(key, value) {
-  try { localStorage.setItem(QM_NAMESPACE + key, value); } 
-  catch (e) { memoryStorage[QM_NAMESPACE + key] = value; }
+  try { localStorage.setItem(QM_NAMESPACE + key, value); }
+  catch (e) { qmWarnStorageBroken(); memoryStorage[QM_NAMESPACE + key] = value; }
   if (window.__qmSyncToFile) window.__qmSyncToFile();
 }
 
@@ -1691,36 +1702,136 @@ updateHijriDate();
 
 /* ================= SHARED LOCATION (requested once, reused everywhere) =================
    Both prayer times and the moon/sun panel need the device's coordinates.
-   Previously each called navigator.geolocation independently, which could
-   trigger the browser's permission prompt more than once. Now there's a
-   single request; every feature awaits the same cached result. If it's
-   denied, a manual "Enable location" retry is offered instead of the app
-   silently re-prompting on its own. */
+   There's a single request; every feature awaits the same cached result.
+   Fallback chain: device GPS -> IP-based estimate -> manual city/place
+   search. The manual step matters most for wrapped/embedded contexts (an
+   Android WebView APK, for example) where the browser's geolocation
+   permission prompt is sometimes never relayed to the native permission
+   system, so GPS can silently hang or fail no matter how many times the
+   user "allows" it — a manual location keeps the app usable regardless. */
 let qmCoords = null;
+let qmCoordsSource = null; // 'gps' | 'ip' | 'manual'
 let qmCoordsPromise = null;
+
+function qmTryGps(){
+  return new Promise((resolve, reject)=>{
+    if (!navigator.geolocation){ reject(new Error('unsupported')); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos=> resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      err=> reject(err),
+      { enableHighAccuracy:false, maximumAge:1800000, timeout:10000 }
+    );
+  });
+}
+function qmTryIp(){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), 6000);
+  return fetch('https://ipapi.co/json/', {signal:ctrl.signal}).then(r=>r.json()).then(j=>{
+    clearTimeout(t);
+    if (!j || typeof j.latitude !== 'number') throw new Error('no coords');
+    return { lat: j.latitude, lon: j.longitude };
+  }).catch(()=>{
+    clearTimeout(t);
+    return fetch('https://ipwho.is/').then(r=>r.json()).then(j=>{
+      if (!j || j.success === false || typeof j.latitude !== 'number') throw new Error('no coords');
+      return { lat: j.latitude, lon: j.longitude };
+    });
+  });
+}
 
 function qmGetLocation(){
   if (qmCoords) return Promise.resolve(qmCoords);
   if (qmCoordsPromise) return qmCoordsPromise;
-  qmCoordsPromise = new Promise((resolve, reject)=>{
-    if (!navigator.geolocation){ reject(new Error('Geolocation unsupported')); return; }
-    navigator.geolocation.getCurrentPosition(
-      pos=>{
-        qmCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        resolve(qmCoords);
-      },
-      err=>{ qmCoordsPromise = null; reject(err); },
-      { enableHighAccuracy:false, maximumAge:1800000, timeout:10000 }
-    );
+  qmCoordsPromise = qmTryGps().then(c=>{
+    qmCoordsSource = 'gps';
+    qmCoords = c;
+    return c;
+  }).catch(()=>{
+    return qmTryIp().then(c=>{
+      qmCoordsSource = 'ip';
+      qmCoords = c;
+      return c;
+    }).catch(err=>{
+      qmCoordsPromise = null;
+      throw err;
+    });
   });
   return qmCoordsPromise;
 }
 
+function qmSetManualLocation(lat, lon){
+  qmCoords = { lat, lon };
+  qmCoordsSource = 'manual';
+  qmCoordsPromise = Promise.resolve(qmCoords);
+  loadPrayer();
+  updateMoonAndSun();
+  qmHideManualLocationSearch();
+}
+
 function qmRetryLocation(){
   qmCoords = null;
+  qmCoordsSource = null;
   qmCoordsPromise = null;
   loadPrayer();
   updateMoonAndSun();
+}
+
+/* ---- Small manual-location fallback search (GPS and IP both failed) ---- */
+let qmManualSearchDebounce = null;
+function qmShowManualLocationSearch(){
+  let box = document.getElementById('qmManualLocBox');
+  if (box){ box.style.display = 'block'; document.getElementById('qmManualLocInput')?.focus(); return; }
+  box = document.createElement('div');
+  box.id = 'qmManualLocBox';
+  box.style.cssText = 'margin-top:10px;max-width:420px;';
+  box.innerHTML = `
+    <input type="text" id="qmManualLocInput" placeholder="Search your city, place, or address" autocomplete="off"
+      style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:var(--text);">
+    <div id="qmManualLocResults" style="margin-top:6px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(10,17,32,.96);overflow:hidden;display:none;max-height:220px;overflow-y:auto;"></div>
+  `;
+  // Insert right after whichever element triggered this (prayer ticker or moon note's parent)
+  const anchor = document.getElementById('prayerTicker');
+  anchor.parentElement.insertBefore(box, anchor.nextSibling);
+  document.getElementById('qmManualLocInput').addEventListener('input', (e)=>{
+    clearTimeout(qmManualSearchDebounce);
+    const val = e.target.value;
+    qmManualSearchDebounce = setTimeout(()=> qmRunManualLocationSearch(val), 450);
+  });
+}
+function qmHideManualLocationSearch(){
+  const box = document.getElementById('qmManualLocBox');
+  if (box) box.style.display = 'none';
+}
+function qmRunManualLocationSearch(q){
+  const results = document.getElementById('qmManualLocResults');
+  if (!results) return;
+  if (!q || q.trim().length < 2){ results.style.display='none'; results.innerHTML=''; return; }
+  fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=0&limit=6&q=${encodeURIComponent(q)}`)
+    .then(r=>r.json())
+    .then(list=>{
+      if (!Array.isArray(list) || !list.length){
+        results.innerHTML = '<div style="padding:10px 12px;font-size:13px;">No matching places found.</div>';
+        results.style.display = 'block';
+        return;
+      }
+      results.innerHTML = list.map((r,i)=>{
+        const parts = r.display_name.split(',');
+        return `<div class="qm-manual-loc-item" data-idx="${i}" style="padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);">
+          <span>${parts[0].trim()}</span><span style="display:block;font-size:11px;color:var(--muted);">${parts.slice(1,3).join(',').trim()}</span>
+        </div>`;
+      }).join('');
+      results.style.display = 'block';
+      results.querySelectorAll('.qm-manual-loc-item').forEach(el=>{
+        el.addEventListener('click', ()=>{
+          const r = list[parseInt(el.dataset.idx)];
+          qmSetManualLocation(parseFloat(r.lat), parseFloat(r.lon));
+        });
+      });
+    })
+    .catch(()=>{
+      results.innerHTML = '<div style="padding:10px 12px;font-size:13px;">Search failed — check your connection and try again.</div>';
+      results.style.display = 'block';
+    });
 }
 
 /* ================= PRAYER TIMES ================= */
@@ -1761,7 +1872,7 @@ async function loadPrayer(){
     updatePrayerDisplay();
     setInterval(updatePrayerDisplay,1000);
   }catch{
-    document.getElementById('prayerTicker').innerHTML='<div>Location permission needed for prayer times · <a href="#" onclick="qmRetryLocation();return false;" style="color:var(--accent,#22d3ee);text-decoration:underline;">enable</a></div>';
+    document.getElementById('prayerTicker').innerHTML='<div>Couldn\'t determine your location for prayer times · <a href="#" onclick="qmRetryLocation();return false;" style="color:var(--accent,#22d3ee);text-decoration:underline;">retry</a> · <a href="#" onclick="qmShowManualLocationSearch();return false;" style="color:var(--accent,#22d3ee);text-decoration:underline;">search for your city</a></div>';
     document.getElementById('countdown').textContent='Next prayer: --:--:--';
   }
 }
@@ -2066,9 +2177,9 @@ function updateMoonAndSun(){
       dotS.style.bottom=Math.max(0, sunAlt/90*dotS.parentElement.offsetHeight)+"px";
     }
   }).catch(()=>{
-    if (mi) mi.innerHTML = `<b>${moonIllum}%</b> illuminated<br>Alt/Az/rise/set need location · <a href="#" onclick="qmRetryLocation();return false;" style="color:var(--accent,#22d3ee);text-decoration:underline;">enable</a>`;
+    if (mi) mi.innerHTML = `<b>${moonIllum}%</b> illuminated<br>Alt/Az/rise/set need location · <a href="#" onclick="qmRetryLocation();return false;" style="color:var(--accent,#22d3ee);text-decoration:underline;">retry</a> · <a href="#" onclick="qmShowManualLocationSearch();return false;" style="color:var(--accent,#22d3ee);text-decoration:underline;">search</a>`;
     const dirEl = document.getElementById('moonDirectionText');
-    if (dirEl) dirEl.innerHTML = 'Enable location to see which direction to look · <a href="#" onclick="qmRetryLocation();return false;">enable</a>';
+    if (dirEl) dirEl.innerHTML = 'Couldn\'t determine your location · <a href="#" onclick="qmRetryLocation();return false;" style="color:var(--accent,#22d3ee);text-decoration:underline;">retry</a> · <a href="#" onclick="qmShowManualLocationSearch();return false;" style="color:var(--accent,#22d3ee);text-decoration:underline;">search</a>';
   });
 }
 updateMoonAndSun();
@@ -2433,8 +2544,8 @@ function renderLocalStorePanel(){
     folderText = QMVault.dirHandle ? QMVault.dirHandle.name : 'Permission needed';
     btnConnectHidden = true; btnReconnectHidden = false; btnChangeHidden = false;
   } else if (!QM_FSA_SUPPORTED){
-    modeText = "This browser only — folder storage isn't supported here";
-    folderText = 'Not available in this browser';
+    modeText = "On-device storage only — this app/browser can't link an extra folder for backups";
+    folderText = 'Not available here (your bookmarks are still saved on this device)';
     btnConnectHidden = true; btnReconnectHidden = true; btnChangeHidden = true;
   } else {
     modeText = 'This browser only — connect a folder for extra safety';
