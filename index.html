@@ -34,11 +34,11 @@
 <meta name="twitter:image:alt" content="Quran Maar — Light, Time, Guidance">
 
 <!-- Icons & PWA manifest -->
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=2">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%2322d3ee%22/></svg>">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json?v=2">
 
 <!-- Structured data (JSON-LD) -->
 <script type="application/ld+json">
@@ -1189,7 +1189,7 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
       <p class="small" style="margin-top:6px;">Install it on your phone or computer for quick, full-screen access to the Qur'an, prayer times, and Qibla.</p>
 
       <div class="app-install-row">
-        <a class="app-install-btn app-btn-android" href="https://github.com/20RajonAdil/MAAR.Quran/releases/download/v1.0/Quran.MAAR.apk" download>
+        <a class="app-install-btn app-btn-android" href="https://github.com/20RajonAdil/BMet-Prayer-web/releases/download/v1.0/BMetPrayer.apk" download>
           <span class="app-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.6 9.48l1.84-3.18a.5.5 0 0 0-.86-.5l-1.87 3.23a10.9 10.9 0 0 0-9.42 0L5.42 5.8a.5.5 0 1 0-.86.5L6.4 9.48A9.7 9.7 0 0 0 2.5 17h19a9.7 9.7 0 0 0-3.9-7.52zM8.5 14.5A1.25 1.25 0 1 1 8.5 12a1.25 1.25 0 0 1 0 2.5zm7 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
           </span>
@@ -3359,6 +3359,23 @@ function playSingleAyah(globalAyahNumber, ayahEl){
     setPlayPauseIcon(false);
     hidePlayerBar();
   };
+  /* If this reciter's file for this ayah fails to load (missing edition,
+     404, transient network issue), don't just go silent — retry once with
+     the reliable default reciter's audio so playback still works. */
+  currentAudio.onerror = ()=>{
+    if (!currentAudio.dataset.fallbackTried && selectedReciterId !== 'alafasy'){
+      currentAudio.dataset.fallbackTried = '1';
+      currentAudio.src = `https://cdn.islamic.network/quran/audio/128/${AUDIO_EDITION}/${globalAyahNumber}.mp3`;
+      showPlayerBar(`${getReciter('alafasy').name} · Verse ${inSurah} (fallback — this reciter's file didn't load)`);
+      currentAudio.play().catch(()=>{});
+    } else {
+      ayahEl.classList.remove('is-playing');
+      currentPlayingAyahEl = null;
+      currentAudio = null;
+      setPlayPauseIcon(false);
+      hidePlayerBar();
+    }
+  };
 }
 
 function playSurahFrom(index){
@@ -3385,6 +3402,21 @@ function playSurahFrom(index){
   currentAudio.onended = ()=>{
     if (ayahEl) ayahEl.classList.remove('is-playing');
     playSurahFrom(index+1);
+  };
+  /* If this reciter's file for this ayah fails to load (missing edition,
+     404, transient network issue), retry the SAME ayah with the reliable
+     default reciter instead of the whole chain silently freezing here —
+     this is what was making non-default reciters look "broken." */
+  currentAudio.onerror = ()=>{
+    if (!currentAudio.dataset.fallbackTried && selectedReciterId !== 'alafasy'){
+      currentAudio.dataset.fallbackTried = '1';
+      currentAudio.src = `https://cdn.islamic.network/quran/audio/128/${AUDIO_EDITION}/${global}.mp3`;
+      showPlayerBar(`${getReciter('alafasy').name} · Verse ${inSurah} of ${playQueue.length} (fallback)`);
+      currentAudio.play().catch(()=> playSurahFrom(index+1));
+    } else {
+      if (ayahEl) ayahEl.classList.remove('is-playing');
+      playSurahFrom(index+1); // skip this one ayah, keep the rest of the surah playing
+    }
   };
 }
 
