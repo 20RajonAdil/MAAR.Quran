@@ -1402,15 +1402,6 @@ button.primary{border-radius:999px;}
 .panel-widget h2{color:var(--text);}
 .panel-widget .eyebrow{color:var(--accent);}
 
-.widget-badges{position:absolute; top:20px; right:20px; display:flex; gap:6px;}
-.widget-badges span{
-  width:26px; height:26px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  background:linear-gradient(160deg,#fff,#e4dccb);
-  box-shadow:0 3px 6px rgba(0,0,0,.14), inset 0 1px 0 #fff;
-  font-size:10px; font-weight:800; color:#8a8065;
-}
-
 .panel-widget .ticker-shell{
   background:linear-gradient(160deg,#efe7d6,#e2d9c4);
   border:none; border-radius:16px;
@@ -1468,7 +1459,12 @@ button.primary{border-radius:999px;}
 .waffle-tile img{width:26px; height:26px; border-radius:7px; background:#fff; padding:3px; box-sizing:border-box;}
 .waffle-tile span{font-size:10.5px; font-weight:600; line-height:1.25;}
 @media(max-width:640px){
-  .waffle-panel{left:auto; right:0; width:260px;}
+  .waffle-panel{
+    position:fixed; top:76px; left:50%; right:auto;
+    transform:translateX(-50%) translateY(-8px) scale(.97);
+    width:min(88vw, 320px);
+  }
+  .waffle-panel.open{transform:translateX(-50%) translateY(0) scale(1);}
   .waffle-grid{grid-template-columns:repeat(3,1fr);}
 }
 
@@ -1509,31 +1505,31 @@ button.primary{border-radius:999px;}
         <div class="waffle-panel-head">MAAR apps</div>
         <div class="waffle-grid">
           <a class="waffle-tile" href="https://maar-five.vercel.app/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=maar-five.vercel.app&sz=64" alt="" loading="lazy"><span>MAAR</span>
+            <img src="https://raw.githubusercontent.com/20RajonAdil/MAAR/main/public/icon-192.png" alt="" loading="lazy"><span>MAAR</span>
           </a>
           <a class="waffle-tile" href="https://maar-puls-vam1.vercel.app/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=maar-puls-vam1.vercel.app&sz=64" alt="" loading="lazy"><span>MAAR Pulse</span>
+            <img src="https://raw.githubusercontent.com/20RajonAdil/MAAR.Puls/main/public/icon-192.png" alt="" loading="lazy"><span>MAAR Pulse</span>
           </a>
           <a class="waffle-tile" href="https://maar-journey-gamma.vercel.app/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=maar-journey-gamma.vercel.app&sz=64" alt="" loading="lazy"><span>MAAR Journey</span>
+            <img src="https://raw.githubusercontent.com/20RajonAdil/maar-journey/main/public/icon-192.png" alt="" loading="lazy"><span>MAAR Journey</span>
           </a>
           <a class="waffle-tile" href="https://20rajonadil.github.io/MAAR.Quran/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=20rajonadil.github.io&sz=64" alt="" loading="lazy"><span>Quran Maar</span>
+            <img src="https://raw.githubusercontent.com/20RajonAdil/MAAR.Quran/main/icon-192.png" alt="" loading="lazy"><span>Quran Maar</span>
           </a>
           <a class="waffle-tile" href="https://20rajonadil.github.io/MAAR-QR/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=20rajonadil.github.io&sz=64" alt="" loading="lazy"><span>MAAR QR</span>
+            <img src="https://raw.githubusercontent.com/20RajonAdil/MAAR-QR/main/icons/icon-192.png" alt="" loading="lazy"><span>MAAR QR</span>
           </a>
           <a class="waffle-tile" href="https://20rajonadil.github.io/MAAR-LIFE/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=20rajonadil.github.io&sz=64" alt="" loading="lazy"><span>MAAR Life</span>
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%2306070A' stroke='%2316C98D' stroke-width='4'/%3E%3Ctext x='50' y='66' font-size='44' text-anchor='middle' fill='%2316C98D' font-family='Georgia'%3EM%3C/text%3E%3C/svg%3E" alt="" loading="lazy"><span>MAAR Life</span>
           </a>
           <a class="waffle-tile" href="https://20rajonadil.github.io/MAARnofap/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=20rajonadil.github.io&sz=64" alt="" loading="lazy"><span>MAAR No Fap</span>
+            <img src="https://raw.githubusercontent.com/20RajonAdil/MAARnofap/main/icons/android-chrome-192.png" alt="" loading="lazy"><span>MAAR No Fap</span>
           </a>
           <a class="waffle-tile" href="https://maar-ai.vercel.app/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=maar-ai.vercel.app&sz=64" alt="" loading="lazy"><span>MAAR AI</span>
+            <img src="https://raw.githubusercontent.com/20RajonAdil/MAAR_AI/main/public/icon-192.png" alt="" loading="lazy"><span>MAAR AI</span>
           </a>
           <a class="waffle-tile" href="https://20rajonadil.github.io/BMet-Prayer-web/" target="_blank" rel="noopener">
-            <img src="https://www.google.com/s2/favicons?domain=20rajonadil.github.io&sz=64" alt="" loading="lazy"><span>BMet Prayer</span>
+            <img src="https://raw.githubusercontent.com/20RajonAdil/BMet-Prayer-web/main/icon-192.png" alt="" loading="lazy"><span>BMet Prayer</span>
           </a>
         </div>
       </div>
@@ -1627,7 +1623,6 @@ button.primary{border-radius:999px;}
     </div>
 
     <div class="panel panel-widget">
-      <div class="widget-badges" aria-hidden="true"><span>R</span><span>24</span></div>
       <div class="eyebrow">Today</div>
       <h2 style="font-size:22px;margin-top:4px;">Prayer Times</h2>
       <div class="ticker-shell"><div id="prayerTicker">Loading prayer times…</div></div>
