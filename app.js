@@ -443,6 +443,7 @@ const ICONS = {
   x: 'M5 5l14 14M19 5 5 19',
   chev: 'M9 6l6 6-6 6',
   save: 'M5 4.5h11l3 3v12H5v-15Zm2 0v5h8v-5M8 14.5h8v5H8v-5Z',
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13v.01M12 11v6',
 };
 function Icon({ name, size = 18, filled = false }){
   const d = ICONS[name] || '';
@@ -461,6 +462,7 @@ const NAV_ITEMS = [
   { id:'quran', label:"Qur'an", icon:'book' },
   { id:'hadith', label:'Hadith', icon:'search' },
   { id:'qibla', label:'Qibla', icon:'compass' },
+  { id:'about', label:'About', icon:'info' },
 ];
 
 function LocalStoreBadge(){
@@ -605,7 +607,7 @@ function HomePrayerPanel({ geo }){
         </div>
         ${next ? html`<div class="surah-meta" style=${{textAlign:'center'}}>Next — <b style=${{color:'var(--gold-hi)'}}>${next.name}</b> at ${to12h(next.time)} · in ${fmtCountdown(next.msLeft)}</div>` : null}
         <div class="home-clock-row">
-          <div class="clock-box"><div class="c-val">${now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}</div><div class="c-lbl">Local time</div></div>
+          <div class="clock-box"><div class="c-val">${now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' })}</div><div class="c-lbl">Local time</div></div>
           <div class="clock-box"><div class="c-val">${prayer.date?.gregorian ? `${prayer.date.gregorian.day} ${prayer.date.gregorian.month.en.slice(0,3)}` : '--'}</div><div class="c-lbl">Gregorian</div></div>
           <div class="clock-box"><div class="c-val">${prayer.date?.hijri ? `${prayer.date.hijri.day} ${prayer.date.hijri.month.en.slice(0,3)}` : '--'}</div><div class="c-lbl">Hijri</div></div>
           <div class="clock-box"><div class="c-val">${prayer.date?.hijri ? prayer.date.hijri.year : '--'}</div><div class="c-lbl">AH</div></div>
@@ -1012,9 +1014,9 @@ function HadithSection({ hadithBookmarks, toggleHadithBookmark }){
 
       ${status === 'ready' ? html`
         <div class="pager reveal">
-          <button disabled=${page <= 0} onClick=${() => setPage((p) => Math.max(0, p - 1))}><${Icon} name="chev" size=${14} /></button>
+          <button disabled=${page <= 0} onClick=${() => setPage((p) => Math.max(0, p - 1))} style=${{transform:'scaleX(-1)'}} aria-label="Previous page"><${Icon} name="chev" size=${14} /></button>
           <span>Page ${page + 1} of ${pageCount}</span>
-          <button disabled=${page >= pageCount - 1} onClick=${() => setPage((p) => Math.min(pageCount - 1, p + 1))} style=${{transform:'scaleX(-1)'}}><${Icon} name="chev" size=${14} /></button>
+          <button disabled=${page >= pageCount - 1} onClick=${() => setPage((p) => Math.min(pageCount - 1, p + 1))} aria-label="Next page"><${Icon} name="chev" size=${14} /></button>
         </div>
       ` : null}
     </section>
@@ -1270,9 +1272,31 @@ function QiblaSection({ geo }){
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [headingNote, setHeadingNote] = useState('');
   const ref = useReveal([geo.status]);
 
   useEffect(() => { if (geo.status === 'ready') { setCoords({ lat: geo.lat, lon: geo.lon }); setPlaceName(geo.city || ''); } }, [geo.status, geo.lat, geo.lon]);
+
+  // try to auto-attach a live heading sensor on mount (skipped on iOS, which
+  // requires an explicit permission button — see enableCompass below)
+  useEffect(() => {
+    if (typeof DeviceOrientationEvent === 'undefined') {
+      setHeadingNote("Live facing direction isn't available on this device or browser, so the heading cone can't be shown — the map and Qibla bearing above are unaffected.");
+      return;
+    }
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') return; // needs a user gesture (iOS)
+    let received = false;
+    const eventName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+    function handler(e){ if (e.alpha == null) return; received = true; setHeading(360 - e.alpha); }
+    window.addEventListener(eventName, handler, true);
+    const timer = setTimeout(() => {
+      if (!received) {
+        window.removeEventListener(eventName, handler, true);
+        setHeadingNote("Live facing direction isn't available on this device or browser, so the heading cone can't be shown — the map and Qibla bearing above are unaffected.");
+      }
+    }, 2500);
+    return () => { clearTimeout(timer); window.removeEventListener(eventName, handler, true); };
+  }, []);
 
   // init map once
   useEffect(() => {
@@ -1305,8 +1329,9 @@ function QiblaSection({ geo }){
     function onOrient(e){ if (e.alpha != null) setHeading(360 - e.alpha); }
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       DeviceOrientationEvent.requestPermission().then((res) => {
-        if (res === 'granted') { window.addEventListener('deviceorientationabsolute', onOrient, true); window.addEventListener('deviceorientation', onOrient, true); }
-      }).catch(() => {});
+        if (res === 'granted') { setHeadingNote(''); window.addEventListener('deviceorientationabsolute', onOrient, true); window.addEventListener('deviceorientation', onOrient, true); }
+        else setHeadingNote("Facing-direction permission wasn't granted, so the live heading cone can't be shown.");
+      }).catch(() => setHeadingNote("Facing-direction permission wasn't granted, so the live heading cone can't be shown."));
     } else { window.addEventListener('deviceorientationabsolute', onOrient, true); window.addEventListener('deviceorientation', onOrient, true); }
   }
 
@@ -1341,14 +1366,18 @@ function QiblaSection({ geo }){
       </div>
 
       ${!coords ? html`<div class="center-msg"><div class="spinner"></div><div style=${{marginTop:'10px'}}>Finding your location…</div></div>` : html`
+        <div class="qb-facing-banner reveal">From your location, the Qibla is <b>${compassPoint(bearing).toLowerCase()}</b> — bearing <b>${bearing.toFixed(1)}°</b> from true north.</div>
+
         <div class="qb-info-grid reveal">
           <div class="qb-info-box"><div class="qb-info-val">${compassPoint(bearing)}</div><div class="qb-info-lbl">Qibla direction</div></div>
-          <div class="qb-info-box"><div class="qb-info-val">${bearing.toFixed(1)}°</div><div class="qb-info-lbl">Bearing from north</div></div>
-          <div class="qb-info-box"><div class="qb-info-val">${distance >= 1 ? Math.round(distance).toLocaleString() + ' km' : Math.round(distance*1000) + ' m'}</div><div class="qb-info-lbl">Distance to Kaaba</div></div>
-          <div class="qb-info-box"><div class="qb-info-val" style=${{fontSize:'14px'}}>${placeName || `${coords.lat.toFixed(2)}, ${coords.lon.toFixed(2)}`}</div><div class="qb-info-lbl">Location</div></div>
+          <div class="qb-info-box"><div class="qb-info-val">${bearing.toFixed(1)}°</div><div class="qb-info-lbl">Bearing from true north</div></div>
+          <div class="qb-info-box"><div class="qb-info-val">${distance >= 1 ? Math.round(distance).toLocaleString() + ' km' : Math.round(distance*1000) + ' m'}</div><div class="qb-info-lbl">Distance to the Kaaba</div></div>
+          <div class="qb-info-box"><div class="qb-info-val" style=${{fontSize:'14px'}}>${placeName || `${coords.lat.toFixed(2)}, ${coords.lon.toFixed(2)}`}</div><div class="qb-info-lbl">Detected location</div></div>
         </div>
 
-        <div class="arch-card reveal" style=${{ cursor:'default' }}>
+        ${headingNote ? html`<div class="qb-note reveal">${headingNote}</div>` : null}
+
+        <div class="arch-card reveal" style=${{ cursor:'default', marginBottom:'14px' }}>
           <div class="qibla-wrap">
             <div class="qibla-deg">${Math.round(bearing)}°</div>
             <div class="surah-meta" style=${{marginBottom:'18px'}}>from true north${heading != null ? ' · live compass on' : ''}</div>
@@ -1358,33 +1387,75 @@ function QiblaSection({ geo }){
               <div class="compass-needle" style=${{ transform:`translate(-50%,-100%) rotate(${needleRotation}deg)` }}></div>
               <div class="compass-center"></div>
             </div>
-            <div style=${{ display:'flex', gap:'10px', flexWrap:'wrap', justifyContent:'center' }}>
-              ${heading == null ? html`<button class="btn btn-ghost" onClick=${enableCompass}><${Icon} name="compass" size=${15} /> Enable live compass</button>` : null}
-              <button class="btn btn-ghost" onClick=${() => setSearchOpen((s) => !s)}><${Icon} name="search" size=${15} /> Search a location</button>
-            </div>
-            ${searchOpen ? html`
-              <div class="qb-search-wrap">
-                <div class="search-box">
-                  <${Icon} name="search" size=${14} />
-                  <input placeholder="e.g. Tokyo, Japan" value=${searchQuery} onInput=${(e) => runSearch(e.target.value)} autoFocus />
-                </div>
-                ${searchResults.length > 0 ? html`
-                  <div class="qb-search-results">
-                    ${searchResults.map((r, i) => html`<div key=${i} class="qb-search-result" onClick=${() => pickResult(r)}>${r.display_name}</div>`)}
-                  </div>
-                ` : null}
-              </div>
-            ` : null}
-            <p class="surah-meta" style=${{marginTop:'16px', maxWidth:'360px'}}>The gold needle points toward the Kaaba in Makkah from ${placeName || 'your current location'}.</p>
+            ${heading == null && !headingNote ? html`<button class="btn btn-ghost" onClick=${enableCompass}><${Icon} name="compass" size=${15} /> Enable live heading</button>` : null}
           </div>
         </div>
+
+        <button class="qb-wide-btn reveal" onClick=${() => setSearchOpen((s) => !s)}><${Icon} name="search" size=${15} /> Search for a location manually</button>
+        ${searchOpen ? html`
+          <div class="qb-search-wrap">
+            <div class="search-box">
+              <${Icon} name="search" size=${14} />
+              <input placeholder="e.g. Tokyo, Japan or a full address" value=${searchQuery} onInput=${(e) => runSearch(e.target.value)} autoFocus />
+            </div>
+            ${searchResults.length > 0 ? html`
+              <div class="qb-search-results">
+                ${searchResults.map((r, i) => html`<div key=${i} class="qb-search-result" onClick=${() => pickResult(r)}>${r.display_name}</div>`)}
+              </div>
+            ` : null}
+          </div>
+        ` : null}
+
+        <p class="surah-meta reveal" style=${{marginTop:'16px'}}>The Qibla bearing is calculated fresh from your coordinates and the Kaaba's fixed location (${KAABA.lat}° N, ${KAABA.lon}° E) every time your location changes — it is never a fixed or assumed direction.</p>
       `}
     </section>
   `;
 }
 
 /* ---------------------------------------------------------------
-   12. BOOKMARKS DRAWER + FOOTER
+   12. ABOUT
+--------------------------------------------------------------- */
+function ProfileCard({ img, alt, name, children, gradient }){
+  const [imgOk, setImgOk] = useState(true);
+  return html`
+    <div class="arch-card about-card reveal" style=${{ cursor:'default' }}>
+      <div class="about-avatar" style=${!imgOk ? { background: gradient } : null}>
+        ${imgOk ? html`<img src=${img} alt=${alt} loading="lazy" onError=${() => setImgOk(false)} />` : null}
+      </div>
+      <div class="about-info">
+        <h3>${name}</h3>
+        ${children}
+      </div>
+    </div>
+  `;
+}
+
+function AboutSection(){
+  const ref = useReveal();
+  return html`
+    <section class="section shell" ref=${ref}>
+      <div class="section-head reveal">
+        <div>
+          <div class="eyebrow">About</div>
+          <h2>Who built this</h2>
+        </div>
+      </div>
+
+      <${ProfileCard} img="Quran.Maar.jpg" alt="Md Adil Ahmed Rajon, creator and developer of Quran Maar" name="Md Adil Ahmed Rajon" gradient="linear-gradient(135deg,var(--gold),var(--emerald-hi))">
+        <p>I am Md Adil Ahmed Rajon. I created this modern Islamic learning platform to help you read the Qur'an in Arabic and many other languages, check accurate prayer times with live countdowns, and follow a Hijri calendar. I designed it for simplicity and clarity, so you can explore the Qur'an and Islamic practices in an interactive and respectful way.</p>
+        <p>To collaborate or work with me, you can call me at +44 07440445929 or email me at <a href="mailto:20rajona@gmail.com" style=${{color:'var(--gold-hi)', textDecoration:'underline'}}>20rajona@gmail.com</a>.</p>
+        <p class="surah-meta">© 2026 Md Adil Ahmed Rajon</p>
+      <//>
+
+      <${ProfileCard} img="Quran.Maar2.jpg" alt="Adil Hasan, photography and media contributor for Quran Maar" name="Adil Hasan" gradient="linear-gradient(135deg,var(--emerald-hi),var(--gold))">
+        <p>Hi! I'm Adil Hasan. I helped build this website by taking the pictures and media that were needed to make it complete. I'm glad I could contribute and help bring this project to life.</p>
+      <//>
+    </section>
+  `;
+}
+
+/* ---------------------------------------------------------------
+   13. BOOKMARKS DRAWER + FOOTER
 --------------------------------------------------------------- */
 function BookmarksDrawer({ open, onClose, bookmarks, remove, hadithBookmarks, removeHadith }){
   if (!open) return null;
@@ -1493,6 +1564,7 @@ function App(){
     />`;
   else if (tab === 'hadith') page = html`<${HadithSection} hadithBookmarks=${hadithBookmarks} toggleHadithBookmark=${toggleHadithBookmark} />`;
   else if (tab === 'qibla') page = html`<${QiblaSection} geo=${geo} />`;
+  else if (tab === 'about') page = html`<${AboutSection} />`;
 
   return html`
     <${React.Fragment}>
