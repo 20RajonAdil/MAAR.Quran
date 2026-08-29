@@ -442,6 +442,7 @@ const ICONS = {
   pause: 'M7 4.5h4v15H7v-15Zm6 0h4v15h-4v-15Z',
   x: 'M5 5l14 14M19 5 5 19',
   chev: 'M9 6l6 6-6 6',
+  save: 'M5 4.5h11l3 3v12H5v-15Zm2 0v5h8v-5M8 14.5h8v5H8v-5Z',
 };
 function Icon({ name, size = 18, filled = false }){
   const d = ICONS[name] || '';
@@ -461,6 +462,16 @@ const NAV_ITEMS = [
   { id:'hadith', label:'Hadith', icon:'search' },
   { id:'qibla', label:'Qibla', icon:'compass' },
 ];
+
+function LocalStoreBadge(){
+  return html`
+    <div class="local-store-badge" title="Your reciter, bookmarks and settings are saved only in this browser — never sent anywhere.">
+      <span class="ls-dot"></span>
+      <${Icon} name="save" size=${13} />
+      <span>Local Store</span>
+    </div>
+  `;
+}
 
 function NavBar({ tab, setTab, onOpenMenu, onOpenBookmarks, bookmarkCount }){
   return html`
@@ -482,6 +493,7 @@ function NavBar({ tab, setTab, onOpenMenu, onOpenBookmarks, bookmarkCount }){
           `)}
         </nav>
         <div class="nav-actions">
+          <${LocalStoreBadge} />
           <button class="icon-btn" aria-label="Bookmarks" onClick=${onOpenBookmarks}>
             <${Icon} name="bookmark" size=${17} />
             ${bookmarkCount > 0 ? html`<span class="dot"></span>` : null}
@@ -503,6 +515,7 @@ function MobileMenu({ open, onClose, tab, setTab }){
           <span class="brand-text" style=${{ fontSize:'19px' }}>Quran <b>Maar</b></span>
           <button class="icon-btn" onClick=${onClose} aria-label="Close menu"><${Icon} name="close" size=${16} /></button>
         </div>
+        <div style=${{ marginBottom:'14px' }}><${LocalStoreBadge} /></div>
         ${NAV_ITEMS.map((n) => html`
           <button
             key=${n.id}
@@ -1159,9 +1172,9 @@ function QiblaSection({ geo }){
     if (!mapElRef.current || mapObj.current || typeof L === 'undefined') return;
     const map = L.map(mapElRef.current, { attributionControl: true, zoomControl: true });
     map.setView([20, 20], 2);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 18,
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
     const kaabaIcon = L.divIcon({ className: '', html: '<div class="qb-kaaba-pin">🕋</div>', iconSize: [26, 26], iconAnchor: [13, 13] });
     kaabaMarker.current = L.marker([KAABA.lat, KAABA.lon], { icon: kaabaIcon, title: 'The Kaaba, Makkah' }).addTo(map);
