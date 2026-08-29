@@ -258,13 +258,32 @@ const ARABIC_FONTS = [
 ];
 
 const HADITH_COLLECTIONS = [
-  { id:'bukhari', name:'Sahih al-Bukhari', ar:'ara-bukhari', en:'eng-bukhari', sections:97 },
-  { id:'muslim', name:'Sahih Muslim', ar:'ara-muslim', en:'eng-muslim', sections:56 },
-  { id:'abudawud', name:'Sunan Abu Dawood', ar:'ara-abudawud', en:'eng-abudawud', sections:43 },
-  { id:'tirmidhi', name:'Jami At-Tirmidhi', ar:'ara-tirmidhi', en:'eng-tirmidhi', sections:49 },
-  { id:'nasai', name:"Sunan an-Nasa'i", ar:'ara-nasai', en:'eng-nasai', sections:51 },
-  { id:'ibnmajah', name:'Sunan Ibn Majah', ar:'ara-ibnmajah', en:'eng-ibnmajah', sections:37 },
+  { id:'bukhari', name:'Sahih al-Bukhari', sections:97 },
+  { id:'muslim', name:'Sahih Muslim', sections:56 },
+  { id:'abudawud', name:'Sunan Abu Dawood', sections:43 },
+  { id:'tirmidhi', name:'Jami At-Tirmidhi', sections:49 },
+  { id:'nasai', name:"Sunan an-Nasa'i", sections:51 },
+  { id:'ibnmajah', name:'Sunan Ibn Majah', sections:37 },
 ];
+const HADITH_LANG_PREFIXES = [
+  { prefix:'eng', label:'English' },
+  { prefix:'ara', label:'Arabic' },
+  { prefix:'ben', label:'Bangla' },
+  { prefix:'urd', label:'Urdu' },
+  { prefix:'fra', label:'French' },
+  { prefix:'ind', label:'Indonesian' },
+  { prefix:'rus', label:'Russian' },
+  { prefix:'tur', label:'Turkish' },
+  { prefix:'tam', label:'Tamil' },
+];
+const HADITH_LANGS_BY_COLLECTION = {
+  bukhari:  ['eng','ara','ben','urd','fra','ind','rus','tam','tur'],
+  muslim:   ['eng','ara','ben','urd','fra','ind','rus','tam','tur'],
+  abudawud: ['eng','ara','ben','urd','fra','ind','rus','tur'],
+  tirmidhi: ['eng','ara','ben','urd','ind','tur'],
+  nasai:    ['eng','ara','ben','urd','fra','ind','tur'],
+  ibnmajah: ['eng','ara','ben','urd','fra','ind','tur'],
+};
 
 /* Small illustrative glyph per surah, echoing its meaning — kept from
    the "manuscript" direction, redrawn to fit the new arch cards. */
@@ -275,10 +294,57 @@ const SURAH_GLYPH = {
 };
 const glyphFor = (n) => SURAH_GLYPH[n] || '۩';
 
-/* ---------------------------------------------------------------
-   2. STORAGE — same "qm_" namespace as v4, so a returning visitor's
-   saved reciter / bookmarks / font choice carry over untouched.
---------------------------------------------------------------- */
+/* 12-hour clock formatting, e.g. "05:32" -> "5:32 AM" */
+function to12h(hhmm){
+  if (!hhmm) return '--';
+  const [hStr, mStr] = String(hhmm).split(':');
+  let h = parseInt(hStr, 10);
+  const m = (mStr || '00').padStart(2, '0');
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if (h === 0) h = 12;
+  return `${h}:${m} ${suffix}`;
+}
+
+/* ---------- moon position (simplified geocentric formulas, same
+   public astronomical approach SunCalc itself is built on) ---------- */
+const MOONPOS = (() => {
+  const rad = Math.PI / 180;
+  const dayMs = 1000 * 60 * 60 * 24;
+  const J1970 = 2440588, J2000 = 2451545;
+  const toDays = (date) => date.valueOf() / dayMs - 0.5 + J1970 - J2000;
+  const rightAscension = (l, b) => Math.atan2(Math.sin(l) * Math.cos(23.4397 * rad) - Math.tan(b) * Math.sin(23.4397 * rad), Math.cos(l));
+  const declination = (l, b) => Math.asin(Math.sin(b) * Math.cos(23.4397 * rad) + Math.cos(b) * Math.sin(23.4397 * rad) * Math.sin(l));
+  const siderealTime = (d, lw) => rad * (280.16 + 360.9856235 * d) - lw;
+  const altitude = (H, phi, dec) => Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
+  const azimuth = (H, phi, dec) => Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi));
+
+  function moonCoords(d){
+    const L = rad * (218.316 + 13.176396 * d);
+    const M = rad * (134.963 + 13.064993 * d);
+    const F = rad * (93.272 + 13.229350 * d);
+    const l = L + rad * 6.289 * Math.sin(M);
+    const b = rad * 5.128 * Math.sin(F);
+    const dt = 385001 - 20905 * Math.cos(M);
+    return { ra: rightAscension(l, b), dec: declination(l, b), dist: dt };
+  }
+
+  return function getMoonPosition(date, lat, lon){
+    const lw = rad * -lon, phi = rad * lat;
+    const d = toDays(date);
+    const c = moonCoords(d);
+    const H = siderealTime(d, lw) - c.ra;
+    let alt = altitude(H, phi, c.dec);
+    const az = azimuth(H, phi, c.dec) + Math.PI; // azimuth from north, clockwise
+    const pAlt = 0.017 / Math.tan(alt + 0.017 / (alt + 0.0001));
+    alt += pAlt;
+    return { altitude: alt / rad, azimuth: (az / rad + 360) % 360 };
+  };
+})();
+
+function compassPoint(deg){
+  const points = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return points[Math.round(deg / 22.5) % 16];
+}
 const NS = 'qm_';
 const store = {
   get(key, fallback = null){ try { const v = localStorage.getItem(NS + key); return v === null ? fallback : v; } catch { return fallback; } },
@@ -390,9 +456,7 @@ const NAV_ITEMS = [
   { id:'home', label:'Home', icon:'home' },
   { id:'quran', label:"Qur'an", icon:'book' },
   { id:'hadith', label:'Hadith', icon:'search' },
-  { id:'prayer', label:'Prayer', icon:'sun' },
   { id:'qibla', label:'Qibla', icon:'compass' },
-  { id:'moon', label:'Moon', icon:'moon' },
 ];
 
 function NavBar({ tab, setTab, onOpenMenu, onOpenBookmarks, bookmarkCount }){
@@ -479,7 +543,7 @@ function Hero({ setTab, surahCount }){
         <p class="hero-sub">The Qur'an in Arabic with translations in 20 languages, multi-reciter audio, live prayer times, a Qibla finder, Hadith collections and the real-time moon — 100% free, and saved only on your device.</p>
         <div class="hero-cta">
           <button class="btn btn-gold" onClick=${() => setTab('quran')}><${Icon} name="book" size=${16} /> Open the Qur'an</button>
-          <button class="btn btn-ghost" onClick=${() => setTab('prayer')}><${Icon} name="sun" size=${16} /> Today's prayer times</button>
+          <button class="btn btn-ghost" onClick=${() => document.getElementById('home-today')?.scrollIntoView({ behavior:'smooth', block:'start' })}><${Icon} name="sun" size=${16} /> Today's prayer times</button>
         </div>
         <div class="hero-stats">
           <div class="hero-stat"><b>${surahCount || 114}</b><span>Surahs</span></div>
@@ -492,13 +556,94 @@ function Hero({ setTab, surahCount }){
   `;
 }
 
+/* ---- Home: Today panel — live prayer ticker + clocks, 12-hour format ---- */
+function HomePrayerPanel({ geo }){
+  const prayer = usePrayerTimes(geo);
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
+  const next = useMemo(() => nextPrayer(prayer.timings), [prayer.timings, tick]);
+  const now = new Date();
+
+  return html`
+    <div class="arch-card home-panel reveal" style=${{ cursor:'default' }}>
+      <div class="panel-head">
+        <div class="eyebrow" style=${{ marginBottom:0 }}>Today</div>
+      </div>
+      <div class="section-head" style=${{ marginBottom:'12px' }}>
+        <h2 style=${{ fontSize:'26px' }}>Prayer times</h2>
+      </div>
+
+      ${geo.status !== 'ready' ? html`<div class="center-msg" style=${{ padding:'30px 10px' }}><div class="spinner"></div></div>` : null}
+
+      ${geo.status === 'ready' && prayer.status !== 'ready' ? html`<div class="center-msg" style=${{ padding:'30px 10px' }}><div class="spinner"></div></div>` : null}
+
+      ${geo.status === 'ready' && prayer.status === 'ready' ? html`
+        <div class="loc-pill" style=${{marginBottom:'12px'}}><${Icon} name="compass" size=${12} /> ${geo.city || `${geo.lat.toFixed(2)}, ${geo.lon.toFixed(2)}`}</div>
+        <div class="mini-prayer-ticker">
+          ${PRAYER_ORDER.map((k) => html`
+            <div key=${k} class=${'mini-prayer-pill' + (next && k === next.name ? ' now' : '')}>
+              <div class="p-name">${k}</div>
+              <div class="p-time">${to12h(prayer.timings[k])}</div>
+            </div>
+          `)}
+        </div>
+        ${next ? html`<div class="surah-meta" style=${{textAlign:'center'}}>Next — <b style=${{color:'var(--gold-hi)'}}>${next.name}</b> at ${to12h(next.time)} · in ${fmtCountdown(next.msLeft)}</div>` : null}
+        <div class="home-clock-row">
+          <div class="clock-box"><div class="c-val">${now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}</div><div class="c-lbl">Local time</div></div>
+          <div class="clock-box"><div class="c-val">${prayer.date?.gregorian ? `${prayer.date.gregorian.day} ${prayer.date.gregorian.month.en.slice(0,3)}` : '--'}</div><div class="c-lbl">Gregorian</div></div>
+          <div class="clock-box"><div class="c-val">${prayer.date?.hijri ? `${prayer.date.hijri.day} ${prayer.date.hijri.month.en.slice(0,3)}` : '--'}</div><div class="c-lbl">Hijri</div></div>
+          <div class="clock-box"><div class="c-val">${prayer.date?.hijri ? prayer.date.hijri.year : '--'}</div><div class="c-lbl">AH</div></div>
+        </div>
+      ` : null}
+      ${geo.status === 'error' ? html`<div class="center-msg">Allow location access to see today's prayer times.</div>` : null}
+    </div>
+  `;
+}
+
+/* ---- Home: Moon panel — v4-style stage (clouds, glow ring, drift) ---- */
+function HomeMoonPanel({ geo }){
+  const phase = useMemo(() => moonPhase(new Date()), []);
+  const [moonDir, setMoonDir] = useState(null);
+  useEffect(() => {
+    if (geo.status !== 'ready') return;
+    const pos = MOONPOS(new Date(), geo.lat, geo.lon);
+    setMoonDir(pos);
+  }, [geo.status, geo.lat, geo.lon]);
+
+  return html`
+    <div class="arch-card home-panel reveal" style=${{ cursor:'default' }}>
+      <div class="panel-head">
+        <div class="eyebrow" style=${{ marginBottom:0 }}>Tonight's sky</div>
+      </div>
+      <div class="section-head" style=${{ marginBottom:'12px' }}>
+        <h2 style=${{ fontSize:'26px' }}>The Moon</h2>
+      </div>
+      <div class="moon-stage">
+        <div class="moon-orbit">
+          <div class="moon-glow-ring"></div>
+          <div class="moon-phase-container"><${MoonCanvas} phase=${phase} /></div>
+        </div>
+        <div class="cloud-layer c1"></div>
+        <div class="cloud-layer c2"></div>
+        <div class="cloud-layer c3"></div>
+        <div class="moon-readout"><b>${phase.name}</b> · ${Math.round(phase.illumination * 100)}% lit</div>
+      </div>
+      <div class="moon-direction-callout">
+        ${moonDir
+          ? (moonDir.altitude > 0
+              ? `The moon is up — look toward the ${compassPoint(moonDir.azimuth)}, about ${Math.round(moonDir.altitude)}° above the horizon.`
+              : `The moon is below the horizon right now from ${geo.city || 'your location'} — it rises later.`)
+          : 'Finding your location to work out which way to look…'}
+      </div>
+    </div>
+  `;
+}
+
 function QuickLinks({ setTab }){
   const ref = useReveal();
   const items = [
-    { id:'hadith', title:'Hadith', sub:'Six major collections, Arabic and English', icon:'search' },
-    { id:'prayer', title:'Prayer times', sub:'Live countdown for your location', icon:'sun' },
-    { id:'qibla', title:'Qibla finder', sub:'A compass pointed at the Kaaba', icon:'compass' },
-    { id:'moon', title:'Moon &amp; Hijri', sub:"Tonight's phase and today's date", icon:'moon' },
+    { id:'hadith', title:'Hadith', sub:'Six major collections, in nine languages', icon:'search' },
+    { id:'qibla', title:'Qibla finder', sub:'A live map pointed at the Kaaba', icon:'compass' },
   ];
   return html`
     <section class="section shell" ref=${ref}>
@@ -520,6 +665,22 @@ function QuickLinks({ setTab }){
         `)}
       </div>
     </section>
+  `;
+}
+
+function HomeSection({ setTab, surahCount, geo }){
+  const ref = useReveal([geo.status]);
+  return html`
+    <${React.Fragment}>
+      <${Hero} setTab=${setTab} surahCount=${surahCount} />
+      <section id="home-today" class="section shell" ref=${ref}>
+        <div class="home-grid">
+          <${HomePrayerPanel} geo=${geo} />
+          <${HomeMoonPanel} geo=${geo} />
+        </div>
+      </section>
+      <${QuickLinks} setTab=${setTab} />
+    <//>
   `;
 }
 
@@ -742,28 +903,38 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
 /* ---------------------------------------------------------------
    8. HADITH
 --------------------------------------------------------------- */
-function HadithSection(){
+function HadithSection({ hadithBookmarks, toggleHadithBookmark }){
   const [collectionId, setCollectionId] = useLocalState('hadith_collection', 'bukhari');
-  const [section, setSection] = useLocalState('hadith_section', 1);
+  const [lang, setLang] = useLocalState('hadith_lang', 'eng');
+  const [page, setPage] = useState(0);
   const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
   const [status, setStatus] = useState('loading');
   const ref = useReveal([items.length]);
+  const PAGE_SIZE = 20;
+
   const collection = HADITH_COLLECTIONS.find((c) => c.id === collectionId) || HADITH_COLLECTIONS[0];
+  const availableLangs = HADITH_LANG_PREFIXES.filter((l) => (HADITH_LANGS_BY_COLLECTION[collectionId] || ['eng']).includes(l.prefix));
 
   useEffect(() => {
-    setStatus('loading');
-    const sec = Math.min(Math.max(1, Number(section) || 1), collection.sections);
-    Promise.all([
-      fetch(`${HADITH_CDN}/${collection.ar}/sections/${sec}.json`).then(r => r.json()).catch(() => null),
-      fetch(`${HADITH_CDN}/${collection.en}/sections/${sec}.json`).then(r => r.json()).catch(() => null),
-    ]).then(([arJ, enJ]) => {
-      const arList = arJ?.hadiths || [];
-      const enList = enJ?.hadiths || [];
-      const merged = arList.map((h, i) => ({ number: h.hadithnumber, arabic: h.text, english: enList[i]?.text || '' }));
-      setItems(merged.length ? merged : (enList.length ? enList.map(h => ({ number:h.hadithnumber, arabic:'', english:h.text })) : []));
-      setStatus(merged.length || enList.length ? 'ready' : 'empty');
-    }).catch(() => setStatus('error'));
-  }, [collectionId, section]);
+    if (!availableLangs.some((l) => l.prefix === lang)) setLang('eng');
+  }, [collectionId]);
+
+  useEffect(() => {
+    setStatus('loading'); setPage(0);
+    fetch(`${HADITH_CDN}/${lang}-${collectionId}.json`).then((r) => { if (!r.ok) throw new Error('missing'); return r.json(); })
+      .then((j) => {
+        const list = Array.isArray(j.hadiths) ? j.hadiths : [];
+        if (!list.length) throw new Error('empty');
+        setItems(list);
+        setTotal(typeof j.metadata?.length === 'number' ? j.metadata.length : list.length);
+        setStatus('ready');
+      }).catch(() => { setItems([]); setStatus('error'); });
+  }, [collectionId, lang]);
+
+  const pageItems = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const isRtlLang = lang === 'ara';
 
   return html`
     <section class="section shell" ref=${ref}>
@@ -772,33 +943,49 @@ function HadithSection(){
           <div class="eyebrow">Hadith</div>
           <h2>Six major collections</h2>
         </div>
-        <p>Browse by chapter, in Arabic alongside an English rendering.</p>
+        <p>Browse chapter by chapter, translated into nine languages.</p>
       </div>
 
       <div class="toolbar reveal">
-        <select class="select-pill" value=${collectionId} onChange=${(e) => { setCollectionId(e.target.value); setSection(1); }}>
+        <select class="select-pill" value=${collectionId} onChange=${(e) => setCollectionId(e.target.value)}>
           ${HADITH_COLLECTIONS.map((c) => html`<option key=${c.id} value=${c.id}>${c.name}</option>`)}
         </select>
-        <div class="loc-pill" style=${{marginBottom:0}}>Chapter ${section} of ${collection.sections}</div>
+        <select class="select-pill" value=${lang} onChange=${(e) => setLang(e.target.value)}>
+          ${availableLangs.map((l) => html`<option key=${l.prefix} value=${l.prefix}>${l.label}</option>`)}
+        </select>
+        ${total ? html`<div class="loc-pill" style=${{marginBottom:0}}>${total.toLocaleString()} hadith total</div>` : null}
       </div>
 
       ${status === 'loading' ? html`<div class="center-msg"><div class="spinner"></div></div>` : null}
-      ${status === 'error' ? html`<div class="center-msg">Couldn't reach the Hadith source just now.</div>` : null}
-      ${status === 'empty' ? html`<div class="center-msg">This chapter has no entries — try the next one.</div>` : null}
+      ${status === 'error' ? html`<div class="center-msg">Couldn't load this collection in that language — try a different language.</div>` : null}
 
-      ${status === 'ready' ? items.slice(0, 25).map((h, i) => html`
-        <div key=${h.number ?? i} class="arch-card hadith-card reveal" style=${{ cursor:'default', transitionDelay:(i*40)+'ms' }}>
-          <div class="hadith-src">${collection.name} · #${h.number ?? i + 1}</div>
-          ${h.arabic ? html`<div class="hadith-ar">${h.arabic}</div>` : null}
-          <div class="hadith-en">${h.english}</div>
+      ${status === 'ready' ? pageItems.map((h, i) => {
+        const num = h.hadithnumber ?? h.number ?? (page * PAGE_SIZE + i + 1);
+        const text = (h.text || h.body || '').toString().trim();
+        const grade = Array.isArray(h.grades) && h.grades.length ? h.grades[0].grade : null;
+        const bookmarked = hadithBookmarks.some((b) => b.collectionId === collectionId && b.number === String(num));
+        return html`
+          <div key=${num} class="arch-card hadith-card reveal" style=${{ cursor:'default', transitionDelay:(i*40)+'ms' }}>
+            <button class="mini-btn hadith-bm-btn" onClick=${() => toggleHadithBookmark(collection, num, text)} aria-label="Bookmark this hadith">
+              <${Icon} name="bookmark" size=${13} filled=${bookmarked} />
+            </button>
+            <div class="hadith-src">${collection.name} · #${num}</div>
+            ${text ? (isRtlLang
+              ? html`<div class="hadith-ar">${text}</div>`
+              : html`<div class="hadith-en">${text}</div>`
+            ) : html`<div class="hadith-en" style=${{opacity:.6}}>No text available for this hadith.</div>`}
+            ${grade ? html`<div class="surah-meta" style=${{marginTop:'8px',color:'var(--emerald-hi)'}}>${grade}</div>` : null}
+          </div>
+        `;
+      }) : null}
+
+      ${status === 'ready' ? html`
+        <div class="pager reveal">
+          <button disabled=${page <= 0} onClick=${() => setPage((p) => Math.max(0, p - 1))}><${Icon} name="chev" size=${14} /></button>
+          <span>Page ${page + 1} of ${pageCount}</span>
+          <button disabled=${page >= pageCount - 1} onClick=${() => setPage((p) => Math.min(pageCount - 1, p + 1))} style=${{transform:'scaleX(-1)'}}><${Icon} name="chev" size=${14} /></button>
         </div>
-      `) : null}
-
-      <div class="pager reveal">
-        <button disabled=${section <= 1} onClick=${() => setSection(Math.max(1, section - 1))}><${Icon} name="chev" size=${14} /></button>
-        <span>Chapter ${section}</span>
-        <button disabled=${section >= collection.sections} onClick=${() => setSection(Math.min(collection.sections, section + 1))} style=${{transform:'scaleX(-1)'}}><${Icon} name="chev" size=${14} /></button>
-      </div>
+      ` : null}
     </section>
   `;
 }
@@ -842,52 +1029,6 @@ function fmtCountdown(ms){
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-function PrayerSection({ geo }){
-  const prayer = usePrayerTimes(geo);
-  const [tick, setTick] = useState(0);
-  const ref = useReveal([prayer.status]);
-  useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
-  const next = useMemo(() => nextPrayer(prayer.timings), [prayer.timings, tick]);
-
-  return html`
-    <section class="section shell" ref=${ref}>
-      <div class="section-head reveal">
-        <div>
-          <div class="eyebrow">Prayer times</div>
-          <h2>Today, wherever you are</h2>
-        </div>
-      </div>
-
-      ${geo.status === 'loading' ? html`<div class="center-msg"><div class="spinner"></div><div style=${{marginTop:'10px'}}>Finding your location…</div></div>` : null}
-      ${geo.status === 'error' ? html`<div class="center-msg">Couldn't determine your location. Please allow location access and reload.</div>` : null}
-
-      ${geo.status === 'ready' ? html`
-        <div class="loc-pill reveal"><${Icon} name="compass" size=${13} /> ${geo.city || `${geo.lat.toFixed(2)}, ${geo.lon.toFixed(2)}`} · calculation: Muslim World League</div>
-
-        ${prayer.status === 'loading' ? html`<div class="center-msg"><div class="spinner"></div></div>` : null}
-
-        ${prayer.status === 'ready' && next ? html`
-          <div class="prayer-hero reveal">
-            <div class="next-label">Next — ${next.name}</div>
-            <div class="next-name">${next.time}</div>
-            <div class="next-time">${prayer.date?.readable || ''}</div>
-            <div class="countdown">in ${fmtCountdown(next.msLeft)}</div>
-          </div>
-          <div class="prayer-grid reveal">
-            ${PRAYER_ORDER.map((k) => html`
-              <div key=${k} class=${'arch-card prayer-tile' + (k === next.name ? ' now' : '')} style=${{cursor:'default'}}>
-                <div class="p-name">${k}</div>
-                <div class="p-time">${prayer.timings[k]}</div>
-              </div>
-            `)}
-          </div>
-        ` : null}
-        ${prayer.status === 'error' ? html`<div class="center-msg">Couldn't load prayer times right now.</div>` : null}
-      ` : null}
-    </section>
-  `;
-}
-
 /* ---------------------------------------------------------------
    10. MOON + HIJRI
    Simplified synodic-month illumination model (accurate to within
@@ -912,18 +1053,6 @@ function moonPhase(date = new Date()){
   else if (age < 23.1) name = 'Last Quarter';
   else if (age < 28.5) name = 'Waning Crescent';
   return { age, illumination, waxing, name };
-}
-
-function useHijri(){
-  const [hijri, setHijri] = useState(null);
-  useEffect(() => {
-    const d = new Date();
-    const dateStr = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
-    fetch(`https://api.aladhan.com/v1/gToH?date=${dateStr}`).then(r => r.json())
-      .then((j) => setHijri(j.data.hijri))
-      .catch(() => setHijri(null));
-  }, []);
-  return hijri;
 }
 
 function MoonCanvas({ phase }){
@@ -970,42 +1099,9 @@ function MoonCanvas({ phase }){
   return html`<canvas ref=${ref}></canvas>`;
 }
 
-function MoonSection(){
-  const phase = useMemo(() => moonPhase(new Date()), []);
-  const hijri = useHijri();
-  const ref = useReveal();
-  return html`
-    <section class="section shell" ref=${ref}>
-      <div class="section-head reveal">
-        <div>
-          <div class="eyebrow">Moon &amp; Hijri calendar</div>
-          <h2>Tonight's sky</h2>
-        </div>
-      </div>
-      <div class="arch-card reveal" style=${{ cursor:'default' }}>
-        <div class="moon-wrap">
-          <div class="moon-canvas-wrap">
-            <div class="moon-glow"></div>
-            <${MoonCanvas} phase=${phase} />
-          </div>
-          <div class="moon-info">
-            <b>${phase.name}</b>
-            <span>${Math.round(phase.illumination * 100)}% illuminated · day ${Math.floor(phase.age)} of the lunar month</span>
-          </div>
-          <div class="hijri-row">
-            <div class="hijri-box"><b>${hijri ? `${hijri.day} ${hijri.month.en}` : '—'}</b><span>Hijri date</span></div>
-            <div class="hijri-box"><b>${hijri ? hijri.year : '—'}</b><span>AH</span></div>
-            <div class="hijri-box"><b>${hijri ? hijri.weekday.en : '—'}</b><span>Today</span></div>
-          </div>
-        </div>
-      </div>
-      <p class="center-msg" style=${{paddingTop:'18px'}}>Phase shape computed live from an astronomical synodic-month model.</p>
-    </section>
-  `;
-}
-
 /* ---------------------------------------------------------------
-   11. QIBLA
+   11. QIBLA — Leaflet map, real great-circle line to the Kaaba,
+   live device heading, and manual location search (Nominatim).
 --------------------------------------------------------------- */
 function qiblaBearing(lat, lon){
   const toRad = (d) => (d * Math.PI) / 180;
@@ -1016,30 +1112,81 @@ function qiblaBearing(lat, lon){
   const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
+function qiblaDistanceKm(lat, lon){
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(KAABA.lat - lat), dLon = toRad(KAABA.lon - lon);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat)) * Math.cos(toRad(KAABA.lat)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
 function QiblaSection({ geo }){
-  const [heading, setHeading] = useState(0);
-  const [compassOn, setCompassOn] = useState(false);
+  const mapElRef = useRef(null);
+  const mapObj = useRef(null);
+  const kaabaMarker = useRef(null);
+  const userMarker = useRef(null);
+  const pathLine = useRef(null);
+  const [coords, setCoords] = useState(null);
+  const [placeName, setPlaceName] = useState('');
+  const [heading, setHeading] = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   const ref = useReveal([geo.status]);
-  const bearing = geo.status === 'ready' ? qiblaBearing(geo.lat, geo.lon) : null;
 
-  function enableCompass(){
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      DeviceOrientationEvent.requestPermission().then((res) => { if (res === 'granted') attach(); }).catch(() => {});
-    } else attach();
-    function attach(){
-      setCompassOn(true);
-      window.addEventListener('deviceorientationabsolute', onOrient, true);
-      window.addEventListener('deviceorientation', onOrient, true);
-    }
-  }
-  function onOrient(e){ if (e.alpha != null) setHeading(360 - e.alpha); }
-  useEffect(() => () => {
-    window.removeEventListener('deviceorientationabsolute', onOrient, true);
-    window.removeEventListener('deviceorientation', onOrient, true);
+  useEffect(() => { if (geo.status === 'ready') { setCoords({ lat: geo.lat, lon: geo.lon }); setPlaceName(geo.city || ''); } }, [geo.status, geo.lat, geo.lon]);
+
+  // init map once
+  useEffect(() => {
+    if (!mapElRef.current || mapObj.current || typeof L === 'undefined') return;
+    const map = L.map(mapElRef.current, { attributionControl: true, zoomControl: true });
+    map.setView([20, 20], 2);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    }).addTo(map);
+    const kaabaIcon = L.divIcon({ className: '', html: '<div class="qb-kaaba-pin">🕋</div>', iconSize: [26, 26], iconAnchor: [13, 13] });
+    kaabaMarker.current = L.marker([KAABA.lat, KAABA.lon], { icon: kaabaIcon, title: 'The Kaaba, Makkah' }).addTo(map);
+    mapObj.current = map;
+    return () => { map.remove(); mapObj.current = null; };
   }, []);
 
-  const needleRotation = bearing == null ? 0 : (compassOn ? bearing - heading : bearing);
+  // update map when coords change
+  useEffect(() => {
+    const map = mapObj.current;
+    if (!map || !coords) return;
+    const userIcon = L.divIcon({ className: '', html: '<div class="qb-user-pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
+    if (userMarker.current) userMarker.current.setLatLng([coords.lat, coords.lon]);
+    else userMarker.current = L.marker([coords.lat, coords.lon], { icon: userIcon, title: 'Your location', zIndexOffset: 1000 }).addTo(map);
+    if (pathLine.current) map.removeLayer(pathLine.current);
+    pathLine.current = L.polyline([[coords.lat, coords.lon], [KAABA.lat, KAABA.lon]], { color: '#c6a15b', weight: 3, opacity: .85, dashArray: '2 8' }).addTo(map);
+    map.fitBounds(L.latLngBounds([[coords.lat, coords.lon], [KAABA.lat, KAABA.lon]]), { padding: [40, 40], maxZoom: 6 });
+  }, [coords]);
+
+  function enableCompass(){
+    function onOrient(e){ if (e.alpha != null) setHeading(360 - e.alpha); }
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().then((res) => {
+        if (res === 'granted') { window.addEventListener('deviceorientationabsolute', onOrient, true); window.addEventListener('deviceorientation', onOrient, true); }
+      }).catch(() => {});
+    } else { window.addEventListener('deviceorientationabsolute', onOrient, true); window.addEventListener('deviceorientation', onOrient, true); }
+  }
+
+  function runSearch(q){
+    setSearchQuery(q);
+    if (q.trim().length < 3) { setSearchResults([]); return; }
+    fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=0&limit=6&q=${encodeURIComponent(q)}`)
+      .then((r) => r.json()).then((j) => setSearchResults(j || [])).catch(() => setSearchResults([]));
+  }
+  function pickResult(r){
+    setCoords({ lat: parseFloat(r.lat), lon: parseFloat(r.lon) });
+    setPlaceName(r.display_name.split(',').slice(0, 2).join(', '));
+    setSearchOpen(false); setSearchQuery(''); setSearchResults([]);
+  }
+
+  const bearing = coords ? qiblaBearing(coords.lat, coords.lon) : null;
+  const distance = coords ? qiblaDistanceKm(coords.lat, coords.lon) : null;
+  const needleRotation = bearing == null ? 0 : (heading != null ? bearing - heading : bearing);
 
   return html`
     <section class="section shell" ref=${ref}>
@@ -1048,20 +1195,49 @@ function QiblaSection({ geo }){
           <div class="eyebrow">Qibla</div>
           <h2>Direction to the Kaaba</h2>
         </div>
+        <p>Your location and the Kaaba, joined by the real great-circle path.</p>
       </div>
-      ${geo.status !== 'ready' ? html`<div class="center-msg"><div class="spinner"></div><div style=${{marginTop:'10px'}}>Finding your location…</div></div>` : html`
+
+      <div class="qb-map-wrap reveal">
+        <div class="qb-map" ref=${mapElRef}></div>
+      </div>
+
+      ${!coords ? html`<div class="center-msg"><div class="spinner"></div><div style=${{marginTop:'10px'}}>Finding your location…</div></div>` : html`
+        <div class="qb-info-grid reveal">
+          <div class="qb-info-box"><div class="qb-info-val">${compassPoint(bearing)}</div><div class="qb-info-lbl">Qibla direction</div></div>
+          <div class="qb-info-box"><div class="qb-info-val">${bearing.toFixed(1)}°</div><div class="qb-info-lbl">Bearing from north</div></div>
+          <div class="qb-info-box"><div class="qb-info-val">${distance >= 1 ? Math.round(distance).toLocaleString() + ' km' : Math.round(distance*1000) + ' m'}</div><div class="qb-info-lbl">Distance to Kaaba</div></div>
+          <div class="qb-info-box"><div class="qb-info-val" style=${{fontSize:'14px'}}>${placeName || `${coords.lat.toFixed(2)}, ${coords.lon.toFixed(2)}`}</div><div class="qb-info-lbl">Location</div></div>
+        </div>
+
         <div class="arch-card reveal" style=${{ cursor:'default' }}>
           <div class="qibla-wrap">
             <div class="qibla-deg">${Math.round(bearing)}°</div>
-            <div class="surah-meta" style=${{marginBottom:'18px'}}>from true north${compassOn ? ' · live compass on' : ''}</div>
+            <div class="surah-meta" style=${{marginBottom:'18px'}}>from true north${heading != null ? ' · live compass on' : ''}</div>
             <div class="compass">
               <div class="compass-ring"></div>
               <div class="compass-n">N</div>
               <div class="compass-needle" style=${{ transform:`translate(-50%,-100%) rotate(${needleRotation}deg)` }}></div>
               <div class="compass-center"></div>
             </div>
-            ${!compassOn ? html`<button class="btn btn-ghost" onClick=${enableCompass}><${Icon} name="compass" size=${15} /> Enable live compass</button>` : null}
-            <p class="surah-meta" style=${{marginTop:'16px', maxWidth:'360px'}}>Hold your phone flat. The gold needle points toward the Kaaba in Makkah from ${geo.city || 'your current location'}.</p>
+            <div style=${{ display:'flex', gap:'10px', flexWrap:'wrap', justifyContent:'center' }}>
+              ${heading == null ? html`<button class="btn btn-ghost" onClick=${enableCompass}><${Icon} name="compass" size=${15} /> Enable live compass</button>` : null}
+              <button class="btn btn-ghost" onClick=${() => setSearchOpen((s) => !s)}><${Icon} name="search" size=${15} /> Search a location</button>
+            </div>
+            ${searchOpen ? html`
+              <div class="qb-search-wrap">
+                <div class="search-box">
+                  <${Icon} name="search" size=${14} />
+                  <input placeholder="e.g. Tokyo, Japan" value=${searchQuery} onInput=${(e) => runSearch(e.target.value)} autoFocus />
+                </div>
+                ${searchResults.length > 0 ? html`
+                  <div class="qb-search-results">
+                    ${searchResults.map((r, i) => html`<div key=${i} class="qb-search-result" onClick=${() => pickResult(r)}>${r.display_name}</div>`)}
+                  </div>
+                ` : null}
+              </div>
+            ` : null}
+            <p class="surah-meta" style=${{marginTop:'16px', maxWidth:'360px'}}>The gold needle points toward the Kaaba in Makkah from ${placeName || 'your current location'}.</p>
           </div>
         </div>
       `}
@@ -1072,8 +1248,9 @@ function QiblaSection({ geo }){
 /* ---------------------------------------------------------------
    12. BOOKMARKS DRAWER + FOOTER
 --------------------------------------------------------------- */
-function BookmarksDrawer({ open, onClose, bookmarks, remove, openBookmark }){
+function BookmarksDrawer({ open, onClose, bookmarks, remove, hadithBookmarks, removeHadith }){
   if (!open) return null;
+  const empty = bookmarks.length === 0 && hadithBookmarks.length === 0;
   return html`
     <div class="bm-panel" onClick=${(e) => e.target === e.currentTarget && onClose()}>
       <div class="bm-drawer">
@@ -1081,13 +1258,27 @@ function BookmarksDrawer({ open, onClose, bookmarks, remove, openBookmark }){
           <span class="brand-text" style=${{fontSize:'20px'}}>Bookmarks</span>
           <button class="icon-btn" onClick=${onClose}><${Icon} name="close" size=${15} /></button>
         </div>
-        ${bookmarks.length === 0 ? html`<div class="center-msg">No bookmarks yet — tap the bookmark icon on any ayah while reading.</div>` : null}
-        ${bookmarks.map((b) => html`
-          <div key=${`${b.surah}-${b.ayah}`} class="bm-item">
-            <div class="bm-top"><span>${b.surahName} ${b.surah}:${b.ayah}</span><button class="mini-btn" style=${{width:'24px',height:'24px'}} onClick=${() => remove(b)}><${Icon} name="close" size=${11} /></button></div>
-            <div class="bm-text">${b.text}</div>
-          </div>
-        `)}
+        ${empty ? html`<div class="center-msg">No bookmarks yet — tap the bookmark icon on any ayah or hadith.</div>` : null}
+
+        ${bookmarks.length > 0 ? html`
+          <div class="eyebrow" style=${{marginBottom:'10px'}}>Qur'an</div>
+          ${bookmarks.map((b) => html`
+            <div key=${`${b.surah}-${b.ayah}`} class="bm-item">
+              <div class="bm-top"><span>${b.surahName} ${b.surah}:${b.ayah}</span><button class="mini-btn" style=${{width:'24px',height:'24px'}} onClick=${() => remove(b)}><${Icon} name="close" size=${11} /></button></div>
+              <div class="bm-text">${b.text}</div>
+            </div>
+          `)}
+        ` : null}
+
+        ${hadithBookmarks.length > 0 ? html`
+          <div class="eyebrow" style=${{margin:'18px 0 10px'}}>Hadith</div>
+          ${hadithBookmarks.map((b) => html`
+            <div key=${`${b.collectionId}-${b.number}`} class="bm-item">
+              <div class="bm-top"><span>${b.collectionName} #${b.number}</span><button class="mini-btn" style=${{width:'24px',height:'24px'}} onClick=${() => removeHadith(b)}><${Icon} name="close" size=${11} /></button></div>
+              <div class="bm-text" style=${{fontFamily:"'Plus Jakarta Sans',sans-serif", textAlign:'left', direction:'ltr', fontSize:'13.5px', color:'var(--muted)'}}>${b.text}</div>
+            </div>
+          `)}
+        ` : null}
       </div>
     </div>
   `;
@@ -1115,6 +1306,7 @@ function App(){
   const [langEdition, setLangEdition] = useLocalState('lang_edition', 'en.sahih');
   const [arabicFontIdx, setArabicFontIdx] = useLocalState('arabic_font_index', 0);
   const [bookmarks, setBookmarks] = useState(() => store.getJSON('v5_bookmarks', []));
+  const [hadithBookmarks, setHadithBookmarks] = useState(() => store.getJSON('v5_hadith_bookmarks', []));
   const [surahCount, setSurahCount] = useState(114);
   const geo = useGeo();
 
@@ -1138,27 +1330,40 @@ function App(){
     setBookmarks((prev) => { const next = prev.filter((x) => !(x.surah === b.surah && x.ayah === b.ayah)); store.setJSON('v5_bookmarks', next); return next; });
   }, []);
 
+  const toggleHadithBookmark = useCallback((collection, number, text) => {
+    const num = String(number);
+    setHadithBookmarks((prev) => {
+      const exists = prev.some((b) => b.collectionId === collection.id && b.number === num);
+      const next = exists
+        ? prev.filter((b) => !(b.collectionId === collection.id && b.number === num))
+        : [...prev, { collectionId: collection.id, collectionName: collection.name, number: num, text }];
+      store.setJSON('v5_hadith_bookmarks', next);
+      return next;
+    });
+  }, []);
+  const removeHadithBookmark = useCallback((b) => {
+    setHadithBookmarks((prev) => { const next = prev.filter((x) => !(x.collectionId === b.collectionId && x.number === b.number)); store.setJSON('v5_hadith_bookmarks', next); return next; });
+  }, []);
+
   let page;
-  if (tab === 'home') page = html`<${React.Fragment}><${Hero} setTab=${setTab} surahCount=${surahCount} /><${QuickLinks} setTab=${setTab} /><//>`;
+  if (tab === 'home') page = html`<${HomeSection} setTab=${setTab} surahCount=${surahCount} geo=${geo} />`;
   else if (tab === 'quran') page = html`<${QuranSection}
       reciterId=${reciterId} setReciterId=${setReciterId}
       langEdition=${langEdition} setLangEdition=${setLangEdition}
       arabicFontIdx=${arabicFontIdx} setArabicFontIdx=${setArabicFontIdx}
       bookmarks=${bookmarks} toggleBookmark=${toggleBookmark}
     />`;
-  else if (tab === 'hadith') page = html`<${HadithSection} />`;
-  else if (tab === 'prayer') page = html`<${PrayerSection} geo=${geo} />`;
+  else if (tab === 'hadith') page = html`<${HadithSection} hadithBookmarks=${hadithBookmarks} toggleHadithBookmark=${toggleHadithBookmark} />`;
   else if (tab === 'qibla') page = html`<${QiblaSection} geo=${geo} />`;
-  else if (tab === 'moon') page = html`<${MoonSection} />`;
 
   return html`
     <${React.Fragment}>
-      <${NavBar} tab=${tab} setTab=${setTab} onOpenMenu=${() => setMenuOpen(true)} onOpenBookmarks=${() => setBmOpen(true)} bookmarkCount=${bookmarks.length} />
+      <${NavBar} tab=${tab} setTab=${setTab} onOpenMenu=${() => setMenuOpen(true)} onOpenBookmarks=${() => setBmOpen(true)} bookmarkCount=${bookmarks.length + hadithBookmarks.length} />
       <${MobileMenu} open=${menuOpen} onClose=${() => setMenuOpen(false)} tab=${tab} setTab=${setTab} />
       <main key=${tab} class="page-enter">${page}</main>
       <${Footer} />
       <${TabBar} tab=${tab} setTab=${setTab} />
-      <${BookmarksDrawer} open=${bmOpen} onClose=${() => setBmOpen(false)} bookmarks=${bookmarks} remove=${removeBookmark} />
+      <${BookmarksDrawer} open=${bmOpen} onClose=${() => setBmOpen(false)} bookmarks=${bookmarks} remove=${removeBookmark} hadithBookmarks=${hadithBookmarks} removeHadith=${removeHadithBookmark} />
     <//>
   `;
 }

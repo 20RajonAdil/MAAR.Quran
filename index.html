@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 
 <style>
 /* ============================================================
@@ -351,7 +352,60 @@ body{padding-bottom:var(--tab-h);}
 .footer{border-top:1px solid var(--line-soft);padding:40px 0 30px;margin-top:30px;color:var(--muted);font-size:13px;}
 .footer-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:center;}
 
-/* ---------- utility ---------- */
+/* ---------- home: compact prayer + moon widgets ---------- */
+.home-grid{display:grid;grid-template-columns:1fr;gap:16px;}
+@media(min-width:860px){.home-grid{grid-template-columns:1.1fr 1fr;align-items:start;}}
+.home-panel{position:relative;overflow:hidden;}
+.home-panel .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+
+.mini-prayer-ticker{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+.mini-prayer-pill{flex:1 1 80px;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 6px;}
+.mini-prayer-pill.now{border-color:var(--gold);background:rgba(198,161,91,.1);}
+.mini-prayer-pill .p-name{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+.mini-prayer-pill .p-time{font-family:'Instrument Serif',serif;font-style:italic;font-size:16px;margin-top:3px;}
+.home-clock-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px;}
+@media(min-width:480px){.home-clock-row{grid-template-columns:repeat(4,1fr);}}
+.clock-box{text-align:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 4px;}
+.clock-box .c-val{font-family:'Instrument Serif',serif;font-style:italic;font-size:16px;font-variant-numeric:tabular-nums;}
+.clock-box .c-lbl{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-top:2px;}
+
+/* moon stage — clouds, glow ring, floating canvas (v4-style) */
+.moon-stage{position:relative;height:230px;border-radius:18px;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,rgba(31,68,56,.28),transparent 65%);margin-bottom:14px;}
+.moon-orbit{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;}
+.moon-glow-ring{position:absolute;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(198,161,91,.28),transparent 70%);filter:blur(4px);animation:pulseGlow 4s ease-in-out infinite;}
+@keyframes pulseGlow{0%,100%{opacity:.6;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
+.moon-phase-container{position:relative;z-index:2;animation:drift 6s ease-in-out infinite;}
+.moon-phase-container canvas{display:block;}
+.cloud-layer{position:absolute;left:-20%;width:140%;height:56px;background:linear-gradient(90deg,transparent,rgba(244,239,228,.05),transparent);border-radius:50%;filter:blur(10px);z-index:3;pointer-events:none;}
+.cloud-layer.c1{top:18%;animation:cloudDrift 22s linear infinite;}
+.cloud-layer.c2{top:52%;height:42px;opacity:.7;animation:cloudDrift 32s linear infinite reverse;}
+.cloud-layer.c3{top:74%;height:36px;opacity:.5;animation:cloudDrift 40s linear infinite;}
+@keyframes cloudDrift{0%{transform:translateX(-10%);}100%{transform:translateX(10%);}}
+.moon-readout{position:absolute;left:12px;bottom:10px;z-index:4;font-size:12px;color:var(--muted);background:rgba(10,11,13,.5);backdrop-filter:blur(4px);padding:6px 10px;border-radius:10px;}
+.moon-readout b{color:var(--gold-hi);font-weight:700;}
+.moon-direction-callout{font-size:12.5px;color:var(--muted);text-align:center;line-height:1.6;}
+
+/* ---------- qibla map (Leaflet) ---------- */
+.qb-map-wrap{position:relative;border-radius:20px;overflow:hidden;border:1px solid var(--line);height:320px;margin-bottom:16px;}
+.qb-map{width:100%;height:100%;background:#0d0f12;}
+.qb-map .leaflet-control-attribution{background:rgba(10,11,13,.75)!important;color:var(--muted)!important;font-size:9px!important;}
+.qb-map .leaflet-control-attribution a{color:var(--gold)!important;}
+.qb-map .leaflet-control-zoom a{background:rgba(10,11,13,.85)!important;color:var(--ink)!important;border-color:var(--line)!important;}
+.qb-kaaba-pin{font-size:20px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));}
+.qb-user-pin{width:16px;height:16px;border-radius:50%;background:var(--gold);border:2px solid #fff;box-shadow:0 0 0 6px rgba(198,161,91,.22);}
+.qb-info-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
+@media(min-width:640px){.qb-info-grid{grid-template-columns:repeat(4,1fr);}}
+.qb-info-box{text-align:center;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 8px;}
+.qb-info-val{font-family:'Instrument Serif',serif;font-style:italic;font-size:18px;}
+.qb-info-lbl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-top:4px;}
+.qb-search-wrap{margin-top:14px;position:relative;}
+.qb-search-results{position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--bg-raised);border:1px solid var(--line);border-radius:14px;overflow:hidden;z-index:5;max-height:220px;overflow-y:auto;}
+.qb-search-result{padding:11px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line-soft);}
+.qb-search-result:hover{background:var(--card-hi);}
+.qb-search-result:last-child{border-bottom:none;}
+
+/* ---------- hadith bookmark star ---------- */
+.hadith-bm-btn{position:absolute;top:16px;right:16px;}
 .center-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px;}
 .spinner{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--gold);animation:spin .8s linear infinite;margin:0 auto;}
 @keyframes spin{to{transform:rotate(360deg);}}
@@ -366,6 +420,7 @@ body{padding-bottom:var(--tab-h);}
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/htm@3/dist/htm.js" crossorigin></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="app.js"></script>
 
 </body>
