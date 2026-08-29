@@ -357,6 +357,202 @@ const store = {
 };
 
 /* ---------------------------------------------------------------
+   2b. LOCAL STORE VAULT — ported from v2.0.html. Bookmarks, last
+   reciter/language/font are always cached in localStorage; on
+   Chromium browsers they can also mirror into a real folder on disk
+   via the File System Access API, with rolling timestamped backups.
+   Firefox/Safari get manual Export/Import as the universal fallback.
+--------------------------------------------------------------- */
+const QM_FSA_SUPPORTED = typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
+const QM_MARKER_FILE = '.quran-maar';
+const QM_DATA_FILE = 'quran-maar-data.json';
+const QM_MAX_BACKUPS = 15;
+const QM_IDB_NAME = 'quran-maar-fs', QM_IDB_STORE = 'handles';
+
+function qmCollectState(){
+  return {
+    app: 'Quran Maar', format: 'quran-maar', version: 1, savedAt: new Date().toISOString(),
+    reciter: store.get('reciter'),
+    langEdition: store.get('lang_edition'),
+    arabicFontIndex: store.get('arabic_font_index'),
+    bookmarks: store.getJSON('v5_bookmarks', []),
+    hadithBookmarks: store.getJSON('v5_hadith_bookmarks', []),
+  };
+}
+function qmApplyState(incoming){
+  if (!incoming || typeof incoming !== 'object') return;
+  const s = incoming.state || incoming;
+  if (s.reciter) store.set('reciter', s.reciter);
+  if (s.langEdition) store.set('lang_edition', s.langEdition);
+  if (s.arabicFontIndex !== undefined) store.set('arabic_font_index', String(s.arabicFontIndex));
+  if (s.bookmarks) store.setJSON('v5_bookmarks', s.bookmarks);
+  if (s.hadithBookmarks) store.setJSON('v5_hadith_bookmarks', s.hadithBookmarks);
+}
+
+function qmIdbOpen(){
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) return reject(new Error('no-idb'));
+    const req = indexedDB.open(QM_IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(QM_IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function qmIdbSet(key, value){
+  const db = await qmIdbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(QM_IDB_STORE, 'readwrite');
+    tx.objectStore(QM_IDB_STORE).put(value, key);
+    tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+  });
+}
+async function qmIdbGet(key){
+  const db = await qmIdbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(QM_IDB_STORE, 'readonly');
+    const req = tx.objectStore(QM_IDB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result || null); req.onerror = () => reject(req.error);
+  });
+}
+
+const QMVault = {
+  mode: 'checking', // 'folder' | 'local' | 'needs-permission' | 'checking'
+  dirHandle: null,
+  lastBackupAt: null,
+  writesSinceBackup: 0,
+  saveTimer: null,
+  busy: false,
+
+  async verifyPermission(handle, mode){ try { return (await handle.queryPermission({ mode })) === 'granted'; } catch { return false; } },
+  async requestPermission(handle, mode){ try { return (await handle.requestPermission({ mode })) === 'granted'; } catch { return false; } },
+
+  async tryAutoReconnect(){
+    if (!QM_FSA_SUPPORTED) { this.mode = 'local'; return false; }
+    try {
+      const handle = await qmIdbGet('dirHandle');
+      if (!handle) { this.mode = 'local'; return false; }
+      const ok = await this.verifyPermission(handle, 'readwrite');
+      this.dirHandle = handle;
+      if (ok) { this.mode = 'folder'; await this.loadFromFolder(); return true; }
+      this.mode = 'needs-permission';
+      return false;
+    } catch { this.mode = 'local'; return false; }
+  },
+
+  async connectNewFolder(){
+    if (!QM_FSA_SUPPORTED) throw new Error('unsupported');
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    this.dirHandle = handle; this.mode = 'folder';
+    await qmIdbSet('dirHandle', handle);
+    await this.writeData(); await this.writeMarker(); await this.createBackup();
+    return handle;
+  },
+  async reconnect(){
+    if (!this.dirHandle) return false;
+    const ok = await this.requestPermission(this.dirHandle, 'readwrite');
+    if (ok) { this.mode = 'folder'; await this.loadFromFolder(); }
+    return ok;
+  },
+  async writeMarker(){
+    try {
+      const fh = await this.dirHandle.getFileHandle(QM_MARKER_FILE, { create: true });
+      const w = await fh.createWritable();
+      await w.write(JSON.stringify({ app: 'Quran Maar', createdAt: new Date().toISOString() }));
+      await w.close();
+    } catch {}
+  },
+  async writeData(){
+    const fh = await this.dirHandle.getFileHandle(QM_DATA_FILE, { create: true });
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify(qmCollectState(), null, 2));
+    await w.close();
+  },
+  async loadFromFolder(){
+    try {
+      const fh = await this.dirHandle.getFileHandle(QM_DATA_FILE).catch(() => null);
+      if (fh) { const text = await (await fh.getFile()).text(); if (text?.trim()) qmApplyState(JSON.parse(text)); }
+      await this.writeData(); await this.writeMarker();
+    } catch {}
+  },
+  scheduleSave(){
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.persistNow(), 600);
+  },
+  async persistNow(){
+    if (this.mode !== 'folder' || !this.dirHandle) return;
+    if (this.busy) { this.saveTimer = setTimeout(() => this.persistNow(), 400); return; }
+    this.busy = true;
+    try {
+      await this.writeData();
+      this.writesSinceBackup++;
+      const due = this.writesSinceBackup >= 20 || !this.lastBackupAt || (Date.now() - this.lastBackupAt.getTime()) > 6 * 3600 * 1000;
+      if (due) await this.createBackup();
+    } catch {} finally { this.busy = false; }
+  },
+  async createBackup(){
+    if (this.mode !== 'folder' || !this.dirHandle) return false;
+    try {
+      const backupsDir = await this.dirHandle.getDirectoryHandle('backups', { create: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fh = await backupsDir.getFileHandle(`backup-${stamp}.json`, { create: true });
+      const w = await fh.createWritable();
+      await w.write(JSON.stringify({ version: 1, savedAt: new Date().toISOString(), state: qmCollectState() }, null, 2));
+      await w.close();
+      this.lastBackupAt = new Date(); this.writesSinceBackup = 0;
+      await this.pruneBackups(backupsDir);
+      return true;
+    } catch { return false; }
+  },
+  async pruneBackups(backupsDir){
+    const names = [];
+    for await (const [name, handle] of backupsDir.entries()) { if (handle.kind === 'file' && name.startsWith('backup-')) names.push(name); }
+    names.sort().reverse();
+    for (const name of names.slice(QM_MAX_BACKUPS)) { try { await backupsDir.removeEntry(name); } catch {} }
+  },
+  async listBackups(){
+    if (this.mode !== 'folder' || !this.dirHandle) return [];
+    try {
+      const backupsDir = await this.dirHandle.getDirectoryHandle('backups', { create: true });
+      const names = [];
+      for await (const [name, handle] of backupsDir.entries()) { if (handle.kind === 'file' && name.startsWith('backup-')) names.push(name); }
+      return names.sort().reverse();
+    } catch { return []; }
+  },
+  async restoreBackup(name){
+    if (this.mode !== 'folder' || !this.dirHandle) return false;
+    try {
+      const backupsDir = await this.dirHandle.getDirectoryHandle('backups', { create: true });
+      const fh = await backupsDir.getFileHandle(name);
+      const parsed = JSON.parse(await (await fh.getFile()).text());
+      qmApplyState(parsed);
+      await this.writeData();
+      return true;
+    } catch { return false; }
+  },
+  exportFile(){
+    const blob = new Blob([JSON.stringify(qmCollectState(), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Quran-MAAR-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  },
+  async importFile(file){
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if (this.mode === 'folder' && this.dirHandle) await this.createBackup();
+    qmApplyState(parsed);
+    if (this.mode === 'folder' && this.dirHandle) await this.writeData();
+  },
+};
+// every localStorage write from the app schedules a debounced mirror to
+// the connected folder (no-op when no folder is connected)
+const qmOrigSet = store.set.bind(store), qmOrigSetJSON = store.setJSON.bind(store);
+store.set = (k, v) => { qmOrigSet(k, v); QMVault.scheduleSave(); };
+store.setJSON = (k, v) => { qmOrigSetJSON(k, v); QMVault.scheduleSave(); };
+function qmFmtDateTime(d){ if (!d) return 'Never'; return d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+
+/* ---------------------------------------------------------------
    3. HOOKS
 --------------------------------------------------------------- */
 /** Adds `.in` to an element once it scrolls into view, for the
@@ -465,12 +661,116 @@ const NAV_ITEMS = [
   { id:'about', label:'About', icon:'info' },
 ];
 
-function LocalStoreBadge(){
+function LocalStoreControl(){
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState(QMVault.mode);
+  const [folderName, setFolderName] = useState(QMVault.dirHandle?.name || '');
+  const [lastBackup, setLastBackup] = useState(QMVault.lastBackupAt);
+  const [backups, setBackups] = useState([]);
+  const [busy, setBusy] = useState('');
+  const [toast, setToast] = useState('');
+  const wrapRef = useRef(null);
+
+  function refresh(){
+    setMode(QMVault.mode);
+    setFolderName(QMVault.dirHandle?.name || '');
+    setLastBackup(QMVault.lastBackupAt);
+    QMVault.listBackups().then(setBackups);
+  }
+
+  useEffect(() => {
+    QMVault.tryAutoReconnect().then(refresh);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    refresh();
+    function onDocClick(e){ if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  function flash(msg){ setToast(msg); clearTimeout(flash._t); flash._t = setTimeout(() => setToast(''), 4200); }
+
+  async function connect(){
+    setBusy('connect');
+    try { await QMVault.connectNewFolder(); flash('Folder connected — your data is now mirrored there.'); refresh(); }
+    catch { flash(QM_FSA_SUPPORTED ? "Couldn't connect to that folder." : "Folder storage isn't supported in this browser."); }
+    setBusy('');
+  }
+  async function reconnect(){
+    setBusy('reconnect');
+    const ok = await QMVault.reconnect();
+    flash(ok ? 'Reconnected.' : "Couldn't reconnect — try Connect a Folder again.");
+    refresh(); setBusy('');
+  }
+  async function backupNow(){
+    setBusy('backup');
+    const ok = await QMVault.createBackup();
+    flash(ok ? 'Backup created.' : 'Connect a folder first to create backups.');
+    refresh(); setBusy('');
+  }
+  function exportNow(){ QMVault.exportFile(); flash('File exported.'); }
+  async function restore(name){
+    setBusy(name);
+    const ok = await QMVault.restoreBackup(name);
+    flash(ok ? 'Restored — reloading…' : 'Could not restore that backup.');
+    if (ok) setTimeout(() => window.location.reload(), 700);
+    setBusy('');
+  }
+  function importPick(e){
+    const file = e.target.files?.[0];
+    if (!file) return;
+    QMVault.importFile(file).then(() => { flash('Imported — reloading…'); setTimeout(() => window.location.reload(), 700); })
+      .catch(() => flash('Could not read that file.'));
+  }
+
+  let modeText, folderText, showConnect = false, showReconnect = false, showChange = false;
+  if (mode === 'folder') { modeText = 'Folder storage (private files on this device)'; folderText = folderName || 'Connected'; showChange = true; }
+  else if (mode === 'needs-permission') { modeText = 'Folder storage (needs one click to reconnect)'; folderText = folderName || 'Permission needed'; showReconnect = true; showChange = true; }
+  else if (!QM_FSA_SUPPORTED) { modeText = "On-device storage only — this browser can't link an extra folder for backups"; folderText = 'Not available here (your bookmarks are still saved on this device)'; }
+  else { modeText = 'This browser only — connect a folder for extra safety'; folderText = 'Not connected'; showConnect = true; }
+
   return html`
-    <div class="local-store-badge" title="Your reciter, bookmarks and settings are saved only in this browser — never sent anywhere.">
-      <span class="ls-dot"></span>
-      <${Icon} name="save" size=${13} />
-      <span>Local Store</span>
+    <div class="local-store-wrap" ref=${wrapRef}>
+      <button class="local-store-badge" onClick=${() => setOpen((o) => !o)} title="Your reciter, bookmarks and settings are saved only on this device.">
+        <span class=${'ls-dot' + (mode === 'folder' ? ' linked' : mode === 'needs-permission' ? ' warn' : '')}></span>
+        <${Icon} name="save" size=${13} />
+        <span>Local Store</span>
+      </button>
+      ${open ? html`
+        <div class="ls-dropdown">
+          <div class="ls-header">
+            <strong>Quran-MAAR — 100% local</strong>
+            <small>Bookmarks (Qur'an + Hadith), last reciter, and your font choice are saved on this device only. Nothing is ever uploaded anywhere.</small>
+          </div>
+          <div class="ls-status">
+            <div class="ls-status-row"><span class="ls-status-label">Storage mode</span><span class="ls-status-value">${modeText}</span></div>
+            <div class="ls-status-row"><span class="ls-status-label">Connected folder</span><span class="ls-status-value">${folderText}</span></div>
+            <div class="ls-status-row"><span class="ls-status-label"><span class=${'ls-dot is-ok'}></span>Auto-save</span><span class="ls-status-value">${mode === 'folder' ? 'Saved to your folder' : 'Saved in this browser'}</span></div>
+            <div class="ls-status-row"><span class="ls-status-label">Last backup</span><span class="ls-status-value">${qmFmtDateTime(lastBackup)}</span></div>
+          </div>
+          ${toast ? html`<div class="ls-toast">${toast}</div>` : null}
+          <div class="ls-btn-row">
+            ${showConnect ? html`<button class="ls-btn ls-btn-primary" disabled=${busy==='connect'} onClick=${connect}>${busy==='connect'?'Connecting…':'Connect a Folder'}</button>` : null}
+            ${showReconnect ? html`<button class="ls-btn ls-btn-primary" disabled=${busy==='reconnect'} onClick=${reconnect}>${busy==='reconnect'?'Reconnecting…':'Reconnect Folder'}</button>` : null}
+            ${showChange ? html`<button class="ls-btn" disabled=${busy==='connect'} onClick=${connect}>Change Folder</button>` : null}
+            <button class="ls-btn" disabled=${busy==='backup'} onClick=${backupNow}>${busy==='backup'?'Backing up…':'Create Backup Now'}</button>
+            <button class="ls-btn" onClick=${exportNow}>Export File</button>
+            <label class="ls-btn" style=${{cursor:'pointer'}}>Import File<input type="file" accept="application/json" style=${{display:'none'}} onChange=${importPick} /></label>
+          </div>
+          <div class="ls-backups">
+            <div class="ls-backups-title">Backups</div>
+            ${backups.length === 0 ? html`<p class="ls-backup-empty">No backups yet. Create one anytime with "Create Backup Now", or one will be made automatically as you use the app.</p>` : null}
+            ${backups.map((name) => html`
+              <div key=${name} class="ls-backup-item">
+                <span>${name.replace('backup-', '').replace('.json', '')}</span>
+                <button disabled=${busy===name} onClick=${() => restore(name)}>${busy===name?'Restoring…':'Restore'}</button>
+              </div>
+            `)}
+          </div>
+        </div>
+      ` : null}
     </div>
   `;
 }
@@ -495,7 +795,7 @@ function NavBar({ tab, setTab, onOpenMenu, onOpenBookmarks, bookmarkCount }){
           `)}
         </nav>
         <div class="nav-actions">
-          <${LocalStoreBadge} />
+          <${LocalStoreControl} />
           <button class="icon-btn" aria-label="Bookmarks" onClick=${onOpenBookmarks}>
             <${Icon} name="bookmark" size=${17} />
             ${bookmarkCount > 0 ? html`<span class="dot"></span>` : null}
@@ -517,7 +817,7 @@ function MobileMenu({ open, onClose, tab, setTab }){
           <span class="brand-text" style=${{ fontSize:'19px' }}>Quran <b>Maar</b></span>
           <button class="icon-btn" onClick=${onClose} aria-label="Close menu"><${Icon} name="close" size=${16} /></button>
         </div>
-        <div style=${{ marginBottom:'14px' }}><${LocalStoreBadge} /></div>
+        <div style=${{ marginBottom:'14px' }}><${LocalStoreControl} /></div>
         ${NAV_ITEMS.map((n) => html`
           <button
             key=${n.id}
