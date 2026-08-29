@@ -63,6 +63,9 @@ const html = htm.bind(React.createElement);
 const QURAN_API = 'https://api.alquran.cloud/v1';
 const ARABIC_EDITION = 'quran-uthmani';
 const AUDIO_EDITION = 'ar.alafasy';
+const BISMILLAH_AR = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
+const BISMILLAH_EN = 'In the name of Allah, the Most Gracious, the Most Merciful';
+const BISMILLAH_STRIP_RE = /^بِسْمِ\s?اللَّهِ\s?الرَّحْمَٰنِ\s?الرَّحِيمِ\s*/;
 const HADITH_CDN = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions';
 const KAABA = { lat: 21.4225, lon: 39.8262 };
 
@@ -813,7 +816,16 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
       fetch(`${QURAN_API}/surah/${surah.number}/${langEdition}`).then(r => r.json()),
     ]).then(([arRes, trRes]) => {
       const ar = arRes.data.ayahs, tr = trRes.data.ayahs;
-      setAyahs(ar.map((a, i) => ({ ...a, translation: tr[i]?.text || '' })));
+      let list = ar.map((a, i) => ({ ...a, translation: tr[i]?.text || '' }));
+      // Every surah opens with the Bismillah except Al-Fatihah (1, where it
+      // IS ayah 1) and At-Tawbah (9, which has none) — the API embeds it in
+      // ayah 1's own text, so strip it out here and show it as its own
+      // header block instead of leaving it duplicated inside ayah 1.
+      if (surah.number !== 1 && surah.number !== 9 && list.length) {
+        const stripped = list[0].text.replace(BISMILLAH_STRIP_RE, '').trim();
+        if (stripped !== list[0].text.trim()) list = [{ ...list[0], text: stripped }, ...list.slice(1)];
+      }
+      setAyahs(list);
       setStatus('ready');
     }).catch(() => setStatus('error'));
 
@@ -871,6 +883,12 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
         <div class="reader-body">
           ${status === 'loading' ? html`<div class="center-msg"><div class="spinner"></div></div>` : null}
           ${status === 'error' ? html`<div class="center-msg">Couldn't load this surah. Please try again.</div>` : null}
+          ${status === 'ready' && surah.number !== 1 && surah.number !== 9 ? html`
+            <div class="bismillah-block">
+              <div class="bismillah-ar">${BISMILLAH_AR}</div>
+              <div class="bismillah-en">${BISMILLAH_EN}</div>
+            </div>
+          ` : null}
           ${status === 'ready' ? ayahs.map((a) => html`
             <div key=${a.numberInSurah} class="ayah-row">
               <div class="ayah-top">
