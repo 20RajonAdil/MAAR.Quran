@@ -1086,6 +1086,96 @@ function moonPhase(date = new Date()){
   return { age, illumination, waxing, name };
 }
 
+/* ---------- photoreal moon surface (ported from v2.0.html) ----------
+   Real photograph clipped to the disc when it loads, with the exact
+   same limb-darkening as the procedural fallback so both paths look
+   consistent if the image is ever slow or unavailable. */
+const qmMoonPhoto = new Image();
+let qmMoonPhotoReady = false;
+qmMoonPhoto.onload = () => { qmMoonPhotoReady = true; };
+qmMoonPhoto.onerror = () => { qmMoonPhotoReady = false; };
+qmMoonPhoto.src = 'moon-photo.png';
+
+function qmMulberry32(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const MOON_MARIA = [
+  { blobs: [{dx:-0.30,dy:-0.14,r:0.20},{dx:-0.14,dy:-0.24,r:0.17},{dx:-0.06,dy:-0.08,r:0.15}], a:0.30 },
+  { blobs: [{dx: 0.06,dy:-0.32,r:0.14},{dx: 0.14,dy:-0.20,r:0.11}], a:0.26 },
+  { blobs: [{dx: 0.26,dy:-0.12,r:0.15},{dx: 0.34,dy: 0.00,r:0.12}], a:0.28 },
+  { blobs: [{dx: 0.08,dy: 0.10,r:0.18},{dx:-0.02,dy: 0.20,r:0.13},{dx: 0.18,dy: 0.18,r:0.12}], a:0.30 },
+  { blobs: [{dx:-0.34,dy: 0.22,r:0.11},{dx:-0.24,dy: 0.30,r:0.09}], a:0.22 },
+  { blobs: [{dx: 0.36,dy: 0.30,r:0.10}], a:0.20 },
+];
+const MOON_CRATERS = [
+  {dx:-0.42,dy:-0.30,r:0.045,a:0.5,rim:true},{dx:-0.10,dy:-0.48,r:0.075,a:0.48,rim:true},
+  {dx: 0.18,dy:-0.42,r:0.035,a:0.42},{dx: 0.40,dy:-0.28,r:0.05,a:0.48,rim:true},
+  {dx:-0.48,dy:-0.05,r:0.03,a:0.4},{dx:-0.28,dy: 0.02,r:0.055,a:0.48,rim:true},
+  {dx: 0.00,dy: 0.32,r:0.085,a:0.5,rim:true},{dx: 0.22,dy: 0.40,r:0.04,a:0.44},
+  {dx: 0.46,dy: 0.02,r:0.045,a:0.46},{dx: 0.36,dy:-0.42,r:0.03,a:0.38},
+  {dx:-0.20,dy: 0.42,r:0.045,a:0.44},{dx:-0.44,dy: 0.36,r:0.035,a:0.4},
+  {dx: 0.08,dy:-0.10,r:0.025,a:0.34},{dx:-0.02,dy: 0.55,r:0.03,a:0.38},
+  {dx: 0.52,dy: 0.30,r:0.03,a:0.38},{dx:-0.55,dy: 0.15,r:0.025,a:0.34},
+  {dx: 0.30,dy: 0.14,r:0.03,a:0.38},{dx:-0.05,dy:-0.55,r:0.035,a:0.38},
+  {dx: 0.55,dy:-0.05,r:0.028,a:0.34},{dx:-0.30,dy:-0.45,r:0.025,a:0.32},
+  {dx: 0.14,dy: 0.02,r:0.018,a:0.3},{dx:-0.14,dy:-0.18,r:0.02,a:0.32},
+  {dx: 0.42,dy: 0.16,r:0.022,a:0.32},{dx:-0.40,dy: 0.05,r:0.018,a:0.3},
+];
+const MOON_SPECKLE_RNG = qmMulberry32(1337);
+const MOON_SPECKLES = Array.from({ length: 340 }, () => {
+  const ang = MOON_SPECKLE_RNG() * Math.PI * 2;
+  const rad = Math.sqrt(MOON_SPECKLE_RNG()) * 0.95;
+  return { dx: Math.cos(ang) * rad, dy: Math.sin(ang) * rad, r: 0.003 + MOON_SPECKLE_RNG() * 0.009, a: 0.03 + MOON_SPECKLE_RNG() * 0.10, dark: MOON_SPECKLE_RNG() < 0.55 };
+});
+
+function paintMoonTexture(ctx, cx, cy, R){
+  if (qmMoonPhotoReady) paintMoonPhoto(ctx, cx, cy, R);
+  else paintMoonProcedural(ctx, cx, cy, R);
+}
+function paintMoonPhoto(ctx, cx, cy, R){
+  const d = R * 2.06;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+  ctx.drawImage(qmMoonPhoto, cx - d / 2, cy - d / 2, d, d);
+  ctx.restore();
+  const limb = ctx.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 1.02);
+  limb.addColorStop(0, 'rgba(15,14,12,0)'); limb.addColorStop(1, 'rgba(15,14,12,.24)');
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = limb; ctx.fill();
+}
+function paintMoonProcedural(ctx, cx, cy, R){
+  const grad = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.35, R * 0.04, cx, cy, R * 1.05);
+  grad.addColorStop(0, '#f2f1ee'); grad.addColorStop(0.4, '#d9d7d1'); grad.addColorStop(0.68, '#b3b1a9'); grad.addColorStop(0.87, '#8d8b82'); grad.addColorStop(1, '#65635a');
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = grad; ctx.fill();
+
+  MOON_MARIA.forEach((m) => m.blobs.forEach((b) => {
+    const mx = cx + b.dx * R, my = cy + b.dy * R, mr = b.r * R;
+    const mg = ctx.createRadialGradient(mx, my, 0, mx, my, mr);
+    mg.addColorStop(0, `rgba(72,70,64,${m.a})`); mg.addColorStop(0.6, `rgba(72,70,64,${m.a * 0.75})`); mg.addColorStop(1, 'rgba(72,70,64,0)');
+    ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fillStyle = mg; ctx.fill();
+  }));
+  MOON_CRATERS.forEach((c) => {
+    const px = cx + c.dx * R, py = cy + c.dy * R, pr = Math.max(0.6, c.r * R);
+    const cg = ctx.createRadialGradient(px, py, 0, px, py, pr * 1.35);
+    cg.addColorStop(0, `rgba(38,37,33,${c.a})`); cg.addColorStop(0.55, `rgba(38,37,33,${c.a * 0.7})`); cg.addColorStop(0.85, `rgba(38,37,33,${c.a * 0.22})`); cg.addColorStop(1, 'rgba(38,37,33,0)');
+    ctx.beginPath(); ctx.arc(px, py, pr * 1.35, 0, Math.PI * 2); ctx.fillStyle = cg; ctx.fill();
+    if (c.rim) { ctx.beginPath(); ctx.arc(px - pr * 0.32, py - pr * 0.32, pr * 0.42, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,253,246,${c.a * 0.22})`; ctx.fill(); }
+  });
+  MOON_SPECKLES.forEach((s) => {
+    const sx = cx + s.dx * R, sy = cy + s.dy * R, sr = Math.max(0.35, s.r * R);
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+    ctx.fillStyle = s.dark ? `rgba(40,39,35,${s.a})` : `rgba(250,249,244,${s.a})`;
+    ctx.fill();
+  });
+  const limb = ctx.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 1.02);
+  limb.addColorStop(0, 'rgba(15,14,12,0)'); limb.addColorStop(1, 'rgba(15,14,12,.24)');
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = limb; ctx.fill();
+}
+
 function MoonCanvas({ phase }){
   const ref = useRef(null);
   useEffect(() => {
@@ -1096,36 +1186,53 @@ function MoonCanvas({ phase }){
     canvas.width = size * DPR; canvas.height = size * DPR;
     canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    const r = size / 2 - 6, cx = size / 2, cy = size / 2;
+    const R = size / 2 - 4, cx = size / 2, cy = size / 2;
 
-    const DARK = '#0d0f12', LIT = '#e9d4a3';
-    const k = Math.min(Math.max(phase.illumination, 0), 1); // 0..1 lit fraction
-    const waxing = phase.waxing; // true: lit side grows on the right (N. hemisphere convention)
+    function draw(){
+      ctx.clearRect(0, 0, size, size);
+      const f = Math.min(Math.max(phase.illumination, 0), 1);
+      const waxing = phase.waxing;
 
-    ctx.clearRect(0, 0, size, size);
-    ctx.save();
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+      // faint earthshine so the dark side is never flat black
+      const earthshine = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.35, R * 0.08, cx, cy, R);
+      earthshine.addColorStop(0, 'rgba(120,150,255,.10)'); earthshine.addColorStop(1, 'rgba(6,8,14,1)');
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = earthshine; ctx.fill();
 
-    // base disc: fully dark
-    ctx.fillStyle = DARK; ctx.fillRect(0, 0, size, size);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+      const dark = 'rgba(6,8,14,1)';
 
-    // half-disc that is always lit while waxing (right) or waning (left)
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, waxing ? -Math.PI / 2 : Math.PI / 2, waxing ? Math.PI / 2 : (3 * Math.PI) / 2);
-    ctx.closePath();
-    ctx.fillStyle = LIT;
-    ctx.fill();
+      // the half that's always fully lit (or fully lit before we cut into it)
+      ctx.save();
+      ctx.beginPath();
+      if (waxing) ctx.rect(cx, cy - R, R, R * 2); else ctx.rect(cx - R, cy - R, R, R * 2);
+      ctx.clip();
+      paintMoonTexture(ctx, cx, cy, R);
+      ctx.restore();
 
-    // terminator ellipse: narrows the lit half into a crescent (k<0.5)
-    // or fills the far half into a gibbous (k>=0.5)
-    const rx = Math.abs(1 - 2 * k) * r;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, r, 0, 0, Math.PI * 2);
-    ctx.fillStyle = k < 0.5 ? DARK : LIT;
-    ctx.fill();
+      const rx = R * Math.abs(1 - 2 * f);
+      if (f > 0.5) {
+        ctx.save();
+        ctx.beginPath();
+        if (waxing) ctx.rect(cx - R, cy - R, R, R * 2); else ctx.rect(cx, cy - R, R, R * 2);
+        ctx.clip();
+        ctx.beginPath(); ctx.ellipse(cx, cy, rx, R, 0, 0, Math.PI * 2); ctx.clip();
+        paintMoonTexture(ctx, cx, cy, R);
+        ctx.restore();
+      } else if (f < 0.5) {
+        ctx.save();
+        ctx.beginPath();
+        if (waxing) ctx.rect(cx, cy - R, R, R * 2); else ctx.rect(cx - R, cy - R, R, R * 2);
+        ctx.clip();
+        ctx.beginPath(); ctx.ellipse(cx, cy, rx, R, 0, 0, Math.PI * 2);
+        ctx.fillStyle = dark; ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
 
-    ctx.restore();
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(198,161,91,.35)'; ctx.lineWidth = 1; ctx.stroke();
+    draw();
+    if (!qmMoonPhotoReady) { const onReady = () => { draw(); }; qmMoonPhoto.addEventListener('load', onReady, { once: true }); return () => qmMoonPhoto.removeEventListener('load', onReady); }
   }, [phase.age]);
   return html`<canvas ref=${ref}></canvas>`;
 }
