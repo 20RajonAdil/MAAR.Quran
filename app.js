@@ -649,6 +649,7 @@ const ICONS = {
   chev: 'M9 6l6 6-6 6',
   save: 'M5 4.5h11l3 3v12H5v-15Zm2 0v5h8v-5M8 14.5h8v5H8v-5Z',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13v.01M12 11v6',
+  note: 'M4 20l1-4L16 5l3 3L8 19l-4 1ZM13.5 6.5l3 3M3 21h18',
 };
 function Icon({ name, size = 18, filled = false }){
   const d = ICONS[name] || '';
@@ -1130,10 +1131,22 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   const [status, setStatus] = useState('loading');
   const [playingId, setPlayingId] = useState(null);
   const [playingWhole, setPlayingWhole] = useState(false);
+  const [notes, setNotes] = useState(() => store.getJSON('v5_notes', {}));
+  const [noteAyah, setNoteAyah] = useState(null);
   const audioRef = useRef(null);
   const chainRef = useRef({ queue: [], index: 0, active: false });
   const rowRefs = useRef({});
   const reciter = getReciter(reciterId);
+
+  function noteKeyFor(a){ return `${surah.number}:${a.numberInSurah}`; }
+  function setNoteText(key, text){
+    setNotes((prev) => {
+      const next = { ...prev };
+      if (text.trim()) next[key] = text; else delete next[key];
+      store.setJSON('v5_notes', next);
+      return next;
+    });
+  }
 
   useEffect(() => {
     setStatus('loading'); setAyahs(null);
@@ -1259,6 +1272,9 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
                   <button class=${'mini-btn' + (isBookmarked(a) ? ' active' : '')} onClick=${() => toggleBookmark(surah, a)} aria-label="Bookmark this ayah">
                     <${Icon} name="bookmark" size=${13} filled=${isBookmarked(a)} />
                   </button>
+                  <button class=${'mini-btn' + (notes[noteKeyFor(a)] ? ' active' : '')} onClick=${() => setNoteAyah(a)} aria-label="Write a reflection on this ayah">
+                    <${Icon} name="note" size=${13} />
+                  </button>
                 </div>
                 <span class="ayah-badge">${a.numberInSurah}</span>
               </div>
@@ -1272,6 +1288,49 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
             <${Icon} name=${playingWhole ? 'pause' : 'play'} size=${16} filled=${true} />
           </button>
           <div class="player-info">${reciter.name} — ${playingWhole ? 'playing full surah…' : 'play full surah'}</div>
+        </div>
+      </div>
+      ${noteAyah ? html`
+        <${NoteOverlay}
+          surah=${surah}
+          ayah=${noteAyah}
+          value=${notes[noteKeyFor(noteAyah)] || ''}
+          onChange=${(text) => setNoteText(noteKeyFor(noteAyah), text)}
+          onClose=${() => setNoteAyah(null)}
+        />
+      ` : null}
+    </div>
+  `;
+}
+
+function NoteOverlay({ surah, ayah, value, onChange, onClose }){
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return html`
+    <div class="reader-overlay" style=${{zIndex:75}} onClick=${(e) => e.target === e.currentTarget && onClose()}>
+      <div class="note-panel">
+        <div class="reader-head">
+          <div>
+            <h3>Reflection</h3>
+            <div class="surah-meta">${surah.englishName} · ${surah.number}:${ayah.numberInSurah}</div>
+          </div>
+          <button class="icon-btn" onClick=${onClose} aria-label="Close"><${Icon} name="close" size=${16} /></button>
+        </div>
+        <div class="note-body">
+          <div class="ayah-ar" style=${{marginBottom:'6px'}}>${ayah.text}</div>
+          <div class="ayah-tr" style=${{marginBottom:'20px'}}>${ayah.translation}</div>
+          <label class="note-label">Write your reflection</label>
+          <textarea
+            class="note-textarea"
+            value=${value}
+            onInput=${(e) => onChange(e.target.value)}
+            placeholder="What does this ayah mean to you? Your notes are saved automatically, only on this device."
+            autoFocus
+          ></textarea>
+          <div class="note-savedstate"><${Icon} name="save" size=${11} /> ${value.trim() ? 'Saved to your device' : 'Nothing written yet — start typing'}</div>
         </div>
       </div>
     </div>
