@@ -1842,6 +1842,18 @@ function ProfileCard({ img, alt, name, children, gradient }){
   `;
 }
 
+const ABOUT_FEATURES = [
+  { icon:'book', title:"The full Qur'an", desc:"All 114 surahs in Arabic (Uthmani script), with translations in 20 languages and 11 selectable Arabic fonts." },
+  { icon:'play', title:'Audio recitation', desc:'5 reciters — Al-Afasy, Al-Husary, Al-Minshawi, Qari Shakir Qasmi and Abdul Rahman Mossad. Play verse by verse or the full surah, with the current ayah highlighted and auto-scrolled in sync.' },
+  { icon:'bookmark', title:'Bookmarks', desc:'Save any ayah or hadith and find them again instantly from the bookmarks drawer.' },
+  { icon:'note', title:'Personal reflections', desc:'Write your own notes on any ayah — saved automatically as you type.' },
+  { icon:'search', title:'Hadith', desc:'Six major collections — Bukhari, Muslim, Abu Dawood, At-Tirmidhi, An-Nasa\'i and Ibn Majah — translated into nine languages, with bookmarking.' },
+  { icon:'sun', title:'Prayer times', desc:"Live countdown to the next prayer for your location, in 12-hour format." },
+  { icon:'moon', title:'Moon & Hijri calendar', desc:"Tonight's real moon phase rendered photographically, which way to look to see it, and today's Hijri date." },
+  { icon:'compass', title:'Qibla finder', desc:'A live map with the true bearing and distance to the Kaaba, a device compass, and manual location search.' },
+  { icon:'save', title:'100% local & private', desc:'Everything — bookmarks, notes, reciter and language choices — is saved only on your device, with optional folder backup, export and import. Nothing is ever uploaded.' },
+];
+
 function AboutSection(){
   const ref = useReveal();
   return html`
@@ -1849,7 +1861,25 @@ function AboutSection(){
       <div class="section-head reveal">
         <div>
           <div class="eyebrow">About</div>
-          <h2>Who built this</h2>
+          <h2>Everything inside Quran Maar</h2>
+        </div>
+        <p>Free, private, and built to be used every day.</p>
+      </div>
+      <div class="surah-grid" style=${{marginBottom:'46px'}}>
+        ${ABOUT_FEATURES.map((f, i) => html`
+          <div key=${f.title} class="arch-card reveal" style=${{ cursor:'default', transitionDelay:(i*45)+'ms' }}>
+            <div class="surah-top">
+              <span class="surah-num"><${Icon} name=${f.icon} size=${14} /></span>
+            </div>
+            <div class="surah-en">${f.title}</div>
+            <div class="surah-meta" style=${{lineHeight:'1.55'}}>${f.desc}</div>
+          </div>
+        `)}
+      </div>
+
+      <div class="section-head reveal">
+        <div>
+          <div class="eyebrow">Who built this</div>
         </div>
       </div>
 
