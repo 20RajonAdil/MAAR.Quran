@@ -63,9 +63,18 @@ const html = htm.bind(React.createElement);
 const QURAN_API = 'https://api.alquran.cloud/v1';
 const ARABIC_EDITION = 'quran-uthmani';
 const AUDIO_EDITION = 'ar.alafasy';
-const BISMILLAH_AR = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
+const BISMILLAH_AR = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
 const BISMILLAH_EN = 'In the name of Allah, the Most Gracious, the Most Merciful';
-const BISMILLAH_STRIP_RE = /^بِسْمِ\s?اللَّهِ\s?الرَّحْمَٰنِ\s?الرَّحِيمِ\s*/;
+/* Diacritic- and alef-variant-tolerant matcher: the Uthmani text the API
+   returns can use ٱ/ا/أ/إ interchangeably and stacks harakat (diacritics)
+   right on the letters, so a literal string match against one exact
+   Unicode form silently fails and leaves the Bismillah duplicated inside
+   ayah 1's own text — this builds a pattern that matches regardless. */
+function qmLenientArabicPattern(word){
+  const DIAC = '[\\u064B-\\u065F\\u0670\\u06D6-\\u06ED\\u0640]*';
+  return [...word].map((ch) => (ch === 'ا' ? '[اٱأإ]' : ch) + DIAC).join('');
+}
+const BISMILLAH_STRIP_RE = new RegExp('^' + ['بسم', 'الله', 'الرحمن', 'الرحيم'].map(qmLenientArabicPattern).join('\\s*') + '\\s*');
 const HADITH_CDN = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions';
 const KAABA = { lat: 21.4225, lon: 39.8262 };
 
@@ -1122,6 +1131,8 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   const [playingId, setPlayingId] = useState(null);
   const [playingWhole, setPlayingWhole] = useState(false);
   const audioRef = useRef(null);
+  const chainRef = useRef({ queue: [], index: 0, active: false });
+  const rowRefs = useRef({});
   const reciter = getReciter(reciterId);
 
   useEffect(() => {
@@ -1144,7 +1155,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
       setStatus('ready');
     }).catch(() => setStatus('error'));
 
-    return () => { audioRef.current && audioRef.current.pause(); };
+    return () => { audioRef.current && audioRef.current.pause(); chainRef.current.active = false; };
   }, [surah.number, langEdition]);
 
   useEffect(() => {
@@ -1155,9 +1166,11 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   }, []);
 
   function stopAudio(){
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    chainRef.current.active = false;
+    if (audioRef.current) { audioRef.current.onended = null; audioRef.current.onerror = null; audioRef.current.pause(); audioRef.current = null; }
     setPlayingId(null); setPlayingWhole(false);
   }
+
   function playAyah(a){
     stopAudio();
     const url = ayahAudioForReciter(reciterId, a.number);
@@ -1171,16 +1184,48 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
       else setPlayingId(null);
     };
   }
+
+  /* For reciters with real per-ayah audio, "play surah" chains each verse's
+     file in sequence — which is what lets the current ayah highlight and
+     auto-scroll in sync, the way v2.0.html's reader does. Surah-only
+     reciters (Shakir Qasmi, Mossad) only have one continuous recording, so
+     for them it's a single file with no per-ayah highlight — there's no
+     per-verse timing data available to sync against. */
+  function playChainFrom(index){
+    const chain = chainRef.current;
+    if (!chain.active || index >= chain.queue.length) { stopAudio(); return; }
+    const a = chain.queue[index];
+    chain.index = index;
+    const audio = new Audio(ayahAudioForReciter(reciterId, a.number));
+    audioRef.current = audio;
+    setPlayingId(a.numberInSurah);
+    const el = rowRefs.current[a.numberInSurah];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    audio.play().catch(() => {});
+    audio.onended = () => { if (chainRef.current.active) playChainFrom(index + 1); };
+    audio.onerror = () => {
+      const fallback = audioUrl(a.number);
+      if (audio.src !== fallback) { audio.src = fallback; audio.play().catch(() => { if (chainRef.current.active) playChainFrom(index + 1); }); }
+      else if (chainRef.current.active) playChainFrom(index + 1);
+    };
+  }
+
   function playWholeSurah(){
     stopAudio();
-    const url = surahAudioForReciter(reciterId, surah.number);
-    if (!url) return;
-    const audio = new Audio(url);
-    audioRef.current = audio;
+    if (reciter.surahOnly) {
+      const url = surahAudioForReciter(reciterId, surah.number);
+      if (!url) return;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      setPlayingWhole(true);
+      audio.play().catch(() => {});
+      audio.onended = () => setPlayingWhole(false);
+      audio.onerror = () => setPlayingWhole(false);
+      return;
+    }
     setPlayingWhole(true);
-    audio.play().catch(() => {});
-    audio.onended = () => setPlayingWhole(false);
-    audio.onerror = () => setPlayingWhole(false);
+    chainRef.current = { queue: ayahs, index: 0, active: true };
+    playChainFrom(0);
   }
 
   const isBookmarked = (a) => bookmarks.some((b) => b.surah === surah.number && b.ayah === a.numberInSurah);
@@ -1205,17 +1250,17 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
             </div>
           ` : null}
           ${status === 'ready' ? ayahs.map((a) => html`
-            <div key=${a.numberInSurah} class="ayah-row">
+            <div key=${a.numberInSurah} ref=${(el) => { rowRefs.current[a.numberInSurah] = el; }} class=${'ayah-row' + (playingId === a.numberInSurah ? ' is-playing' : '')}>
               <div class="ayah-top">
-                <span class="ayah-badge">${surah.number}:${a.numberInSurah}</span>
                 <div class="ayah-actions">
-                  <button class=${'mini-btn' + (isBookmarked(a) ? ' active' : '')} onClick=${() => toggleBookmark(surah, a)} aria-label="Bookmark this ayah">
-                    <${Icon} name="bookmark" size=${13} filled=${isBookmarked(a)} />
-                  </button>
                   <button class=${'mini-btn' + (playingId === a.numberInSurah ? ' active' : '')} onClick=${() => playingId === a.numberInSurah ? stopAudio() : playAyah(a)} aria-label="Play this ayah">
                     <${Icon} name=${playingId === a.numberInSurah ? 'pause' : 'play'} size=${13} filled=${true} />
                   </button>
+                  <button class=${'mini-btn' + (isBookmarked(a) ? ' active' : '')} onClick=${() => toggleBookmark(surah, a)} aria-label="Bookmark this ayah">
+                    <${Icon} name="bookmark" size=${13} filled=${isBookmarked(a)} />
+                  </button>
                 </div>
+                <span class="ayah-badge">${a.numberInSurah}</span>
               </div>
               <div class="ayah-ar">${a.text}</div>
               <div class="ayah-tr">${a.translation}</div>
