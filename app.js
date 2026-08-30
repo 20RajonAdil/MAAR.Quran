@@ -362,6 +362,7 @@ const store = {
   get(key, fallback = null){ try { const v = localStorage.getItem(NS + key); return v === null ? fallback : v; } catch { return fallback; } },
   set(key, value){ try { localStorage.setItem(NS + key, value); } catch {} },
   getJSON(key, fallback){ try { const v = localStorage.getItem(NS + key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
+  getArray(key){ const v = this.getJSON(key, []); return Array.isArray(v) ? v : []; },
   setJSON(key, value){ try { localStorage.setItem(NS + key, JSON.stringify(value)); } catch {} },
 };
 
@@ -384,8 +385,8 @@ function qmCollectState(){
     reciter: store.get('reciter'),
     langEdition: store.get('lang_edition'),
     arabicFontIndex: store.get('arabic_font_index'),
-    bookmarks: store.getJSON('v5_bookmarks', []),
-    hadithBookmarks: store.getJSON('v5_hadith_bookmarks', []),
+    bookmarks: store.getArray('v5_bookmarks'),
+    hadithBookmarks: store.getArray('v5_hadith_bookmarks'),
   };
 }
 function qmApplyState(incoming){
@@ -394,8 +395,12 @@ function qmApplyState(incoming){
   if (s.reciter) store.set('reciter', s.reciter);
   if (s.langEdition) store.set('lang_edition', s.langEdition);
   if (s.arabicFontIndex !== undefined) store.set('arabic_font_index', String(s.arabicFontIndex));
-  if (s.bookmarks) store.setJSON('v5_bookmarks', s.bookmarks);
-  if (s.hadithBookmarks) store.setJSON('v5_hadith_bookmarks', s.hadithBookmarks);
+  // only ever accept the array shape this app actually uses — an older or
+  // foreign export/backup file (e.g. v4's object-keyed hadith bookmarks)
+  // must never get written through as-is, or every screen reading it
+  // back out as an array crashes on the next render.
+  if (Array.isArray(s.bookmarks)) store.setJSON('v5_bookmarks', s.bookmarks);
+  if (Array.isArray(s.hadithBookmarks)) store.setJSON('v5_hadith_bookmarks', s.hadithBookmarks);
 }
 
 function qmIdbOpen(){
@@ -1131,7 +1136,10 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   const [status, setStatus] = useState('loading');
   const [playingId, setPlayingId] = useState(null);
   const [playingWhole, setPlayingWhole] = useState(false);
-  const [notes, setNotes] = useState(() => store.getJSON('v5_notes', {}));
+  const [notes, setNotes] = useState(() => {
+    const v = store.getJSON('v5_notes', {});
+    return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+  });
   const [noteAyah, setNoteAyah] = useState(null);
   const audioRef = useRef(null);
   const chainRef = useRef({ queue: [], index: 0, active: false });
@@ -1918,8 +1926,8 @@ function App(){
   const [reciterId, setReciterId] = useLocalState('reciter', 'alafasy');
   const [langEdition, setLangEdition] = useLocalState('lang_edition', 'en.sahih');
   const [arabicFontIdx, setArabicFontIdx] = useLocalState('arabic_font_index', 0);
-  const [bookmarks, setBookmarks] = useState(() => store.getJSON('v5_bookmarks', []));
-  const [hadithBookmarks, setHadithBookmarks] = useState(() => store.getJSON('v5_hadith_bookmarks', []));
+  const [bookmarks, setBookmarks] = useState(() => store.getArray('v5_bookmarks'));
+  const [hadithBookmarks, setHadithBookmarks] = useState(() => store.getArray('v5_hadith_bookmarks'));
   const [surahCount, setSurahCount] = useState(114);
   const geo = useGeo();
 
