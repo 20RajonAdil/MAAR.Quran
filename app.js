@@ -1982,8 +1982,35 @@ function App(){
   `;
 }
 
+/* ---------------------------------------------------------------
+   14. ERROR BOUNDARY — catches render errors from any interaction
+   (not just the first paint, which the surrounding try/catch below
+   already covers) and shows a real message instead of a blank page.
+--------------------------------------------------------------- */
+class ErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error){ return { error }; }
+  componentDidCatch(error, info){ console.error('Quran Maar crashed:', error, info && info.componentStack); }
+  render(){
+    if (this.state.error) {
+      const msg = (this.state.error && this.state.error.message) ? this.state.error.message : String(this.state.error);
+      return html`
+        <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'32px 20px', textAlign:'center' }}>
+          <div style=${{ maxWidth:'440px' }}>
+            <div style=${{ fontFamily:"'Instrument Serif',serif", fontStyle:'italic', fontSize:'26px', color:'#f4efe4', marginBottom:'12px' }}>Something went wrong</div>
+            <p style=${{ color:'#9b9587', fontSize:'13.5px', lineHeight:'1.7', marginBottom:'8px' }}>This screen stayed up instead of going blank so the problem can actually be fixed. Please share this message:</p>
+            <p style=${{ color:'#c6a15b', fontSize:'12.5px', fontFamily:'monospace', background:'rgba(244,239,228,.05)', border:'1px solid rgba(244,239,228,.1)', borderRadius:'10px', padding:'12px', marginBottom:'18px', wordBreak:'break-word', textAlign:'left' }}>${msg}</p>
+            <button onClick=${() => window.location.reload()} style=${{ background:'#c6a15b', color:'#1a1305', border:'none', borderRadius:'999px', padding:'12px 24px', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'inherit' }}>Reload the page</button>
+          </div>
+        </div>
+      `;
+    }
+    return this.props.children;
+  }
+}
+
 try {
-  ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
+  ReactDOM.createRoot(document.getElementById('root')).render(html`<${ErrorBoundary}><${App} /><//>`);
 } catch (err) {
   console.error('Quran Maar failed to start:', err);
   document.getElementById('root').innerHTML =
