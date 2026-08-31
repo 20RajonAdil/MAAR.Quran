@@ -1355,11 +1355,26 @@ function HadithSection({ hadithBookmarks, toggleHadithBookmark }){
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState('loading');
-  const ref = useReveal([items.length]);
+  const [notes, setNotes] = useState(() => {
+    const v = store.getJSON('v5_hadith_notes', {});
+    return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+  });
+  const [noteHadith, setNoteHadith] = useState(null);
+  const ref = useReveal([collectionId, lang, page, items.length]);
   const PAGE_SIZE = 20;
 
   const collection = HADITH_COLLECTIONS.find((c) => c.id === collectionId) || HADITH_COLLECTIONS[0];
   const availableLangs = HADITH_LANG_PREFIXES.filter((l) => (HADITH_LANGS_BY_COLLECTION[collectionId] || ['eng']).includes(l.prefix));
+
+  function noteKeyFor(num){ return `${collectionId}:${num}`; }
+  function setNoteText(key, text){
+    setNotes((prev) => {
+      const next = { ...prev };
+      if (text.trim()) next[key] = text; else delete next[key];
+      store.setJSON('v5_hadith_notes', next);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!availableLangs.some((l) => l.prefix === lang)) setLang('eng');
@@ -1409,11 +1424,17 @@ function HadithSection({ hadithBookmarks, toggleHadithBookmark }){
         const text = (h.text || h.body || '').toString().trim();
         const grade = Array.isArray(h.grades) && h.grades.length ? h.grades[0].grade : null;
         const bookmarked = hadithBookmarks.some((b) => b.collectionId === collectionId && b.number === String(num));
+        const hasNote = !!notes[noteKeyFor(num)];
         return html`
           <div key=${num} class="arch-card hadith-card reveal" style=${{ cursor:'default', transitionDelay:(i*40)+'ms' }}>
-            <button class="mini-btn hadith-bm-btn" onClick=${() => toggleHadithBookmark(collection, num, text)} aria-label="Bookmark this hadith">
-              <${Icon} name="bookmark" size=${13} filled=${bookmarked} />
-            </button>
+            <div class="hadith-actions">
+              <button class=${'mini-btn' + (bookmarked ? ' active' : '')} onClick=${() => toggleHadithBookmark(collection, num, text)} aria-label="Bookmark this hadith">
+                <${Icon} name="bookmark" size=${13} filled=${bookmarked} />
+              </button>
+              <button class=${'mini-btn' + (hasNote ? ' active' : '')} onClick=${() => setNoteHadith({ number: num, text })} aria-label="Write a reflection on this hadith">
+                <${Icon} name="note" size=${13} />
+              </button>
+            </div>
             <div class="hadith-src">${collection.name} · #${num}</div>
             ${text ? (isRtlLang
               ? html`<div class="hadith-ar">${text}</div>`
@@ -1431,7 +1452,51 @@ function HadithSection({ hadithBookmarks, toggleHadithBookmark }){
           <button disabled=${page >= pageCount - 1} onClick=${() => setPage((p) => Math.min(pageCount - 1, p + 1))} aria-label="Next page"><${Icon} name="chev" size=${14} /></button>
         </div>
       ` : null}
+
+      ${noteHadith ? html`
+        <${HadithNoteOverlay}
+          collection=${collection}
+          hadith=${noteHadith}
+          isRtl=${isRtlLang}
+          value=${notes[noteKeyFor(noteHadith.number)] || ''}
+          onChange=${(text) => setNoteText(noteKeyFor(noteHadith.number), text)}
+          onClose=${() => setNoteHadith(null)}
+        />
+      ` : null}
     </section>
+  `;
+}
+
+function HadithNoteOverlay({ collection, hadith, value, onChange, onClose, isRtl }){
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return html`
+    <div class="reader-overlay" style=${{zIndex:75}} onClick=${(e) => e.target === e.currentTarget && onClose()}>
+      <div class="note-panel">
+        <div class="reader-head">
+          <div>
+            <h3>Reflection</h3>
+            <div class="surah-meta">${collection.name} · #${hadith.number}</div>
+          </div>
+          <button class="icon-btn" onClick=${onClose} aria-label="Close"><${Icon} name="close" size=${16} /></button>
+        </div>
+        <div class="note-body">
+          ${hadith.text ? html`<div class=${isRtl ? 'hadith-ar' : 'hadith-en'} style=${{marginBottom:'20px'}}>${hadith.text}</div>` : null}
+          <label class="note-label">Write your reflection</label>
+          <textarea
+            class="note-textarea"
+            value=${value}
+            onInput=${(e) => onChange(e.target.value)}
+            placeholder="What does this hadith teach you? Your notes are saved automatically, only on this device."
+            autoFocus
+          ></textarea>
+          <div class="note-savedstate"><${Icon} name="save" size=${11} /> ${value.trim() ? 'Saved to your device' : 'Nothing written yet — start typing'}</div>
+        </div>
+      </div>
+    </div>
   `;
 }
 
