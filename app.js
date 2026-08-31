@@ -573,16 +573,31 @@ function qmFmtDateTime(d){ if (!d) return 'Never'; return d.toLocaleString(undef
  *  `.reveal` fade-up used across every section. */
 function useReveal(deps = []){
   const ref = useRef(null);
+  const ioRef = useRef(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const nodes = el.classList?.contains('reveal') ? [el] : el.querySelectorAll('.reveal');
-    const targets = nodes.length ? nodes : [el];
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
-    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
-    targets.forEach((n) => io.observe(n));
-    return () => io.disconnect();
+    if (!ioRef.current) {
+      ioRef.current = new IntersectionObserver((entries) => {
+        entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); ioRef.current.unobserve(e.target); } });
+      }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+    }
+    const io = ioRef.current;
+    // Scans for any `.reveal` element that isn't animated in yet and starts
+    // observing it. Run once immediately, then on every DOM mutation inside
+    // this container — so newly-mounted async content (a fresh fetch result,
+    // a language switch that happens to produce the same item count as
+    // before, pagination, anything) is always picked up the moment it
+    // actually appears, instead of depending on guessing the right React
+    // dependency array for every call site.
+    function scan(){
+      const nodes = el.classList?.contains('reveal') ? [el] : el.querySelectorAll('.reveal');
+      nodes.forEach((n) => { if (!n.classList.contains('in')) io.observe(n); });
+    }
+    scan();
+    const mo = new MutationObserver(scan);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => mo.disconnect();
   }, deps);
   return ref;
 }
@@ -1360,7 +1375,7 @@ function HadithSection({ hadithBookmarks, toggleHadithBookmark }){
     return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
   });
   const [noteHadith, setNoteHadith] = useState(null);
-  const ref = useReveal([collectionId, lang, page, items.length]);
+  const ref = useReveal([status, collectionId, lang, page]);
   const PAGE_SIZE = 20;
 
   const collection = HADITH_COLLECTIONS.find((c) => c.id === collectionId) || HADITH_COLLECTIONS[0];
