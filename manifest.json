@@ -1,11 +1,12 @@
 {
   "name": "Quran Maar — Light · Time · Guidance",
   "short_name": "Quran Maar",
-  "description": "Read the Qur'an with translations and audio, track prayer times, explore Hadith collections, follow the Hijri calendar, and view a real-time Islamic moon phase — 100% private, saved only on your device.",
-  "start_url": "https://20rajonadil.github.io/MAAR.Quran/",
-  "scope": "https://20rajonadil.github.io/MAAR.Quran/",
-  "id": "https://20rajonadil.github.io/MAAR.Quran/",
+  "description": "Read the Qur'an with translations and audio, track prayer times, explore Hadith collections, follow the Hijri calendar, and view a real-time Islamic moon phase. Works fully offline — 100% private, saved only on your device.",
+  "start_url": "./",
+  "scope": "./",
+  "id": "/MAAR.Quran/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#05080f",
   "theme_color": "#0a1120",
@@ -13,8 +14,13 @@
   "dir": "ltr",
   "categories": ["lifestyle", "education", "reference"],
   "icons": [
+    { "src": "favicon-32.png", "sizes": "32x32", "type": "image/png", "purpose": "any" },
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Read the Qur'an", "url": "./?tab=quran", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Offline downloads", "url": "./?tab=offline", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }
