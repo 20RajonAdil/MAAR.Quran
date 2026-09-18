@@ -232,6 +232,59 @@ function surahAudioForReciter(reciterId, surahNumber){
   return `https://cdn.islamic.network/quran/audio-surah/128/${edition}/${surahNumber}.mp3`;
 }
 
+/* ---------------------------------------------------------------
+   1b. OFFLINE DOWNLOADS — bridge between the UI and QMOffline.
+
+   Two shapes of recitation exist in this app and they download very
+   differently, so the URL list is resolved per reciter:
+     · surah-only reciters (Shakir Qasmi, Mossad) = ONE mp3.
+     · per-ayah reciters (Al-Afasy, Al-Husary, Al-Minshawi) = one mp3
+       per verse, so Al-Baqarah alone is 286 separate files.
+   The per-ayah global verse numbers aren't derivable from the surah
+   list, so they're read from the same API the reader already uses —
+   which has the useful side effect of warming the offline text cache
+   for that surah at the same time.
+--------------------------------------------------------------- */
+async function resolveRecitationUrls(reciter, surah){
+  if (reciter.surahOnly || !reciter.ayah) {
+    const u = surahAudioForReciter(reciter.id, surah.number);
+    return u ? [u] : [];
+  }
+  const res = await fetch(`${QURAN_API}/surah/${surah.number}/${ARABIC_EDITION}`);
+  const j = await res.json();
+  const ayahs = (j.data && j.data.ayahs) || [];
+  return ayahs.map((a) => ayahAudioForReciter(reciter.id, a.number));
+}
+
+/* Single source of truth for download state, shared by every button on
+   screen plus the Offline tab, so downloading from the surah grid
+   instantly updates the reader and the manager. */
+function useDownloads(){
+  const [items, setItems] = useState([]);
+  const [ready, setReady] = useState(false);
+  const refresh = useCallback(() => {
+    if (!window.QMOffline) return;
+    window.QMOffline.listDownloads().then((d) => { setItems(d); setReady(true); }).catch(() => setReady(true));
+  }, []);
+  useEffect(() => {
+    refresh();
+    if (!window.QMOffline) return;
+    return window.QMOffline.subscribe(refresh);
+  }, [refresh]);
+  return { items, ready, refresh };
+}
+
+function useOnlineStatus(){
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true), off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+  return online;
+}
+
 const LANGUAGES = [
   { code:'en', label:'English', edition:'en.sahih' },
   { code:'bn', label:'Bangla', edition:'bn.bengali' },
@@ -670,6 +723,11 @@ const ICONS = {
   save: 'M5 4.5h11l3 3v12H5v-15Zm2 0v5h8v-5M8 14.5h8v5H8v-5Z',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13v.01M12 11v6',
   note: 'M4 20l1-4L16 5l3 3L8 19l-4 1ZM13.5 6.5l3 3M3 21h18',
+  download: 'M12 3v11m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2',
+  trash: 'M4 7h16M10 7V5h4v2M6 7l1 13h10l1-13M10 11v6M14 11v6',
+  check: 'M4.5 12.5 9.5 17.5 19.5 7',
+  cloudOff: 'M3 3l18 18M7.5 18A4.5 4.5 0 0 1 7 9.02M9.5 5.7A6 6 0 0 1 18 10a4 4 0 0 1 2.4 7.2',
+  offline: 'M12 20h.01M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M2 9a15 15 0 0 1 20 0',
 };
 function Icon({ name, size = 18, filled = false }){
   const d = ICONS[name] || '';
@@ -688,6 +746,7 @@ const NAV_ITEMS = [
   { id:'quran', label:"Qur'an", icon:'book' },
   { id:'hadith', label:'Hadith', icon:'search' },
   { id:'qibla', label:'Qibla', icon:'compass' },
+  { id:'offline', label:'Offline', icon:'download' },
   { id:'about', label:'About', icon:'info' },
 ];
 
@@ -1035,6 +1094,78 @@ function HomeSection({ setTab, surahCount, geo }){
 /* ---------------------------------------------------------------
    7. QUR'AN — surah grid, reciter picker, reader overlay
 --------------------------------------------------------------- */
+/* A download control that reflects four states: idle, working (with a
+   real byte/file progress bar), saved, and failed. Clicks are stopped
+   from bubbling because these sit inside cards that open the reader. */
+function DownloadButton({ reciter, surah, isDone, compact = false }){
+  const [phase, setPhase] = useState('idle');   // idle | working | error
+  const [prog, setProg] = useState({ done:0, total:0, bytes:0 });
+  const [err, setErr] = useState('');
+  const id = `${reciter.id}:${surah.number}`;
+  const available = reciter.surahOnly ? !!surahAudioForReciter(reciter.id, surah.number) : true;
+
+  async function start(e){
+    e && e.stopPropagation();
+    if (!window.QMOffline || phase === 'working') return;
+    if (isDone) { await window.QMOffline.deleteDownload(id); return; }
+    setPhase('working'); setErr(''); setProg({ done:0, total:0, bytes:0 });
+    try {
+      const urls = await resolveRecitationUrls(reciter, surah);
+      if (!urls.length) throw new Error('No recording available for this surah in this voice.');
+      setProg({ done:0, total:urls.length, bytes:0 });
+      await window.QMOffline.downloadRecitation({
+        reciterId: reciter.id,
+        reciterName: reciter.name,
+        surahNumber: surah.number,
+        surahName: surah.name,
+        surahEnglish: surah.englishName,
+        urls,
+        onProgress: (p) => setProg(p),
+      });
+      setPhase('idle');
+    } catch (ex) {
+      if (String(ex && ex.message) === 'cancelled') { setPhase('idle'); return; }
+      setErr(String(ex && ex.message || ex));
+      setPhase('error');
+    }
+  }
+
+  function cancel(e){
+    e && e.stopPropagation();
+    window.QMOffline && window.QMOffline.cancelDownload(id);
+  }
+
+  if (!available) return null;
+
+  const pct = prog.total ? Math.round((prog.done / prog.total) * 100) : 0;
+  const fmt = window.QMOffline ? window.QMOffline.formatBytes : (n) => n + 'B';
+
+  if (phase === 'working') {
+    return html`
+      <div style=${{ minWidth: compact ? '96px' : '132px' }} onClick=${(e)=>e.stopPropagation()}>
+        <button class="dl-btn busy" onClick=${cancel} title="Cancel download">
+          <${Icon} name="download" size=${12} />
+          ${prog.total > 1 ? `${prog.done}/${prog.total}` : fmt(prog.bytes)}
+        </button>
+        <div class="dl-progress"><span style=${{ width: (prog.total > 1 ? pct : 100) + '%' }}></span></div>
+      </div>
+    `;
+  }
+
+  return html`
+    <div onClick=${(e)=>e.stopPropagation()}>
+      <button
+        class=${'dl-btn' + (isDone ? ' done' : '') + (phase === 'error' ? ' pill-danger' : '')}
+        onClick=${start}
+        title=${isDone ? 'Saved for offline — click to remove' : 'Download this recitation for offline listening'}>
+        <${Icon} name=${isDone ? 'check' : 'download'} size=${12} />
+        ${isDone ? 'Saved' : (compact ? 'Save' : 'Download')}
+      </button>
+      ${phase === 'error' && !compact ? html`<div class="surah-meta" style=${{ marginTop:'6px', color:'var(--danger)', fontSize:'11px' }}>${err}</div>` : null}
+    </div>
+  `;
+}
+
 function ReciterPicker({ reciterId, setReciterId }){
   const ref = useReveal();
   const r = getReciter(reciterId);
@@ -1057,7 +1188,7 @@ function ReciterPicker({ reciterId, setReciterId }){
   `;
 }
 
-function SurahCard({ s, i, reciter, onOpen }){
+function SurahCard({ s, i, reciter, onOpen, isDone }){
   const hasVoice = reciter.surahOnly ? !!surahAudioForReciter(reciter.id, s.number) : true;
   return html`
     <div class="arch-card surah-card reveal" style=${{ transitionDelay: Math.min(i*35,400)+'ms' }} onClick=${() => onOpen(s)}>
@@ -1068,6 +1199,11 @@ function SurahCard({ s, i, reciter, onOpen }){
       <div class="surah-ar">${s.name}</div>
       <div class="surah-en">${s.englishName}</div>
       <div class="surah-meta">${s.englishNameTranslation}<span class="dot"></span>${s.numberOfAyahs} ayahs<span class="dot"></span>${s.revelationType}</div>
+      ${hasVoice ? html`
+        <div style=${{ marginTop:'12px' }}>
+          <${DownloadButton} reciter=${reciter} surah=${s} isDone=${isDone} compact=${true} />
+        </div>
+      ` : null}
     </div>
   `;
 }
@@ -1078,6 +1214,8 @@ function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, ar
   const [query, setQuery] = useState('');
   const [openSurah, setOpenSurah] = useState(null);
   const ref = useReveal([surahs.length]);
+  const { items: downloads } = useDownloads();
+  const doneIds = useMemo(() => new Set(downloads.map((d) => d.id)), [downloads]);
 
   useEffect(() => {
     fetch(`${QURAN_API}/surah`).then(r => r.json()).then((j) => {
@@ -1123,11 +1261,11 @@ function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, ar
       </div>
 
       ${status === 'loading' ? html`<div class="center-msg"><div class="spinner"></div><div style=${{marginTop:'10px'}}>Loading surahs…</div></div>` : null}
-      ${status === 'error' ? html`<div class="center-msg">Couldn't reach the Qur'an API just now. Please check your connection and reload.</div>` : null}
+      ${status === 'error' ? html`<div class="center-msg">Couldn't reach the Qur'an API, and no offline copy is stored yet. Connect once and use <strong>Offline \u2192 Save Qur'an text</strong> so this screen works without a connection.</div>` : null}
 
       ${status === 'ready' ? html`
         <div class="surah-grid">
-          ${filtered.map((s, i) => html`<${SurahCard} key=${s.number} s=${s} i=${i} reciter=${getReciter(reciterId)} onOpen=${setOpenSurah} />`)}
+          ${filtered.map((s, i) => html`<${SurahCard} key=${s.number} s=${s} i=${i} reciter=${getReciter(reciterId)} onOpen=${setOpenSurah} isDone=${doneIds.has(reciterId + ':' + s.number)} />`)}
         </div>
         ${filtered.length === 0 ? html`<div class="center-msg">No surah matches "${query}".</div>` : null}
       ` : null}
@@ -1160,6 +1298,8 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   const chainRef = useRef({ queue: [], index: 0, active: false });
   const rowRefs = useRef({});
   const reciter = getReciter(reciterId);
+  const { items: rdDownloads } = useDownloads();
+  const rdIsDone = rdDownloads.some((d) => d.id === reciterId + ':' + surah.number);
 
   function noteKeyFor(a){ return `${surah.number}:${a.numberInSurah}`; }
   function setNoteText(key, text){
@@ -1310,7 +1450,8 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
           <button class="player-play" onClick=${() => playingWhole ? stopAudio() : playWholeSurah()} aria-label="Play full surah">
             <${Icon} name=${playingWhole ? 'pause' : 'play'} size=${16} filled=${true} />
           </button>
-          <div class="player-info">${reciter.name} — ${playingWhole ? 'playing full surah…' : 'play full surah'}</div>
+          <div class="player-info">${reciter.name} — ${playingWhole ? 'playing full surah\u2026' : 'play full surah'}</div>
+          <${DownloadButton} reciter=${reciter} surah=${surah} isDone=${rdIsDone} />
         </div>
       </div>
       ${noteAyah ? html`
@@ -1934,6 +2075,206 @@ const ABOUT_FEATURES = [
   { icon:'save', title:'100% local & private', desc:'Everything — bookmarks, notes, reciter and language choices — is saved only on your device, with optional folder backup, export and import. Nothing is ever uploaded.' },
 ];
 
+/* ---------------------------------------------------------------
+   OFFLINE — storage manager. Shows what's saved on this device,
+   lets the user play or delete each recitation, and warms the
+   Qur'an text cache for reading with no connection at all.
+--------------------------------------------------------------- */
+function OfflineSection(){
+  const ref = useReveal();
+  const online = useOnlineStatus();
+  const { items, ready } = useDownloads();
+  const [usage, setUsage] = useState(null);
+  const [persisted, setPersisted] = useState(null);
+  const [textStatus, setTextStatus] = useState(null);
+  const [textProg, setTextProg] = useState(null);
+  const [playing, setPlaying] = useState(null);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const audioRef = useRef(null);
+  const urlRef = useRef(null);
+
+  const fmt = (n) => (window.QMOffline ? window.QMOffline.formatBytes(n) : n + ' B');
+
+  const refreshStorage = useCallback(() => {
+    if (!window.QMOffline) return;
+    window.QMOffline.estimate().then(setUsage);
+    window.QMOffline.quranTextStatus().then(setTextStatus);
+    if (navigator.storage && navigator.storage.persisted) {
+      navigator.storage.persisted().then(setPersisted).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => { refreshStorage(); }, [refreshStorage, items.length]);
+
+  /* Release the object URL on unmount, or the blob stays pinned in memory. */
+  useEffect(() => () => {
+    if (audioRef.current) audioRef.current.pause();
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+  }, []);
+
+  function stop(){
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+    setPlaying(null);
+  }
+
+  /* Plays straight from the stored blob rather than the network URL, so
+     this works even if the service worker isn't controlling the page. */
+  async function play(item){
+    stop();
+    const first = item.urls && item.urls[0];
+    if (!first) return;
+    const blobUrl = await window.QMOffline.getBlobURL(first);
+    if (!blobUrl) return;
+    urlRef.current = blobUrl;
+    const audio = new Audio(blobUrl);
+    audioRef.current = audio;
+    setPlaying(item.id);
+
+    let idx = 0;
+    audio.onended = async () => {
+      idx++;
+      if (!item.urls[idx] || audioRef.current !== audio) { stop(); return; }
+      const next = await window.QMOffline.getBlobURL(item.urls[idx]);
+      if (!next || audioRef.current !== audio) { stop(); return; }
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+      urlRef.current = next;
+      audio.src = next;
+      audio.play().catch(() => stop());
+    };
+    audio.onerror = () => stop();
+    audio.play().catch(() => stop());
+  }
+
+  async function saveText(){
+    if (textProg) { window.QMOffline.cacheQuranText.cancel && window.QMOffline.cacheQuranText.cancel(); return; }
+    setTextProg({ done: 0, total: 114 });
+    try {
+      await window.QMOffline.cacheQuranText({
+        api: QURAN_API,
+        arabicEdition: ARABIC_EDITION,
+        translationEdition: store.get('lang_edition') || 'en.sahih',
+        onProgress: (p) => setTextProg(p),
+      });
+    } catch {}
+    setTextProg(null);
+    refreshStorage();
+  }
+
+  const totalBytes = items.reduce((a, b) => a + (b.bytes || 0), 0);
+  const pctUsed = usage && usage.quota ? Math.min(100, (usage.usage / usage.quota) * 100) : 0;
+
+  return html`
+    <section class="section shell" ref=${ref}>
+      <div class="section-head reveal">
+        <div>
+          <div class="eyebrow">On this device</div>
+          <h2>Offline downloads</h2>
+        </div>
+        <p>Save recitations and the Qur'an text to this device so everything keeps working with no connection at all. Downloads are kept separately from the app cache, so updating Quran Maar never deletes them.</p>
+      </div>
+
+      <div class="arch-card reveal" style=${{ cursor:'default', marginBottom:'18px' }}>
+        <div class="eyebrow" style=${{ marginBottom:'10px' }}>Status</div>
+        <div class="offline-row">
+          <div class="o-main">
+            <div class="o-title">${online ? 'Connected' : 'Offline'}</div>
+            <div class="o-sub">${online
+              ? 'New surahs and prayer times will update as you browse.'
+              : 'Reading anything already saved below still works normally.'}</div>
+          </div>
+          <div class="o-acts"><${Icon} name=${online ? 'offline' : 'cloudOff'} size=${20} /></div>
+        </div>
+        <div class="offline-row">
+          <div class="o-main">
+            <div class="o-title">Storage used by this app</div>
+            <div class="o-sub">
+              ${usage ? `${fmt(usage.usage)} of about ${fmt(usage.quota)} available` : 'Your browser does not report a storage estimate.'}
+              ${persisted === true ? ' \u00b7 protected from automatic cleanup' : ''}
+              ${persisted === false ? ' \u00b7 best-effort storage' : ''}
+            </div>
+            ${usage ? html`<div class="storage-bar"><span style=${{ width: pctUsed + '%' }}></span></div>` : null}
+          </div>
+        </div>
+        <div class="offline-row">
+          <div class="o-main">
+            <div class="o-title">Qur'an text & translation</div>
+            <div class="o-sub">
+              ${textProg
+                ? `Saving\u2026 ${textProg.done} of ${textProg.total} surahs`
+                : textStatus
+                  ? `All 114 surahs saved for offline reading (${textStatus.translationEdition}).`
+                  : 'Not saved yet \u2014 save it once so you can read without a connection.'}
+            </div>
+            ${textProg ? html`<div class="dl-progress"><span style=${{ width: Math.round((textProg.done/textProg.total)*100) + '%' }}></span></div>` : null}
+          </div>
+          <div class="o-acts">
+            <button class=${'dl-btn' + (textStatus && !textProg ? ' done' : '')} onClick=${saveText} disabled=${!online && !textProg}>
+              <${Icon} name=${textProg ? 'close' : (textStatus ? 'check' : 'download')} size=${12} />
+              ${textProg ? 'Cancel' : (textStatus ? 'Saved \u00b7 refresh' : "Save Qur'an text")}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-card reveal" style=${{ cursor:'default' }}>
+        <div style=${{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px', marginBottom:'6px' }}>
+          <div class="eyebrow">Saved recitations ${items.length ? `\u00b7 ${items.length}` : ''}</div>
+          ${items.length ? html`
+            <button class=${'dl-btn' + (confirmAll ? ' pill-danger' : '')}
+              onClick=${async () => {
+                if (!confirmAll) { setConfirmAll(true); setTimeout(() => setConfirmAll(false), 4000); return; }
+                stop(); await window.QMOffline.deleteAllDownloads(); setConfirmAll(false); refreshStorage();
+              }}>
+              <${Icon} name="trash" size=${12} /> ${confirmAll ? 'Tap again to confirm' : 'Delete all'}
+            </button>
+          ` : null}
+        </div>
+        ${items.length ? html`<div class="o-sub" style=${{ marginBottom:'6px', color:'var(--muted-2)', fontSize:'12.5px' }}>${fmt(totalBytes)} of audio stored on this device.</div>` : null}
+
+        ${!ready ? html`<div class="center-msg"><div class="spinner"></div></div>` : null}
+        ${ready && !items.length ? html`
+          <div class="o-empty">
+            Nothing downloaded yet.<br/>
+            Open the Qur'an tab and tap <strong>Save</strong> on any surah to keep that recitation on your device.
+          </div>
+        ` : null}
+
+        ${items.map((it) => html`
+          <div class="offline-row" key=${it.id}>
+            <div class="o-main">
+              <div class="o-title">${it.surahNumber}. ${it.surahEnglish || it.surahName}</div>
+              <div class="o-sub">
+                ${it.reciterName}<span class="dot"></span>${fmt(it.bytes)}
+                <span class="dot"></span>${it.files} ${it.files === 1 ? 'file' : 'files'}
+                ${it.partial ? html`<span class="dot"></span><span style=${{color:'var(--danger)'}}>partial \u2014 ${it.expected - it.files} missing</span>` : null}
+              </div>
+            </div>
+            <div class="o-acts">
+              <button class=${'dl-btn' + (playing === it.id ? ' busy' : '')} onClick=${() => playing === it.id ? stop() : play(it)}>
+                <${Icon} name=${playing === it.id ? 'pause' : 'play'} size=${12} filled=${true} />
+                ${playing === it.id ? 'Stop' : 'Play'}
+              </button>
+              <button class="dl-btn pill-danger" onClick=${async () => { if (playing === it.id) stop(); await window.QMOffline.deleteDownload(it.id); refreshStorage(); }}>
+                <${Icon} name="trash" size=${12} />
+              </button>
+            </div>
+          </div>
+        `)}
+      </div>
+
+      <div class="arch-card reveal" style=${{ cursor:'default', marginTop:'18px' }}>
+        <div class="eyebrow" style=${{ marginBottom:'10px' }}>Good to know</div>
+        <div class="surah-meta" style=${{ lineHeight:'1.75' }}>
+          Verse-by-verse reciters store one audio file per ayah, so a long surah can be several hundred files and tens of megabytes \u2014 Al-Baqarah is the heaviest. Qari Shakir Qasmi and Abdul Rahman Mossad are single continuous recordings, so they download as one file.
+          <br/><br/>
+          Add Quran Maar to your home screen to let the browser reserve storage for it. Clearing your browser's site data will remove downloads, as will iOS reclaiming space from a web app you haven't opened in a while.
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function AboutSection(){
   const ref = useReveal();
   return html`
@@ -2029,8 +2370,52 @@ function Footer(){
 /* ---------------------------------------------------------------
    13. APP ROOT
 --------------------------------------------------------------- */
+/* Surfaces two transient states the user otherwise can't see: loss of
+   connection, and a new app version sitting in the service worker
+   waiting to take over. The update is offered, not forced. */
+function NetBanner(){
+  const online = useOnlineStatus();
+  const [showOffline, setShowOffline] = useState(false);
+  const [updateReg, setUpdateReg] = useState(null);
+
+  useEffect(() => {
+    if (online) { const t = setTimeout(() => setShowOffline(false), 300); return () => clearTimeout(t); }
+    setShowOffline(true);
+  }, [online]);
+
+  useEffect(() => {
+    const onUpdate = (e) => setUpdateReg(e.detail);
+    window.addEventListener('qm-sw-update', onUpdate);
+    return () => window.removeEventListener('qm-sw-update', onUpdate);
+  }, []);
+
+  if (updateReg) {
+    return html`
+      <div class="net-banner update show">
+        A new version of Quran Maar is ready.
+        <button onClick=${() => { updateReg.waiting && updateReg.waiting.postMessage({ type:'SKIP_WAITING' }); }}>Update</button>
+        <button onClick=${() => setUpdateReg(null)}>Later</button>
+      </div>
+    `;
+  }
+
+  return html`
+    <div class=${'net-banner' + (showOffline ? ' show' : '')}>
+      <${Icon} name="cloudOff" size=${14} />
+      You're offline \u2014 saved surahs and downloads still work.
+    </div>
+  `;
+}
+
 function App(){
-  const [tab, setTab] = useState('home');
+  /* Manifest shortcuts and shared links land on ?tab=<id>; validated
+     against NAV_ITEMS so a junk param can't blank the screen. */
+  const [tab, setTab] = useState(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('tab');
+      return NAV_ITEMS.some((n) => n.id === t) ? t : 'home';
+    } catch { return 'home'; }
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [reciterId, setReciterId] = useLocalState('reciter', 'alafasy');
@@ -2086,10 +2471,12 @@ function App(){
     />`;
   else if (tab === 'hadith') page = html`<${HadithSection} hadithBookmarks=${hadithBookmarks} toggleHadithBookmark=${toggleHadithBookmark} />`;
   else if (tab === 'qibla') page = html`<${QiblaSection} geo=${geo} />`;
+  else if (tab === 'offline') page = html`<${OfflineSection} />`;
   else if (tab === 'about') page = html`<${AboutSection} />`;
 
   return html`
     <${React.Fragment}>
+      <${NetBanner} />
       <${NavBar} tab=${tab} setTab=${setTab} onOpenMenu=${() => setMenuOpen(true)} onOpenBookmarks=${() => setBmOpen(true)} bookmarkCount=${bookmarks.length + hadithBookmarks.length} />
       <${MobileMenu} open=${menuOpen} onClose=${() => setMenuOpen(false)} tab=${tab} setTab=${setTab} />
       <main key=${tab} class="page-enter">${page}</main>

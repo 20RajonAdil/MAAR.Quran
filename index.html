@@ -495,6 +495,64 @@ body{padding-bottom:var(--tab-h);}
 .spinner{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--gold);animation:spin .8s linear infinite;margin:0 auto;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+
+/* ============================================================
+   OFFLINE / PWA UI
+   ============================================================ */
+.net-banner{
+  position:fixed;left:0;right:0;top:0;z-index:120;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:8px 14px;font-size:13px;font-weight:600;letter-spacing:.01em;
+  background:#3a2a12;color:var(--gold-hi);
+  border-bottom:1px solid var(--gold-dim);
+  transform:translateY(-100%);transition:transform .35s var(--ease);
+}
+.net-banner.show{transform:translateY(0);}
+.net-banner.update{background:var(--emerald);color:#dff3e9;border-bottom-color:var(--emerald-hi);}
+.net-banner button{
+  margin-left:10px;border:1px solid currentColor;background:transparent;color:inherit;
+  border-radius:999px;padding:3px 12px;font-size:12px;font-weight:700;cursor:pointer;
+}
+.net-banner button:hover{background:rgba(255,255,255,.1);}
+
+.dl-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border:1px solid var(--line);background:var(--card);color:var(--muted);
+  border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:600;
+  cursor:pointer;transition:all .2s var(--ease);white-space:nowrap;
+}
+.dl-btn:hover{border-color:var(--gold-dim);color:var(--gold-hi);background:var(--card-hi);}
+.dl-btn.done{border-color:var(--emerald-hi);color:#7fd3b0;background:rgba(47,103,83,.16);}
+.dl-btn.busy{border-color:var(--gold-dim);color:var(--gold-hi);}
+.dl-btn[disabled]{opacity:.5;cursor:default;}
+
+.surah-card .surah-top{position:relative;}
+.surah-dl{position:absolute;right:0;top:0;}
+
+.dl-progress{height:3px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:8px;}
+.dl-progress span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-hi));transition:width .25s linear;}
+
+.offline-row{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 4px;border-bottom:1px solid var(--line-soft);
+}
+.offline-row:last-child{border-bottom:none;}
+.offline-row .o-main{flex:1;min-width:0;}
+.offline-row .o-title{font-weight:700;font-size:15px;color:var(--ink);}
+.offline-row .o-sub{font-size:12.5px;color:var(--muted-2);margin-top:3px;}
+.offline-row .o-acts{display:flex;gap:8px;flex-shrink:0;}
+.o-empty{padding:28px 4px;text-align:center;color:var(--muted-2);font-size:14px;}
+
+.storage-bar{height:8px;border-radius:999px;background:var(--line);overflow:hidden;margin:10px 0 6px;}
+.storage-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--emerald-hi),var(--gold));}
+
+.pill-danger{border-color:rgba(198,91,91,.4)!important;color:var(--danger)!important;}
+.pill-danger:hover{background:rgba(198,91,91,.12)!important;}
+
+@media (max-width:640px){
+  .offline-row{flex-wrap:wrap;}
+  .offline-row .o-acts{width:100%;justify-content:flex-end;}
+}
 </style>
 </head>
 <body>
@@ -506,7 +564,41 @@ body{padding-bottom:var(--tab-h);}
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/htm@3/dist/htm.js" crossorigin></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="app.js?v=14"></script>
+<script src="offline.js?v=1"></script>
+<script src="app.js?v=15"></script>
+
+<script>
+/* ---- Service worker registration ----------------------------------
+   Registered after load so it never competes with first paint. The
+   update prompt is shown rather than forced: silently swapping the
+   worker mid-session can tear a running audio chain. ------------- */
+(function () {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js', { scope: './' }).then(function (reg) {
+      window.__qmSW = reg;
+      reg.addEventListener('updatefound', function () {
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function () {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            window.dispatchEvent(new CustomEvent('qm-sw-update', { detail: reg }));
+          }
+        });
+      });
+    }).catch(function (e) {
+      console.warn('[QM] Service worker registration failed:', e);
+    });
+
+    var reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
+    });
+  });
+})();
+</script>
 
 </body>
 </html>
