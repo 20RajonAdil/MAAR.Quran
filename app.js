@@ -62,6 +62,11 @@ const html = htm.bind(React.createElement);
 --------------------------------------------------------------- */
 const QURAN_API = 'https://api.alquran.cloud/v1';
 const ARABIC_EDITION = 'quran-uthmani';
+
+/* Guards the silent background text save below so two triggers (e.g. an
+   'online' event firing while the mount timer is still pending) can't
+   both start fetching all 114 surahs at once. */
+let _autoTextSaveInFlight = false;
 const AUDIO_EDITION = 'ar.alafasy';
 const BISMILLAH_AR = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
 const BISMILLAH_EN = 'In the name of Allah, the Most Gracious, the Most Merciful';
@@ -2204,14 +2209,16 @@ function OfflineSection(){
                 ? `Saving\u2026 ${textProg.done} of ${textProg.total} surahs`
                 : textStatus
                   ? `All 114 surahs saved for offline reading (${textStatus.translationEdition}).`
-                  : 'Not saved yet \u2014 save it once so you can read without a connection.'}
+                  : online
+                    ? 'Saving automatically in the background \u2014 no action needed.'
+                    : 'Will save automatically next time you\u2019re online.'}
             </div>
             ${textProg ? html`<div class="dl-progress"><span style=${{ width: Math.round((textProg.done/textProg.total)*100) + '%' }}></span></div>` : null}
           </div>
           <div class="o-acts">
             <button class=${'dl-btn' + (textStatus && !textProg ? ' done' : '')} onClick=${saveText} disabled=${!online && !textProg}>
               <${Icon} name=${textProg ? 'close' : (textStatus ? 'check' : 'download')} size=${12} />
-              ${textProg ? 'Cancel' : (textStatus ? 'Saved \u00b7 refresh' : "Save Qur'an text")}
+              ${textProg ? 'Cancel' : (textStatus ? 'Saved \u00b7 refresh' : 'Save now')}
             </button>
           </div>
         </div>
@@ -2431,6 +2438,37 @@ function App(){
   useEffect(() => {
     fetch(`${QURAN_API}/surah`).then(r => r.json()).then((j) => setSurahCount((j.data || []).length)).catch(() => {});
   }, []);
+
+  /* Silently save the full Qur'an text (all 114 surahs, Arabic + the
+     current translation) for offline reading — no button, no prompt.
+     Runs once shortly after load (delayed so it never competes with the
+     surah the person actually opened first), again whenever the device
+     comes back online, and again if they switch translation language. */
+  useEffect(() => {
+    function ensureQuranTextOffline() {
+      if (_autoTextSaveInFlight) return;
+      if (!window.QMOffline || typeof navigator === 'undefined' || !navigator.onLine) return;
+      _autoTextSaveInFlight = true;
+      (async () => {
+        try {
+          const status = await window.QMOffline.quranTextStatus();
+          const upToDate = status && status.complete && status.translationEdition === langEdition;
+          if (!upToDate) {
+            await window.QMOffline.cacheQuranText({
+              api: QURAN_API,
+              arabicEdition: ARABIC_EDITION,
+              translationEdition: langEdition,
+              onProgress: () => {},
+            });
+          }
+        } catch {}
+        _autoTextSaveInFlight = false;
+      })();
+    }
+    const t = setTimeout(ensureQuranTextOffline, 4000);
+    window.addEventListener('online', ensureQuranTextOffline);
+    return () => { clearTimeout(t); window.removeEventListener('online', ensureQuranTextOffline); };
+  }, [langEdition]);
 
   const toggleBookmark = useCallback((surah, ayah) => {
     setBookmarks((prev) => {
