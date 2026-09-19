@@ -240,7 +240,10 @@
   async function cacheQuranText(opts) {
     const api = opts.api;
     const arabicEdition = opts.arabicEdition;
-    const translationEdition = opts.translationEdition;
+    // Accepts either a single translationEdition (back-compat) or an
+    // array of translationEditions — pass every language you want saved
+    // for offline reading, not just the one currently selected.
+    const translationEditions = opts.translationEditions || (opts.translationEdition ? [opts.translationEdition] : []);
     const onProgress = opts.onProgress || (() => {});
     const state = { cancelled: false };
     cacheQuranText.cancel = () => { state.cancelled = true; };
@@ -258,10 +261,9 @@
         const n = cursor++;
         if (n > total) return;
         try {
-          await Promise.all([
-            fetch(`${api}/surah/${n}/${arabicEdition}`),
-            fetch(`${api}/surah/${n}/${translationEdition}`),
-          ]);
+          const jobs = [fetch(`${api}/surah/${n}/${arabicEdition}`)];
+          for (const ed of translationEditions) jobs.push(fetch(`${api}/surah/${n}/${ed}`));
+          await Promise.all(jobs);
         } catch {}
         done++;
         onProgress({ done, total });
@@ -271,7 +273,7 @@
     await Promise.all(Array.from({ length: CONCURRENCY }, worker));
     await idbPut(KV_STORE, {
       key: 'quranTextCached',
-      value: { at: Date.now(), translationEdition, complete: !state.cancelled },
+      value: { at: Date.now(), translationEditions, complete: !state.cancelled },
     });
     emit();
     return { complete: !state.cancelled };
