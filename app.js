@@ -2262,7 +2262,7 @@ function OfflineSection(){
       await window.QMOffline.cacheQuranText({
         api: QURAN_API,
         arabicEdition: ARABIC_EDITION,
-        translationEdition: store.get('lang_edition') || 'en.sahih',
+        translationEditions: LANGUAGES.map((l) => l.edition),
         onProgress: (p) => setTextProg(p),
       });
     } catch {}
@@ -2312,7 +2312,7 @@ function OfflineSection(){
               ${textProg
                 ? `Saving\u2026 ${textProg.done} of ${textProg.total} surahs`
                 : textStatus
-                  ? `All 114 surahs saved for offline reading (${textStatus.translationEdition}).`
+                  ? `All 114 surahs saved in Arabic + all ${(textStatus.translationEditions || []).length || LANGUAGES.length} translation languages.`
                   : online
                     ? 'Saving automatically in the background \u2014 no action needed.'
                     : 'Will save automatically next time you\u2019re online.'}
@@ -2543,11 +2543,12 @@ function App(){
     fetch(`${QURAN_API}/surah`).then(r => r.json()).then((j) => setSurahCount((j.data || []).length)).catch(() => {});
   }, []);
 
-  /* Silently save the full Qur'an text (all 114 surahs, Arabic + the
-     current translation) for offline reading — no button, no prompt.
-     Runs once shortly after load (delayed so it never competes with the
-     surah the person actually opened first), again whenever the device
-     comes back online, and again if they switch translation language. */
+  /* Silently save the full Qur'an text — all 114 surahs, Arabic plus
+     every translation language offered in the app (Bangla, Hindi, Urdu,
+     the lot), not just whichever one is currently selected — for
+     offline reading, no button, no prompt. Runs once shortly after load
+     (delayed so it never competes with the surah the person actually
+     opened first), and again whenever the device comes back online. */
   useEffect(() => {
     function ensureQuranTextOffline() {
       if (_autoTextSaveInFlight) return;
@@ -2555,13 +2556,15 @@ function App(){
       _autoTextSaveInFlight = true;
       (async () => {
         try {
+          const allEditions = LANGUAGES.map((l) => l.edition);
           const status = await window.QMOffline.quranTextStatus();
-          const upToDate = status && status.complete && status.translationEdition === langEdition;
+          const have = new Set((status && status.translationEditions) || []);
+          const upToDate = status && status.complete && allEditions.every((e) => have.has(e));
           if (!upToDate) {
             await window.QMOffline.cacheQuranText({
               api: QURAN_API,
               arabicEdition: ARABIC_EDITION,
-              translationEdition: langEdition,
+              translationEditions: allEditions,
               onProgress: () => {},
             });
           }
@@ -2572,7 +2575,7 @@ function App(){
     const t = setTimeout(ensureQuranTextOffline, 4000);
     window.addEventListener('online', ensureQuranTextOffline);
     return () => { clearTimeout(t); window.removeEventListener('online', ensureQuranTextOffline); };
-  }, [langEdition]);
+  }, []);
 
   /* Same idea for Hadith: quietly fetch every collection (Bukhari,
      Muslim, Abu Dawood, Tirmidhi, an-Nasa'i, Ibn Majah) in Arabic and
