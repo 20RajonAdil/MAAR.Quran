@@ -67,6 +67,7 @@ const ARABIC_EDITION = 'quran-uthmani';
    'online' event firing while the mount timer is still pending) can't
    both start fetching all 114 surahs at once. */
 let _autoTextSaveInFlight = false;
+let _autoHadithSaveInFlight = false;
 const AUDIO_EDITION = 'ar.alafasy';
 const BISMILLAH_AR = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
 const BISMILLAH_EN = 'In the name of Allah, the Most Gracious, the Most Merciful';
@@ -667,22 +668,39 @@ function useLocalState(key, initial){
 }
 
 /** Geolocation: browser GPS first (accurate), IP lookup as fallback
- *  — same two-tier strategy v4 used. */
+ *  — same two-tier strategy v4 used. The last successful fix is
+ *  cached on-device, so if there's no connection at all (GPS chips
+ *  can still get a position offline, but the IP lookup and reverse
+ *  geocoding can't), the app falls straight back to "where you were
+ *  last time" instead of showing an error. */
 function useGeo(){
-  const [state, setState] = useState({ status: 'loading', lat: null, lon: null, city: '', source: '' });
+  const cached = store.getJSON('geo:last', null);
+  const [state, setState] = useState(() =>
+    cached ? { status:'ready', lat:cached.lat, lon:cached.lon, city:cached.city || '', source:'cache' } : { status:'loading', lat:null, lon:null, city:'', source:'' }
+  );
   useEffect(() => {
     let cancelled = false;
     function fromIp(){
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        if (!cached) setState((s) => ({ ...s, status:'error' }));
+        return; // no network for IP lookup — keep whatever cached fix we already applied
+      }
       fetch('https://ipapi.co/json/').then(r => r.json()).then(j => {
         if (cancelled) return;
-        if (j && j.latitude) setState({ status:'ready', lat:j.latitude, lon:j.longitude, city:[j.city,j.country_name].filter(Boolean).join(', '), source:'ip' });
-        else throw new Error('no-ip');
+        if (j && j.latitude) {
+          const next = { lat:j.latitude, lon:j.longitude, city:[j.city,j.country_name].filter(Boolean).join(', ') };
+          setState({ status:'ready', ...next, source:'ip' });
+          store.setJSON('geo:last', next);
+        } else throw new Error('no-ip');
       }).catch(() => {
         fetch('https://ipwho.is/').then(r => r.json()).then(j => {
           if (cancelled) return;
-          if (j && j.latitude) setState({ status:'ready', lat:j.latitude, lon:j.longitude, city:[j.city,j.country].filter(Boolean).join(', '), source:'ip' });
-          else setState((s) => ({ ...s, status:'error' }));
-        }).catch(() => !cancelled && setState((s) => ({ ...s, status:'error' })));
+          if (j && j.latitude) {
+            const next = { lat:j.latitude, lon:j.longitude, city:[j.city,j.country].filter(Boolean).join(', ') };
+            setState({ status:'ready', ...next, source:'ip' });
+            store.setJSON('geo:last', next);
+          } else if (!cached) setState((s) => ({ ...s, status:'error' }));
+        }).catch(() => { if (!cancelled && !cached) setState((s) => ({ ...s, status:'error' })); });
       });
     }
     if (navigator.geolocation) {
@@ -690,12 +708,14 @@ function useGeo(){
         (pos) => {
           if (cancelled) return;
           const { latitude, longitude } = pos.coords;
-          setState({ status:'ready', lat:latitude, lon:longitude, city:'', source:'gps' });
+          setState((s) => ({ status:'ready', lat:latitude, lon:longitude, city:s.city || '', source:'gps' }));
+          store.setJSON('geo:last', { lat:latitude, lon:longitude, city:(cached && cached.city) || '' });
+          if (typeof navigator !== 'undefined' && !navigator.onLine) return; // reverse-geocode needs a connection
           fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`)
             .then(r => r.json()).then(j => {
               if (cancelled) return;
               const city = [j.city || j.locality, j.countryName].filter(Boolean).join(', ');
-              if (city) setState((s) => ({ ...s, city }));
+              if (city) { setState((s) => ({ ...s, city })); store.setJSON('geo:last', { lat:latitude, lon:longitude, city }); }
             }).catch(() => {});
         },
         () => !cancelled && fromIp(),
@@ -990,7 +1010,7 @@ function HomePrayerPanel({ geo }){
       ${geo.status === 'ready' && prayer.status !== 'ready' ? html`<div class="center-msg" style=${{ padding:'30px 10px' }}><div class="spinner"></div></div>` : null}
 
       ${geo.status === 'ready' && prayer.status === 'ready' ? html`
-        <div class="loc-pill" style=${{marginBottom:'12px'}}><${Icon} name="compass" size=${12} /> ${geo.city || `${geo.lat.toFixed(2)}, ${geo.lon.toFixed(2)}`}</div>
+        <div class="loc-pill" style=${{marginBottom:'12px'}}><${Icon} name="compass" size=${12} /> ${geo.city || `${geo.lat.toFixed(2)}, ${geo.lon.toFixed(2)}`} ${prayer.offline ? html`<span style=${{opacity:0.65, marginLeft:'6px'}}>· offline estimate</span>` : null}</div>
         <div class="mini-prayer-ticker">
           ${PRAYER_ORDER.map((k) => html`
             <div key=${k} class=${'mini-prayer-pill' + (next && k === next.name ? ' now' : '')}>
@@ -1666,15 +1686,99 @@ function HadithNoteOverlay({ collection, hadith, value, onChange, onClose, isRtl
 --------------------------------------------------------------- */
 const PRAYER_ORDER = ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];
 
+/* Offline fallback for prayer times + Hijri date. The API call below
+   still runs first whenever there's a connection (it's the more
+   authoritative source), but if it fails — no internet, or a date
+   that was never visited before while online — this computes prayer
+   times locally from the sun's position (Muslim World League angles,
+   matching method=3 used online) and converts the date to Hijri with
+   the standard civil/tabular Islamic calendar. Neither needs a
+   network request, so "today" always has an answer even offline. */
+function julianDay(date){
+  const y = date.getUTCFullYear(), m = date.getUTCMonth() + 1, d = date.getUTCDate();
+  const a = Math.floor((14 - m) / 12), yy = y + 4800 - a, mm = m + 12 * a - 3;
+  return d + Math.floor((153 * mm + 2) / 5) + 365 * yy + Math.floor(yy / 4) - Math.floor(yy / 100) + Math.floor(yy / 400) - 32045;
+}
+function sunPosition(jd){
+  const D = jd - 2451545.0;
+  const g = (357.529 + 0.98560028 * D) % 360;
+  const q = (280.459 + 0.98564736 * D) % 360;
+  const gRad = g * Math.PI / 180;
+  const L = (q + 1.915 * Math.sin(gRad) + 0.020 * Math.sin(2 * gRad)) % 360;
+  const e = 23.439 - 0.00000036 * D;
+  const eRad = e * Math.PI / 180, lRad = L * Math.PI / 180;
+  const declination = Math.asin(Math.sin(eRad) * Math.sin(lRad)) * 180 / Math.PI;
+  let ra = Math.atan2(Math.cos(eRad) * Math.sin(lRad), Math.cos(lRad)) * 180 / Math.PI / 15;
+  ra = ((ra % 24) + 24) % 24;
+  const eqt = q / 15 - ra;
+  return { declination, eqt };
+}
+function sunAngleTime(angleDeg, jd, lat, lon, direction){
+  const rad = Math.PI / 180;
+  const { declination, eqt } = sunPosition(jd);
+  const ratio = (-Math.sin(angleDeg * rad) - Math.sin(lat * rad) * Math.sin(declination * rad)) / (Math.cos(lat * rad) * Math.cos(declination * rad));
+  if (ratio < -1 || ratio > 1) return null; // sun never reaches this angle here (polar latitudes)
+  const t = Math.acos(ratio) / rad / 15;
+  const noon = 12 - lon / 15 - eqt;
+  return noon + direction * t;
+}
+function computePrayerTimesLocal(date, lat, lon){
+  const jd = julianDay(date);
+  const { declination, eqt } = sunPosition(jd);
+  const noon = 12 - lon / 15 - eqt;
+  const asrFactor = 1; // standard (Shafi'i/Maliki/Hanbali) shadow ratio
+  const asrAngle = 90 - Math.atan(1 / (asrFactor + Math.tan(Math.abs(lat - declination) * Math.PI / 180))) * 180 / Math.PI;
+  const raw = {
+    Fajr: sunAngleTime(18, jd, lat, lon, -1),
+    Sunrise: sunAngleTime(0.833, jd, lat, lon, -1),
+    Dhuhr: noon,
+    Asr: sunAngleTime(asrAngle, jd, lat, lon, 1),
+    Maghrib: sunAngleTime(0.833, jd, lat, lon, 1),
+    Isha: sunAngleTime(17, jd, lat, lon, 1),
+  };
+  const fmt = (h) => {
+    if (h == null) return '--:--';
+    h = ((h % 24) + 24) % 24;
+    const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  };
+  const out = {}; for (const k in raw) out[k] = fmt(raw[k]); return out;
+}
+const HIJRI_MONTHS = ['Muharram','Safar',"Rabi' al-awwal","Rabi' al-thani",'Jumada al-awwal','Jumada al-thani','Rajab',"Sha'ban",'Ramadan','Shawwal',"Dhu al-Qi'dah","Dhu al-Hijjah"];
+function gregorianToHijriLocal(date){
+  let l = Math.floor(julianDay(date)) - 1948440 + 10632;
+  const n = Math.floor((l - 1) / 10631);
+  l = l - 10631 * n + 354;
+  const j = Math.floor((10985 - l) / 5316) * Math.floor((50 * l) / 17719) + Math.floor(l / 5670) * Math.floor((43 * l) / 15238);
+  l = l - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50) - Math.floor(j / 16) * Math.floor((15238 * j) / 43) + 29;
+  const month = Math.floor((24 * l) / 709);
+  const day = l - Math.floor((709 * month) / 24);
+  const year = 30 * n + j - 30;
+  return { day, month: { en: HIJRI_MONTHS[month - 1] }, year };
+}
+
 function usePrayerTimes(geo){
-  const [state, setState] = useState({ status:'idle', timings:null, date:null });
+  const [state, setState] = useState({ status:'idle', timings:null, date:null, offline:false });
   useEffect(() => {
     if (geo.status !== 'ready') return;
     setState((s) => ({ ...s, status:'loading' }));
+    const today = new Date();
+    const useLocalFallback = () => {
+      setState({
+        status:'ready',
+        timings: computePrayerTimesLocal(today, geo.lat, geo.lon),
+        date: {
+          hijri: gregorianToHijriLocal(today),
+          gregorian: { day: today.getDate(), month: { en: today.toLocaleString('en', { month:'long' }) } },
+        },
+        offline: true,
+      });
+    };
+    if (typeof navigator !== 'undefined' && !navigator.onLine) { useLocalFallback(); return; }
     fetch(`https://api.aladhan.com/v1/timings?latitude=${geo.lat}&longitude=${geo.lon}&method=3`)
       .then(r => r.json())
-      .then((j) => setState({ status:'ready', timings:j.data.timings, date:j.data.date }))
-      .catch(() => setState((s) => ({ ...s, status:'error' })));
+      .then((j) => setState({ status:'ready', timings:j.data.timings, date:j.data.date, offline:false }))
+      .catch(useLocalFallback);
   }, [geo.status, geo.lat, geo.lon]);
   return state;
 }
@@ -2469,6 +2573,34 @@ function App(){
     window.addEventListener('online', ensureQuranTextOffline);
     return () => { clearTimeout(t); window.removeEventListener('online', ensureQuranTextOffline); };
   }, [langEdition]);
+
+  /* Same idea for Hadith: quietly fetch every collection (Bukhari,
+     Muslim, Abu Dawood, Tirmidhi, an-Nasa'i, Ibn Majah) in Arabic and
+     in the person's last-chosen Hadith language, once, in the
+     background. The service worker's existing runtime cache for the
+     hadith CDN then keeps these responses for offline reading — no
+     separate storage layer needed, and no "Save" button to press. */
+  useEffect(() => {
+    if (_autoHadithSaveInFlight) return;
+    const t = setTimeout(() => {
+      if (_autoHadithSaveInFlight) return;
+      if (!navigator.onLine) return;
+      _autoHadithSaveInFlight = true;
+      const savedLang = store.get('hadith_lang', 'eng') || 'eng';
+      const langs = Array.from(new Set(['ara', savedLang]));
+      (async () => {
+        for (const col of HADITH_COLLECTIONS) {
+          for (const l of langs) {
+            if (!(HADITH_LANGS_BY_COLLECTION[col.id] || ['eng']).includes(l)) continue;
+            try { await fetch(`${HADITH_CDN}/${l}-${col.id}.json`); } catch {}
+            if (!navigator.onLine) { _autoHadithSaveInFlight = false; return; }
+          }
+        }
+        _autoHadithSaveInFlight = false;
+      })();
+    }, 9000); // after the Qur'an text pass has had a head start
+    return () => clearTimeout(t);
+  }, []);
 
   const toggleBookmark = useCallback((surah, ayah) => {
     setBookmarks((prev) => {
