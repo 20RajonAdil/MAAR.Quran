@@ -77,3 +77,7 @@ While every effort is made to ensure accuracy, prayer times and calendar data ma
 
 © 2026 Md Adil Ahmed Rajon  
 All rights reserved.
+
+## Offline support
+
+This app works fully offline as a PWA — it caches itself for offline use automatically, no manual download step required.
