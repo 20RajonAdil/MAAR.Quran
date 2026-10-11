@@ -2477,6 +2477,12 @@ function BookmarksDrawer({ open, onClose, bookmarks, remove, hadithBookmarks, re
    so the page still shows videos when the device is offline.
 --------------------------------------------------------------- */
 const YT_CACHE_KEY = 'yt_cache_v1';
+/* The video feed is a Vercel function. Static hosts (GitHub Pages, file://)
+   can't run it, so there the app calls the Vercel copy of the site. */
+const YT_VERCEL_ORIGIN = 'https://quranmaar.vercel.app';
+const YT_API_URL = (/(^|\.)github\.io$/.test(location.hostname) || location.protocol === 'file:')
+  ? YT_VERCEL_ORIGIN + '/api/videos'
+  : '/api/videos';
 const YT_FALLBACK_CHANNELS = [
   { id:'nashid', name:'MAAR NASHID', handle:'MAAR-NASHID', url:'https://www.youtube.com/@MAAR-NASHID' },
   { id:'gojol',  name:'MAAR GOJOL',  handle:'MAARGOJOL',   url:'https://www.youtube.com/@MAARGOJOL' },
@@ -2510,7 +2516,7 @@ function useYouTube(){
   const [status, setStatus] = useState('loading');
   const load = useCallback(async () => {
     try {
-      const r = await fetch('/api/videos', { cache:'no-cache' });
+      const r = await fetch(YT_API_URL, { cache:'no-cache' });
       if (!r.ok) throw new Error(String(r.status));
       const j = await r.json();
       if (!j || !Array.isArray(j.videos)) throw new Error('bad payload');

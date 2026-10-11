@@ -147,6 +147,9 @@ async function loadViaRss(ch) {
 
 /* ---------- handler ---------- */
 module.exports = async (req, res) => {
+  // Allow the GitHub Pages copy of the site to call this endpoint.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') return res.status(204).end();
   const mode = KEY ? 'api' : 'rss';
   const settled = await Promise.allSettled(
     CHANNELS.map((ch) => (KEY ? loadViaApi(ch) : loadViaRss(ch)))
