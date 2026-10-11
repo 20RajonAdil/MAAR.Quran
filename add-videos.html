@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Add offline videos — MAAR.Quran</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0b0d;--soft:#101215;--ink:#f4efe4;--muted:#9b9587;--gold:#c6a15b;--gold-hi:#e9d4a3;--gold-dim:rgba(198,161,91,.28);--line:rgba(244,239,228,.1);--card:rgba(244,239,228,.035);--ok:#4fbf8f;--bad:#c65b5b;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:'Plus Jakarta Sans',system-ui,sans-serif;padding:24px 16px 60px}
+.wrap{max-width:760px;margin:0 auto}h1{font-family:'Instrument Serif',serif;font-style:italic;font-weight:400;font-size:34px;margin:6px 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 22px}
+.steps{display:flex;gap:6px;margin-bottom:18px}.steps span{flex:1;text-align:center;font-size:12px;padding:9px 4px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.steps span.on{border-color:var(--gold);color:var(--gold-hi);background:var(--gold-dim)}.steps span.done{color:var(--ok);border-color:rgba(79,191,143,.4)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:24px 24px 18px 18px;padding:22px}
+h2{font-family:'Instrument Serif',serif;font-style:italic;font-weight:400;font-size:24px;margin:0 0 6px}
+p{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 14px}
+.drop{display:block;border:1.5px dashed var(--gold-dim);border-radius:18px;padding:34px 16px;text-align:center;cursor:pointer;color:var(--gold-hi);background:var(--soft)}
+.drop input{display:none}.drop.over{border-color:var(--gold)}
+.btn{border:0;cursor:pointer;font:700 14px inherit;font-family:inherit;padding:13px 24px;border-radius:999px;background:linear-gradient(135deg,var(--gold-hi),var(--gold));color:#1a1305}
+.btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}.btn[disabled]{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;justify-content:space-between;margin-top:20px;flex-wrap:wrap}
+.item{display:grid;grid-template-columns:1fr;gap:6px;padding:12px 0;border-top:1px solid var(--line);font-size:13px}
+.item b{font-weight:600;word-break:break-word}select,input[type=password],input[type=text]{width:100%;background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;color-scheme:dark}
+.bar{height:6px;border-radius:6px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .2s}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.note{font-size:12.5px;color:var(--muted)}label{display:block;font-size:12.5px;color:var(--muted);margin:12px 0 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Add offline videos</h1>
+  <p class="sub">Pick your downloaded videos, click Next, then Finish. The site does the rest.</p>
+  <div class="steps" id="steps"></div>
+  <div class="card" id="card"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+<script>
+/*PURE-START*/
+const FEED = (/github\.io$/.test(location.hostname) || location.protocol === 'file:')
+  ? 'https://quranmaar.vercel.app/api/videos' : '/api/videos';
+
+const norm = (s) => String(s).toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '').replace(/[\W_]+/g, ' ').trim();
+function bigrams(s){ const m = new Map(); for (let i = 0; i < s.length - 1; i++) { const g = s.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1); } return m; }
+function dice(a, b){
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const A = bigrams(a), B = bigrams(b); let hit = 0;
+  A.forEach((n, g) => { hit += Math.min(n, B.get(g) || 0); });
+  return (2 * hit) / (a.length - 1 + b.length - 1);
+}
+function autoMatch(fileName, videos, used){
+  const n = norm(fileName); let best = null, score = 0;
+  for (const v of videos) {
+    if (used.has(v.id)) continue;
+    const d = dice(n, norm(v.title));
+    if (d > score) { best = v; score = d; }
+  }
+  return score >= 0.8 ? best : null;
+}
+function b64(blob){ return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(blob); }); }
+const utf8b64 = (str) => btoa(unescape(encodeURIComponent(str)));
+
+async function ghPublish({ token, repo, branch, files, onStep }){
+  const api = (p, o = {}) => fetch('https://api.github.com/repos/' + repo + p, Object.assign({}, o, {
+    headers: Object.assign({ Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, o.headers || {}),
+  })).then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok && r.status !== 404) throw new Error(j.message || ('GitHub ' + r.status)); return { status: r.status, j }; });
+  onStep('Connecting to GitHub…');
+  const ref = await api('/git/ref/heads/' + branch);
+  if (ref.status === 404) throw new Error('Could not find the repository or branch. Check the name and the token.');
+  const headSha = ref.j.object.sha;
+  const head = await api('/git/commits/' + headSha);
+  let media = {};
+  const cur = await api('/contents/media.json?ref=' + branch);
+  if (cur.status === 200) { try { media = JSON.parse(decodeURIComponent(escape(atob(cur.j.content.replace(/\n/g, ''))))); } catch { media = {}; } }
+  const tree = [];
+  let i = 0;
+  for (const f of files) {
+    onStep('Uploading ' + (++i) + ' of ' + files.length + '…');
+    const blob = await api('/git/blobs', { method: 'POST', body: JSON.stringify({ content: await b64(f.blob), encoding: 'base64' }) });
+    tree.push({ path: 'media/' + f.id + '.mp3', mode: '100644', type: 'blob', sha: blob.j.sha });
+    media[f.id] = { src: 'media/' + f.id + '.mp3', type: 'audio' };
+  }
+  const mj = await api('/git/blobs', { method: 'POST', body: JSON.stringify({ content: utf8b64(JSON.stringify(media, null, 2) + '\n'), encoding: 'base64' }) });
+  tree.push({ path: 'media.json', mode: '100644', type: 'blob', sha: mj.j.sha });
+  onStep('Saving…');
+  const t = await api('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: head.j.tree.sha, tree }) });
+  const c = await api('/git/commits', { method: 'POST', body: JSON.stringify({ message: 'Add ' + files.length + ' offline video(s)', tree: t.j.sha, parents: [headSha] }) });
+  await api('/git/refs/heads/' + branch, { method: 'PATCH', body: JSON.stringify({ sha: c.j.sha }) });
+  return c.j.sha;
+}
+/*PURE-END*/
+
+async function toMp3(file, onPct){
+  const buf = await file.arrayBuffer();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let audio;
+  try { audio = await ctx.decodeAudioData(buf); } finally { ctx.close(); }
+  const ch = Math.min(2, audio.numberOfChannels);
+  const enc = new lamejs.Mp3Encoder(ch, audio.sampleRate, 128);
+  const to16 = (f) => { const o = new Int16Array(f.length); for (let i = 0; i < f.length; i++) { const x = Math.max(-1, Math.min(1, f[i])); o[i] = x < 0 ? x * 0x8000 : x * 0x7fff; } return o; };
+  const L = to16(audio.getChannelData(0)), R = ch > 1 ? to16(audio.getChannelData(1)) : null;
+  const parts = [], step = 1152 * 20;
+  for (let i = 0, n = 0; i < L.length; i += step, n++) {
+    const out = R ? enc.encodeBuffer(L.subarray(i, i + step), R.subarray(i, i + step)) : enc.encodeBuffer(L.subarray(i, i + step));
+    if (out.length) parts.push(out);
+    if (n % 20 === 0) { onPct(i / L.length); await new Promise((r) => setTimeout(r)); }
+  }
+  const end = enc.flush(); if (end.length) parts.push(end);
+  return new Blob(parts, { type: 'audio/mpeg' });
+}
+
+const S = { step: 1, videos: [], feedErr: '', jobs: [], busy: false, msg: '', done: false, token: '', repo: '20RajonAdil/MAAR.Quran' };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+fetch(FEED, { cache: 'no-cache' }).then((r) => r.json()).then((j) => { S.videos = j.videos || []; render(); })
+  .catch(() => { S.feedErr = 'Could not load your video list. Check your internet and reload.'; render(); });
+
+function render(){
+  $('steps').innerHTML = ['1 Pick files', '2 Match', '3 Convert', '4 Finish'].map((t, i) =>
+    `<span class="${S.step === i + 1 ? 'on' : (S.step > i + 1 ? 'done' : '')}">${t}</span>`).join('');
+  const c = $('card');
+  if (S.step === 1) {
+    c.innerHTML = `<h2>Pick your video files</h2>
+      <p>Choose the videos you downloaded from YouTube Studio or Google Takeout. They can stay named after the video titles.</p>
+      <label class="drop" id="drop"><input id="files" type="file" multiple accept="video/*,audio/*">Tap here, or drop files</label>
+      <p class="note" style="margin-top:12px">${S.feedErr ? `<span class="bad">${esc(S.feedErr)}</span>` : (S.videos.length ? `${S.videos.length} videos found on your channels.` : 'Loading your video list…')}${S.jobs.length ? ` · ${S.jobs.length} file(s) chosen.` : ''}</p>
+      <div class="row"><span></span><button class="btn" id="next" ${S.jobs.length && S.videos.length ? '' : 'disabled'}>Next</button></div>`;
+    const add = (list) => { S.jobs = Array.from(list).filter((f) => /^(video|audio)\//.test(f.type) || /\.(mp4|mov|mkv|webm|m4a|mp3|wav)$/i.test(f.name)).map((f) => ({ file: f })); render(); };
+    $('files').onchange = (e) => add(e.target.files);
+    const d = $('drop'); d.ondragover = (e) => { e.preventDefault(); d.classList.add('over'); }; d.ondragleave = () => d.classList.remove('over');
+    d.ondrop = (e) => { e.preventDefault(); add(e.dataTransfer.files); };
+    $('next').onclick = () => {
+      const used = new Set();
+      S.jobs.forEach((j) => { const v = autoMatch(j.file.name, S.videos, used); j.id = v ? v.id : ''; if (v) used.add(v.id); j.blob = null; j.err = ''; j.pct = 0; });
+      S.step = 2; render();
+    };
+  } else if (S.step === 2) {
+    const opts = (sel) => `<option value="">— skip this file —</option>` + S.videos.map((v) => `<option value="${v.id}" ${v.id === sel ? 'selected' : ''}>${esc(v.title)}</option>`).join('');
+    const ok = S.jobs.filter((j) => j.id).length;
+    c.innerHTML = `<h2>Check the matches</h2><p>Each file is matched to a video by its title. Change any that look wrong.</p>
+      ${S.jobs.map((j, i) => `<div class="item"><b>${esc(j.file.name)}</b><select data-i="${i}">${opts(j.id)}</select></div>`).join('')}
+      <p class="note" style="margin-top:12px">${ok} of ${S.jobs.length} matched.</p>
+      <div class="row"><button class="btn ghost" id="back">Back</button><button class="btn" id="next" ${ok ? '' : 'disabled'}>Next</button></div>`;
+    c.querySelectorAll('select').forEach((s) => { s.onchange = () => { S.jobs[+s.dataset.i].id = s.value; render(); }; });
+    $('back').onclick = () => { S.step = 1; render(); };
+    $('next').onclick = () => { S.step = 3; S.done = false; render(); convertAll(); };
+  } else if (S.step === 3) {
+    const jobs = S.jobs.filter((j) => j.id);
+    c.innerHTML = `<h2>Converting to mp3</h2><p>This runs on your device and can take a minute. Keep this page open.</p>
+      ${jobs.map((j) => `<div class="item"><b>${esc(j.file.name)}</b><div class="bar"><i style="width:${Math.round((j.blob ? 1 : j.pct) * 100)}%"></i></div>
+        <span class="${j.err ? 'bad' : (j.blob ? 'ok' : 'note')}">${j.err ? esc(j.err) : (j.blob ? 'Done · ' + (j.blob.size / 1e6).toFixed(1) + ' MB' : 'Working…')}</span></div>`).join('')}
+      <div class="row"><button class="btn ghost" id="back" ${S.busy ? 'disabled' : ''}>Back</button><button class="btn" id="next" ${S.done && jobs.some((j) => j.blob) ? '' : 'disabled'}>Next</button></div>`;
+    $('back').onclick = () => { S.step = 2; render(); };
+    $('next').onclick = () => { S.step = 4; S.msg = ''; render(); };
+  } else {
+    const n = S.jobs.filter((j) => j.blob).length;
+    c.innerHTML = `<h2>Finish</h2><p>${n} video(s) are ready. Click Finish to add them to your website.</p>
+      <label>GitHub token (used once, never saved)</label><input id="tok" type="password" autocomplete="off" value="${esc(S.token)}">
+      <label>Repository</label><input id="repo" type="text" value="${esc(S.repo)}">
+      <p class="note" id="msg" style="margin-top:14px">${S.msg}</p>
+      <div class="row"><button class="btn ghost" id="back" ${S.busy ? 'disabled' : ''}>Back</button><button class="btn" id="fin" ${S.busy || S.published ? 'disabled' : ''}>Finish</button></div>`;
+    $('back').onclick = () => { S.step = 3; render(); };
+    $('fin').onclick = async () => {
+      S.token = $('tok').value.trim(); S.repo = $('repo').value.trim();
+      if (!S.token) { $('msg').innerHTML = '<span class="bad">Paste your GitHub token first.</span>'; return; }
+      S.busy = true; render();
+      try {
+        const files = S.jobs.filter((j) => j.blob).map((j) => ({ id: j.id, blob: j.blob }));
+        await ghPublish({ token: S.token, repo: S.repo, branch: 'main', files, onStep: (t) => { S.msg = esc(t); const m = $('msg'); if (m) m.innerHTML = S.msg; } });
+        S.published = true; S.msg = '<span class="ok">Done! Your site updates in about a minute. Then reload it, open a video and tap the download button.</span>';
+      } catch (e) { S.msg = '<span class="bad">' + esc(e.message || e) + '</span>'; }
+      S.busy = false; render();
+    };
+  }
+}
+
+async function convertAll(){
+  S.busy = true;
+  for (const j of S.jobs.filter((x) => x.id)) {
+    if (j.blob) continue;
+    try { j.blob = await toMp3(j.file, (p) => { j.pct = p; render(); }); }
+    catch (e) { j.err = 'This file could not be converted on this device. Try a desktop browser.'; }
+    render();
+  }
+  S.busy = false; S.done = true; render();
+}
+render();
+</script>
+</body>
+</html>
