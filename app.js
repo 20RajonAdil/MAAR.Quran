@@ -2563,6 +2563,30 @@ const YTStore = {
   async del(id){ await this.tx('readwrite', (s) => s.delete(id)); window.dispatchEvent(new Event('yt-saved-changed')); },
 };
 
+/* Saved videos not played for 28 days are deleted automatically to free
+   storage. Dates live in localStorage (cheap), not inside the big file. */
+const YT_STALE_MS = 28 * 864e5;
+const ytMeta = {
+  all(){ return store.getJSON('yt_saved_meta_v1', {}); },
+  touch(id, patch){ const m = this.all(); m[id] = Object.assign({}, m[id], patch); store.setJSON('yt_saved_meta_v1', m); },
+  drop(id){ const m = this.all(); delete m[id]; store.setJSON('yt_saved_meta_v1', m); },
+};
+let _ytCleaned = false;
+async function ytCleanupStale(){
+  if (_ytCleaned) return;
+  _ytCleaned = true;
+  try {
+    const ids = await YTStore.keys();
+    const meta = ytMeta.all();
+    const now = Date.now();
+    for (const id of ids) {
+      const m = meta[id];
+      if (!m) { ytMeta.touch(id, { savedAt: now, lastPlayedAt: now }); continue; } // start the clock for older saves
+      if (now - (m.lastPlayedAt || m.savedAt || now) > YT_STALE_MS) { await YTStore.del(id); ytMeta.drop(id); }
+    }
+  } catch {}
+}
+
 /* media.json maps a YouTube video id to a file you host:
    { "VIDEO_ID": { "src": "media/name.mp3", "type": "audio" } }  (type: audio | video) */
 function useYtOffline(){
@@ -2571,6 +2595,7 @@ function useYtOffline(){
   const refresh = useCallback(() => { YTStore.keys().then(setSavedIds).catch(() => {}); }, []);
   useEffect(() => {
     refresh();
+    ytCleanupStale().then(refresh);
     window.addEventListener('yt-saved-changed', refresh);
     fetch('media.json', { cache:'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((j) => {
       if (j && typeof j === 'object') { setMediaMap(j); store.setJSON('yt_media_v1', j); }
@@ -2656,6 +2681,7 @@ function YtPlayer({ video, channelName, onClose }){
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
   }, [onClose]);
 
+  const markPlayed = () => { if (isSaved) ytMeta.touch(video.id, { lastPlayedAt: Date.now() }); };
   async function save(){
     if (!media || dl) return;
     setDl({ pct: 0 });
@@ -2676,10 +2702,11 @@ function YtPlayer({ video, channelName, onClose }){
       const blob = new Blob(chunks, { type: r.headers.get('content-type') || (kind === 'audio' ? 'audio/mpeg' : 'video/mp4') });
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
       await YTStore.put(video.id, { blob, type: kind, title: video.title, savedAt: Date.now() });
+      ytMeta.touch(video.id, { savedAt: Date.now(), lastPlayedAt: Date.now() });
       setDl(null);
     } catch { setDl({ error: true }); }
   }
-  async function removeSaved(){ try { await YTStore.del(video.id); } catch {} }
+  async function removeSaved(){ try { await YTStore.del(video.id); ytMeta.drop(video.id); } catch {} }
 
   return html`
     <div class="yt-modal" onClick=${onClose} role="dialog" aria-modal="true" aria-label=${video.title}>
@@ -2687,11 +2714,11 @@ function YtPlayer({ video, channelName, onClose }){
         ${native ? (kind === 'audio' ? html`
           <div class="yt-audio">
             ${video.thumb ? html`<img src=${video.thumb} alt="" />` : null}
-            <audio ref=${mediaRef} src=${src || undefined} controls autoplay preload="auto"></audio>
+            <audio ref=${mediaRef} src=${src || undefined} onPlay=${markPlayed} controls autoplay preload="auto"></audio>
           </div>
         ` : html`
           <div class="yt-frame">
-            <video ref=${mediaRef} src=${src || undefined} poster=${video.thumb} controls autoplay playsinline preload="auto"></video>
+            <video ref=${mediaRef} src=${src || undefined} poster=${video.thumb} onPlay=${markPlayed} controls autoplay playsinline preload="auto"></video>
           </div>
         `) : html`
           <div class="yt-frame">
@@ -2707,6 +2734,7 @@ function YtPlayer({ video, channelName, onClose }){
           <div>
             <div class="yt-modal-title">${video.title}</div>
             <div class="yt-modal-meta">${channelName} · ${ytWhole.format(video.views || 0)} views · ${ytAgo(video.publishedAt)}${isSaved ? ' · saved offline' : ''}</div>
+            ${isSaved ? html`<div class="yt-modal-meta">Removed automatically if not played for 28 days.</div>` : null}
             ${dl && dl.error ? html`<div class="yt-dl-note">Couldn't download. Check your connection and try again.</div>` : null}
           </div>
           <div class="yt-modal-actions">
