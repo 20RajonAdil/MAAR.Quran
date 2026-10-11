@@ -742,6 +742,7 @@ const ICONS = {
   close: 'M5 5l14 14M19 5 5 19',
   search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm10 17-5.6-5.6',
   play: 'M7 4.5v15l13-7.5-13-7.5Z',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
   pause: 'M7 4.5h4v15H7v-15Zm6 0h4v15h-4v-15Z',
   x: 'M5 5l14 14M19 5 5 19',
   chev: 'M9 6l6 6-6 6',
@@ -770,6 +771,7 @@ const NAV_ITEMS = [
   { id:'home', label:'Home', icon:'home' },
   { id:'quran', label:"Qur'an", icon:'book' },
   { id:'hadith', label:'Hadith', icon:'search' },
+  { id:'videos', label:'Videos', icon:'play' },
   { id:'qibla', label:'Qibla', icon:'compass' },
   { id:'offline', label:'Offline', icon:'download' },
   { id:'about', label:'About', icon:'info' },
@@ -948,7 +950,7 @@ function MobileMenu({ open, onClose, tab, setTab }){
 }
 
 function TabBar({ tab, setTab }){
-  const items = NAV_ITEMS.slice(0, 5);
+  const items = NAV_ITEMS.slice(0, 6);
   return html`
     <nav class="tab-bar" aria-label="Sections">
       ${items.map((n) => html`
@@ -1112,6 +1114,7 @@ function HomeSection({ setTab, surahCount, geo }){
         </div>
       </section>
       <${QuickLinks} setTab=${setTab} />
+      <${VideosTeaser} setTab=${setTab} />
     <//>
   `;
 }
@@ -2467,12 +2470,267 @@ function BookmarksDrawer({ open, onClose, bookmarks, remove, hadithBookmarks, re
   `;
 }
 
+/* ---------------------------------------------------------------
+   12b. VIDEOS — live uploads + view counts from both MAAR channels
+   Data comes from /api/videos (see api/videos.js), which Vercel
+   caches for 30 min. The last good response is kept in localStorage
+   so the page still shows videos when the device is offline.
+--------------------------------------------------------------- */
+const YT_CACHE_KEY = 'yt_cache_v1';
+const YT_FALLBACK_CHANNELS = [
+  { id:'nashid', name:'MAAR NASHID', handle:'MAAR-NASHID', url:'https://www.youtube.com/@MAAR-NASHID' },
+  { id:'gojol',  name:'MAAR GOJOL',  handle:'MAARGOJOL',   url:'https://www.youtube.com/@MAARGOJOL' },
+];
+const ytCompact = new Intl.NumberFormat('en', { notation:'compact', maximumFractionDigits:1 });
+const ytWhole = new Intl.NumberFormat('en');
+const ytViews = (n) => (n == null ? '—' : ytCompact.format(n));
+function ytDuration(s){
+  if (s == null) return '';
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
+function ytAgo(iso){
+  const t = new Date(iso).getTime();
+  if (!t) return '';
+  const mins = (Date.now() - t) / 60000, hrs = mins / 60, days = hrs / 24;
+  const rtf = new Intl.RelativeTimeFormat('en', { numeric:'auto' });
+  if (mins < 60) return rtf.format(-Math.max(1, Math.round(mins)), 'minute');
+  if (hrs < 24) return rtf.format(-Math.round(hrs), 'hour');
+  if (days < 30) return rtf.format(-Math.round(days), 'day');
+  if (days < 365) return rtf.format(-Math.round(days / 30), 'month');
+  return rtf.format(-Math.round(days / 365), 'year');
+}
+const ytIsNew = (iso) => Date.now() - new Date(iso).getTime() < 7 * 864e5;
+
+/* Fetches + caches the feed; refreshes every 10 min and whenever the
+   tab becomes visible again, so a left-open page never goes stale. */
+function useYouTube(){
+  const [data, setData] = useState(() => store.getJSON(YT_CACHE_KEY, null));
+  const [status, setStatus] = useState('loading');
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch('/api/videos', { cache:'no-cache' });
+      if (!r.ok) throw new Error(String(r.status));
+      const j = await r.json();
+      if (!j || !Array.isArray(j.videos)) throw new Error('bad payload');
+      setData(j); setStatus('ok'); store.setJSON(YT_CACHE_KEY, j);
+    } catch { setStatus('error'); }
+  }, []);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 10 * 60 * 1000);
+    const onVis = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('online', load);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('online', load); };
+  }, [load]);
+  return { data, status, reload: load };
+}
+
+function YtPlayer({ video, channelName, onClose }){
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+  return html`
+    <div class="yt-modal" onClick=${onClose} role="dialog" aria-modal="true" aria-label=${video.title}>
+      <div class="yt-modal-box" onClick=${(e) => e.stopPropagation()}>
+        <div class="yt-frame">
+          <iframe
+            src=${`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1`}
+            title=${video.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowfullscreen
+          ></iframe>
+        </div>
+        <div class="yt-modal-info">
+          <div>
+            <div class="yt-modal-title">${video.title}</div>
+            <div class="yt-modal-meta">${channelName} · ${ytWhole.format(video.views || 0)} views · ${ytAgo(video.publishedAt)}</div>
+          </div>
+          <div class="yt-modal-actions">
+            <a class="btn btn-gold" href=${`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener">Watch on YouTube</a>
+            <button class="btn btn-ghost" onClick=${onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function YtCard({ video, channelName, onPlay, index }){
+  return html`
+    <button class="yt-card reveal" style=${{ transitionDelay: ((index % 6) * 50) + 'ms' }} onClick=${() => onPlay(video)} title=${video.title}>
+      <span class="yt-thumb">
+        <img src=${video.thumb} alt="" loading="lazy" decoding="async" />
+        <span class="yt-play"><span><${Icon} name="play" size=${20} filled=${true} /></span></span>
+        ${ytIsNew(video.publishedAt) ? html`<span class="yt-new">New</span>` : null}
+        <span class="yt-tag">${channelName}</span>
+        ${video.duration != null ? html`<span class="yt-dur">${ytDuration(video.duration)}</span>` : null}
+      </span>
+      <span class="yt-body">
+        <span class="yt-title">${video.title}</span>
+        <span class="yt-meta">
+          <span class="yt-views"><${Icon} name="eye" size=${14} /> ${ytViews(video.views)} views</span>
+          <span class="yt-dot">·</span>
+          <span>${ytAgo(video.publishedAt)}</span>
+        </span>
+      </span>
+    </button>
+  `;
+}
+
+function VideosSection(){
+  const ref = useReveal();
+  const { data, status, reload } = useYouTube();
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('new');
+  const [q, setQ] = useState('');
+  const [limit, setLimit] = useState(18);
+  const [playing, setPlaying] = useState(null);
+
+  const channels = (data && data.channels && data.channels.length) ? data.channels : YT_FALLBACK_CHANNELS;
+  const all = (data && data.videos) || [];
+  const nameOf = (id) => (channels.find((c) => c.id === id) || {}).name || id;
+
+  const list = useMemo(() => {
+    let v = all.filter((x) => filter === 'all' || x.channel === filter);
+    const s = q.trim().toLowerCase();
+    if (s) v = v.filter((x) => (x.title || '').toLowerCase().includes(s));
+    return [...v].sort(sort === 'top'
+      ? (a, b) => (b.views || 0) - (a.views || 0)
+      : (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  }, [all, filter, sort, q]);
+  useEffect(() => { setLimit(18); }, [filter, sort, q]);
+
+  const totalViews = all.reduce((n, v) => n + (v.views || 0), 0);
+  const newCount = all.filter((v) => ytIsNew(v.publishedAt)).length;
+  const loadingFirst = !data && status === 'loading';
+
+  return html`
+    <section class="section shell" ref=${ref}>
+      <div class="section-head reveal">
+        <div>
+          <div class="eyebrow">Videos</div>
+          <h2>Nasheeds & Gojol, straight from YouTube</h2>
+        </div>
+        <p>Every upload from both MAAR channels, with live view counts. This page refreshes itself — no need to check YouTube.</p>
+      </div>
+
+      <div class="yt-channels reveal">
+        ${channels.map((c) => html`
+          <a key=${c.id} class="yt-channel" href=${c.url || `https://www.youtube.com/@${c.handle}`} target="_blank" rel="noopener">
+            <span class="yt-avatar">
+              ${c.avatar ? html`<img src=${c.avatar} alt="" />` : html`<${Icon} name="play" size=${22} filled=${true} />`}
+            </span>
+            <span class="yt-ch-text">
+              <span class="yt-ch-name">${c.name}</span>
+              <span class="yt-ch-meta">
+                @${c.handle}${c.subscribers != null ? ` · ${ytCompact.format(c.subscribers)} subscribers` : ''}${c.videoCount ? ` · ${ytWhole.format(c.videoCount)} videos` : ''}
+              </span>
+            </span>
+            <span class="yt-sub">Subscribe</span>
+          </a>
+        `)}
+      </div>
+
+      ${all.length ? html`
+        <div class="yt-stats reveal">
+          <div class="yt-stat"><b>${ytWhole.format(all.length)}</b><span>Videos</span></div>
+          <div class="yt-stat"><b>${ytCompact.format(totalViews)}</b><span>Total views</span></div>
+          <div class="yt-stat"><b>${ytWhole.format(newCount)}</b><span>New this week</span></div>
+        </div>
+      ` : null}
+
+      <div class="yt-bar reveal">
+        <div class="yt-chips" role="tablist" aria-label="Channel">
+          <button class=${'yt-chip' + (filter === 'all' ? ' on' : '')} onClick=${() => setFilter('all')}>All</button>
+          ${channels.map((c) => html`
+            <button key=${c.id} class=${'yt-chip' + (filter === c.id ? ' on' : '')} onClick=${() => setFilter(c.id)}>${c.name}</button>
+          `)}
+        </div>
+        <input class="yt-search" type="search" placeholder="Search videos" value=${q} onInput=${(e) => setQ(e.target.value)} aria-label="Search videos" />
+        <select class="yt-select" value=${sort} onChange=${(e) => setSort(e.target.value)} aria-label="Sort videos">
+          <option value="new">Newest first</option>
+          <option value="top">Most viewed</option>
+        </select>
+      </div>
+
+      ${loadingFirst ? html`
+        <div class="yt-grid">
+          ${[0,1,2,3,4,5].map((i) => html`<div key=${i} class="yt-skel"><span></span><i></i><i></i></div>`)}
+        </div>
+      ` : null}
+
+      ${!data && status === 'error' ? html`
+        <div class="yt-empty">
+          <p>Couldn't load the videos right now.</p>
+          <button class="btn btn-gold" onClick=${reload}>Try again</button>
+        </div>
+      ` : null}
+
+      ${data ? html`
+        <div class="yt-grid">
+          ${list.slice(0, limit).map((v, i) => html`
+            <${YtCard} key=${v.id} video=${v} index=${i} channelName=${nameOf(v.channel)} onPlay=${setPlaying} />
+          `)}
+        </div>
+        ${!list.length ? html`<div class="yt-empty"><p>No videos match your search.</p></div>` : null}
+        ${list.length > limit ? html`
+          <div style=${{ textAlign:'center', marginTop:'28px' }}>
+            <button class="btn btn-ghost" onClick=${() => setLimit((n) => n + 18)}>Show more (${list.length - limit} left)</button>
+          </div>
+        ` : null}
+        <div class="yt-foot">
+          <span class=${'yt-live' + (status === 'error' ? ' off' : '')}></span>
+          ${status === 'error' ? 'Offline — showing the last saved list' : 'Live'} · updated ${ytAgo(data.updatedAt)}
+          ${data.mode === 'rss' ? ' · showing the latest uploads from each channel' : ''}
+        </div>
+      ` : null}
+
+      ${playing ? html`<${YtPlayer} video=${playing} channelName=${nameOf(playing.channel)} onClose=${() => setPlaying(null)} />` : null}
+    </section>
+  `;
+}
+
+/* Small "latest uploads" strip for the Home page. */
+function VideosTeaser({ setTab }){
+  const ref = useReveal();
+  const { data } = useYouTube();
+  const [playing, setPlaying] = useState(null);
+  if (!data || !data.videos || !data.videos.length) return null;
+  const nameOf = (id) => ((data.channels || []).find((c) => c.id === id) || {}).name || id;
+  const latest = data.videos.slice(0, 3);
+  return html`
+    <section class="section shell" ref=${ref}>
+      <div class="section-head reveal">
+        <div>
+          <div class="eyebrow">Latest on YouTube</div>
+          <h2>Fresh nasheeds & gojol</h2>
+        </div>
+        <button class="btn btn-ghost" onClick=${() => setTab('videos')}>See all videos <${Icon} name="chev" size=${14} /></button>
+      </div>
+      <div class="yt-grid">
+        ${latest.map((v, i) => html`<${YtCard} key=${v.id} video=${v} index=${i} channelName=${nameOf(v.channel)} onPlay=${setPlaying} />`)}
+      </div>
+      ${playing ? html`<${YtPlayer} video=${playing} channelName=${nameOf(playing.channel)} onClose=${() => setPlaying(null)} />` : null}
+    </section>
+  `;
+}
+
 function Footer(){
   return html`
     <footer class="footer shell">
       <div class="footer-row">
         <span>Quran Maar · v5 — a free, private companion for the Qur'an, Hadith and daily prayer.</span>
         <span>Built by Md Adil Ahmed Rajon</span>
+      </div>
+      <div class="footer-row">
+        <span>YouTube: <a href="https://www.youtube.com/@MAAR-NASHID" target="_blank" rel="noopener">MAAR NASHID</a> · <a href="https://www.youtube.com/@MAARGOJOL" target="_blank" rel="noopener">MAAR GOJOL</a></span>
       </div>
     </footer>
   `;
@@ -2643,6 +2901,7 @@ function App(){
       bookmarks=${bookmarks} toggleBookmark=${toggleBookmark}
     />`;
   else if (tab === 'hadith') page = html`<${HadithSection} hadithBookmarks=${hadithBookmarks} toggleHadithBookmark=${toggleHadithBookmark} />`;
+  else if (tab === 'videos') page = html`<${VideosSection} />`;
   else if (tab === 'qibla') page = html`<${QiblaSection} geo=${geo} />`;
   else if (tab === 'offline') page = html`<${OfflineSection} />`;
   else if (tab === 'about') page = html`<${AboutSection} />`;

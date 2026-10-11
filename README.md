@@ -81,3 +81,16 @@ All rights reserved.
 ## Offline support
 
 This app works fully offline as a PWA — it caches itself for offline use automatically, no manual download step required.
+
+## YouTube videos (Videos tab)
+
+The Videos tab and the "Latest on YouTube" strip on Home read `/api/videos`
+(`api/videos.js`, a Vercel serverless function) for the channels
+`@MAAR-NASHID` and `@MAARGOJOL`.
+
+- **All uploads + exact view counts:** add `YOUTUBE_API_KEY` in Vercel →
+  Project Settings → Environment Variables (YouTube Data API v3, free), then redeploy.
+- **Without a key:** it falls back to each channel's public RSS feed
+  (latest ~15 uploads per channel, with view counts).
+- Responses are cached at the edge for 30 minutes; the page re-checks every
+  10 minutes while open, so new uploads and view counts appear on their own.

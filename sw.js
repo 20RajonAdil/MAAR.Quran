@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v4';
+const SHELL_VERSION = 'v5';
 const DATA_VERSION  = 'v1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
@@ -34,7 +34,7 @@ const SHELL_ASSETS = [
   './',
   './index.html',
   './offline.html',
-  './app.js?v=18',
+  './app.js?v=19',
   './offline.js?v=2',
   './manifest.json',
   './icon-192.png',
@@ -273,6 +273,10 @@ self.addEventListener('fetch', (event) => {
   if (!/^https?:$/.test(url.protocol)) return;
 
   if (NEVER_CACHE_HOSTS.some((h) => url.hostname.includes(h))) return;
+
+  /* Live endpoints (YouTube feed) always go to the network — the app keeps
+     its own last-good copy in localStorage for offline use. */
+  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) return;
 
   /* 1. AUDIO — downloaded blobs win, always. Anything not downloaded
         simply streams from the network and is never auto-cached, so a
