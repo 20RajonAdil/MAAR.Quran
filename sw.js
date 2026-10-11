@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v6';
+const SHELL_VERSION = 'v7';
 const DATA_VERSION  = 'v1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
@@ -34,7 +34,7 @@ const SHELL_ASSETS = [
   './',
   './index.html',
   './offline.html',
-  './app.js?v=20',
+  './app.js?v=21',
   './offline.js?v=2',
   './manifest.json',
   './icon-192.png',
@@ -277,6 +277,9 @@ self.addEventListener('fetch', (event) => {
   /* Live endpoints (YouTube feed) always go to the network — the app keeps
      its own last-good copy in localStorage for offline use. */
   if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) return;
+  /* Hosted videos/audio and their list go straight to the network — saved
+     copies live in IndexedDB, and big media must never fill the shell cache. */
+  if (url.origin === self.location.origin && (/\/media\//.test(url.pathname) || /\/media\.json$/.test(url.pathname))) return;
 
   /* 1. AUDIO — downloaded blobs win, always. Anything not downloaded
         simply streams from the network and is never auto-cached, so a

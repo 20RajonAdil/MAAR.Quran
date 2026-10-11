@@ -2534,7 +2534,120 @@ function useYouTube(){
   return { data, status, reload: load };
 }
 
+
+/* ---- Offline videos: files live in IndexedDB (inside the website's own
+   storage), never in the phone gallery. Only videos you host yourself
+   (listed in media.json) can be saved — YouTube embeds cannot. ---- */
+const YTStore = {
+  _db: null,
+  open(){
+    return this._db || (this._db = new Promise((res, rej) => {
+      const r = indexedDB.open('qm-videos', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    }));
+  },
+  async tx(mode, fn){
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('files', mode);
+      const req = fn(t.objectStore('files'));
+      t.oncomplete = () => res(req && req.result);
+      t.onerror = t.onabort = () => rej(t.error);
+    });
+  },
+  get(id){ return this.tx('readonly', (s) => s.get(id)); },
+  keys(){ return this.tx('readonly', (s) => s.getAllKeys()); },
+  async put(id, v){ await this.tx('readwrite', (s) => s.put(v, id)); window.dispatchEvent(new Event('yt-saved-changed')); },
+  async del(id){ await this.tx('readwrite', (s) => s.delete(id)); window.dispatchEvent(new Event('yt-saved-changed')); },
+};
+
+/* media.json maps a YouTube video id to a file you host:
+   { "VIDEO_ID": { "src": "media/name.mp3", "type": "audio" } }  (type: audio | video) */
+function useYtOffline(){
+  const [mediaMap, setMediaMap] = useState(() => store.getJSON('yt_media_v1', {}));
+  const [savedIds, setSavedIds] = useState([]);
+  const refresh = useCallback(() => { YTStore.keys().then(setSavedIds).catch(() => {}); }, []);
+  useEffect(() => {
+    refresh();
+    window.addEventListener('yt-saved-changed', refresh);
+    fetch('media.json', { cache:'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (j && typeof j === 'object') { setMediaMap(j); store.setJSON('yt_media_v1', j); }
+    }).catch(() => {});
+    return () => window.removeEventListener('yt-saved-changed', refresh);
+  }, [refresh]);
+  return { mediaMap, savedIds };
+}
+
+/* Keeps the screen from sleeping while `active`. The browser drops the lock
+   whenever the page is hidden, so it is re-requested when the page returns. */
+function useWakeLock(active){
+  useEffect(() => {
+    if (!active || !('wakeLock' in navigator)) return;
+    let lock = null, stopped = false;
+    const acquire = async () => {
+      try {
+        const l = await navigator.wakeLock.request('screen');
+        if (stopped) { l.release().catch(() => {}); } else { lock = l; }
+      } catch {}
+    };
+    const onVis = () => { if (document.visibilityState === 'visible' && !stopped) acquire(); };
+    acquire();
+    document.addEventListener('visibilitychange', onVis);
+    return () => { stopped = true; document.removeEventListener('visibilitychange', onVis); if (lock) lock.release().catch(() => {}); };
+  }, [active]);
+}
+
 function YtPlayer({ video, channelName, onClose }){
+  const { mediaMap, savedIds } = useYtOffline();
+  const media = mediaMap[video.id];
+  const isSaved = savedIds.includes(video.id);
+  const [blobUrl, setBlobUrl] = useState('');
+  const [savedType, setSavedType] = useState('');
+  const [dl, setDl] = useState(null);
+  const mediaRef = useRef(null);
+
+  /* Saved copy → play from the browser's own storage (works offline). */
+  useEffect(() => {
+    let url = '', dead = false;
+    if (isSaved) {
+      YTStore.get(video.id).then((rec) => {
+        if (dead || !rec) return;
+        url = URL.createObjectURL(rec.blob);
+        setSavedType(rec.type || ''); setBlobUrl(url);
+      }).catch(() => {});
+    } else { setBlobUrl(''); }
+    return () => { dead = true; if (url) URL.revokeObjectURL(url); };
+  }, [isSaved, video.id]);
+
+  const native = !!(media || isSaved);
+  const kind = (media && media.type === 'audio') || (!media && savedType === 'audio') ? 'audio' : 'video';
+  const mediaUrl = media ? new URL(media.src, location.href).href : '';
+  const src = blobUrl || (isSaved ? '' : mediaUrl);
+
+  /* Screen stays on while watching video (YouTube or file). Audio-only
+     playback lets the screen sleep so the battery isn't wasted. */
+  useWakeLock(!(native && kind === 'audio'));
+
+  /* Lock-screen / notification controls, so audio keeps going when locked. */
+  useEffect(() => {
+    if (!native || !('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    const el = () => mediaRef.current;
+    try {
+      ms.metadata = new MediaMetadata({
+        title: video.title, artist: channelName,
+        artwork: video.thumb ? [{ src: video.thumb, sizes:'480x360', type:'image/jpeg' }] : [],
+      });
+      ms.setActionHandler('play', () => el() && el().play());
+      ms.setActionHandler('pause', () => el() && el().pause());
+      ms.setActionHandler('seekbackward', () => { if (el()) el().currentTime = Math.max(0, el().currentTime - 10); });
+      ms.setActionHandler('seekforward', () => { if (el()) el().currentTime += 10; });
+    } catch {}
+    return () => { try { ['play','pause','seekbackward','seekforward'].forEach((a) => navigator.mediaSession.setActionHandler(a, null)); } catch {} };
+  }, [native, video.id]);
+
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
@@ -2542,24 +2655,68 @@ function YtPlayer({ video, channelName, onClose }){
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
   }, [onClose]);
+
+  async function save(){
+    if (!media || dl) return;
+    setDl({ pct: 0 });
+    try {
+      const r = await fetch(mediaUrl);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const total = +r.headers.get('content-length') || 0;
+      const chunks = []; let got = 0;
+      if (r.body && r.body.getReader) {
+        const reader = r.body.getReader();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value); got += value.length;
+          setDl({ pct: total ? Math.round((got / total) * 100) : -1 });
+        }
+      } else { chunks.push(new Uint8Array(await r.arrayBuffer())); }
+      const blob = new Blob(chunks, { type: r.headers.get('content-type') || (kind === 'audio' ? 'audio/mpeg' : 'video/mp4') });
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+      await YTStore.put(video.id, { blob, type: kind, title: video.title, savedAt: Date.now() });
+      setDl(null);
+    } catch { setDl({ error: true }); }
+  }
+  async function removeSaved(){ try { await YTStore.del(video.id); } catch {} }
+
   return html`
     <div class="yt-modal" onClick=${onClose} role="dialog" aria-modal="true" aria-label=${video.title}>
       <div class="yt-modal-box" onClick=${(e) => e.stopPropagation()}>
-        <div class="yt-frame">
-          <iframe
-            src=${`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1`}
-            title=${video.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-            allowfullscreen
-          ></iframe>
-        </div>
+        ${native ? (kind === 'audio' ? html`
+          <div class="yt-audio">
+            ${video.thumb ? html`<img src=${video.thumb} alt="" />` : null}
+            <audio ref=${mediaRef} src=${src || undefined} controls autoplay preload="auto"></audio>
+          </div>
+        ` : html`
+          <div class="yt-frame">
+            <video ref=${mediaRef} src=${src || undefined} poster=${video.thumb} controls autoplay playsinline preload="auto"></video>
+          </div>
+        `) : html`
+          <div class="yt-frame">
+            <iframe
+              src=${`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1`}
+              title=${video.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+              allowfullscreen
+            ></iframe>
+          </div>
+        `}
         <div class="yt-modal-info">
           <div>
             <div class="yt-modal-title">${video.title}</div>
-            <div class="yt-modal-meta">${channelName} · ${ytWhole.format(video.views || 0)} views · ${ytAgo(video.publishedAt)}</div>
+            <div class="yt-modal-meta">${channelName} · ${ytWhole.format(video.views || 0)} views · ${ytAgo(video.publishedAt)}${isSaved ? ' · saved offline' : ''}</div>
+            ${dl && dl.error ? html`<div class="yt-dl-note">Couldn't download. Check your connection and try again.</div>` : null}
           </div>
           <div class="yt-modal-actions">
-            <a class="btn btn-gold" href=${`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener">Watch on YouTube</a>
+            ${isSaved
+              ? html`<button class="btn btn-ghost" onClick=${removeSaved}><${Icon} name="trash" size=${14} /> Remove download</button>`
+              : (media ? html`<button class="btn btn-gold" onClick=${save} disabled=${!!(dl && !dl.error)}>
+                  <${Icon} name="download" size=${14} />
+                  ${dl && !dl.error ? (dl.pct >= 0 ? `Saving… ${dl.pct}%` : 'Saving…') : 'Save for offline'}
+                </button>` : null)}
+            <a class="btn btn-ghost" href=${`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener">YouTube</a>
             <button class="btn btn-ghost" onClick=${onClose}>Close</button>
           </div>
         </div>
@@ -2568,13 +2725,14 @@ function YtPlayer({ video, channelName, onClose }){
   `;
 }
 
-function YtCard({ video, channelName, onPlay, index }){
+function YtCard({ video, channelName, onPlay, index, saved }){
   return html`
     <button class="yt-card reveal" style=${{ transitionDelay: ((index % 6) * 50) + 'ms' }} onClick=${() => onPlay(video)} title=${video.title}>
       <span class="yt-thumb">
         <img src=${video.thumb} alt="" loading="lazy" decoding="async" />
         <span class="yt-play"><span><${Icon} name="play" size=${20} filled=${true} /></span></span>
         ${ytIsNew(video.publishedAt) ? html`<span class="yt-new">New</span>` : null}
+        ${saved ? html`<span class="yt-saved">Saved</span>` : null}
         <span class="yt-tag">${channelName}</span>
         ${video.duration != null ? html`<span class="yt-dur">${ytDuration(video.duration)}</span>` : null}
       </span>
@@ -2593,6 +2751,7 @@ function YtCard({ video, channelName, onPlay, index }){
 function VideosSection(){
   const ref = useReveal();
   const { data, status, reload } = useYouTube();
+  const { savedIds } = useYtOffline();
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('new');
   const [q, setQ] = useState('');
@@ -2604,13 +2763,13 @@ function VideosSection(){
   const nameOf = (id) => (channels.find((c) => c.id === id) || {}).name || id;
 
   const list = useMemo(() => {
-    let v = all.filter((x) => filter === 'all' || x.channel === filter);
+    let v = all.filter((x) => filter === 'all' || (filter === 'saved' ? savedIds.includes(x.id) : x.channel === filter));
     const s = q.trim().toLowerCase();
     if (s) v = v.filter((x) => (x.title || '').toLowerCase().includes(s));
     return [...v].sort(sort === 'top'
       ? (a, b) => (b.views || 0) - (a.views || 0)
       : (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-  }, [all, filter, sort, q]);
+  }, [all, filter, sort, q, savedIds]);
   useEffect(() => { setLimit(18); }, [filter, sort, q]);
 
   const totalViews = all.reduce((n, v) => n + (v.views || 0), 0);
@@ -2655,6 +2814,7 @@ function VideosSection(){
       <div class="yt-bar reveal">
         <div class="yt-chips" role="tablist" aria-label="Channel">
           <button class=${'yt-chip' + (filter === 'all' ? ' on' : '')} onClick=${() => setFilter('all')}>All</button>
+          ${savedIds.length ? html`<button class=${'yt-chip' + (filter === 'saved' ? ' on' : '')} onClick=${() => setFilter('saved')}>Saved offline (${savedIds.length})</button>` : null}
           ${channels.map((c) => html`
             <button key=${c.id} class=${'yt-chip' + (filter === c.id ? ' on' : '')} onClick=${() => setFilter(c.id)}>${c.name}</button>
           `)}
@@ -2682,7 +2842,7 @@ function VideosSection(){
       ${data ? html`
         <div class="yt-grid">
           ${list.slice(0, limit).map((v, i) => html`
-            <${YtCard} key=${v.id} video=${v} index=${i} channelName=${nameOf(v.channel)} onPlay=${setPlaying} />
+            <${YtCard} key=${v.id} video=${v} index=${i} saved=${savedIds.includes(v.id)} channelName=${nameOf(v.channel)} onPlay=${setPlaying} />
           `)}
         </div>
         ${!list.length ? html`<div class="yt-empty"><p>No videos match your search.</p></div>` : null}

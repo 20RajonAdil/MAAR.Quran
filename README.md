@@ -94,3 +94,17 @@ The Videos tab and the "Latest on YouTube" strip on Home read `/api/videos`
   (latest ~15 uploads per channel, with view counts).
 - Responses are cached at the edge for 30 minutes; the page re-checks every
   10 minutes while open, so new uploads and view counts appear on their own.
+
+### Offline videos, screen-awake and lock-screen audio
+
+Videos can be saved inside the site (browser storage, never the phone gallery)
+only if you host the file yourself. Export your own uploads from YouTube Studio
+(Content → ⋯ → Download), put them in `media/`, and list them in `media.json`:
+
+```json
+{ "VIDEO_ID": { "src": "media/my-nasheed.mp3", "type": "audio" } }
+```
+
+`type` is `audio` or `video`. Audio files keep playing with the screen locked
+(lock-screen controls included); video files and YouTube embeds keep the
+screen awake while open.
