@@ -743,6 +743,8 @@ const ICONS = {
   search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm10 17-5.6-5.6',
   play: 'M7 4.5v15l13-7.5-13-7.5Z',
   eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+  volume: 'M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4Zm11 .5a3.5 3.5 0 0 1 0 4m2.5-6.5a7 7 0 0 1 0 9',
+  mute: 'M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4Zm12 0 5 5m0-5-5 5',
   pause: 'M7 4.5h4v15H7v-15Zm6 0h4v15h-4v-15Z',
   x: 'M5 5l14 14M19 5 5 19',
   chev: 'M9 6l6 6-6 6',
@@ -2646,6 +2648,147 @@ function useWakeLock(active){
   }, [active]);
 }
 
+/* ---- Custom player controls: a themed bar (play, time, seek, volume and a
+   3-dot menu) that drives either the hosted file or the YouTube player. ---- */
+const YT_BASE_ST = { playing:false, t:0, d:0, vol:1, muted:false, rate:1, loop:false };
+
+function useNativeCtl(ref, active, dep){
+  const [st, setSt] = useState(YT_BASE_ST);
+  useEffect(() => {
+    const el = ref.current;
+    if (!active || !el) return;
+    const sync = () => setSt({ playing: !el.paused && !el.ended, t: el.currentTime || 0, d: isFinite(el.duration) ? el.duration : 0, vol: el.volume, muted: el.muted, rate: el.playbackRate, loop: el.loop });
+    const evs = ['timeupdate','durationchange','loadedmetadata','play','pause','ended','volumechange','ratechange','seeked'];
+    evs.forEach((e) => el.addEventListener(e, sync));
+    sync();
+    return () => evs.forEach((e) => el.removeEventListener(e, sync));
+  }, [active, dep]);
+  const ctl = useMemo(() => {
+    const el = () => ref.current;
+    return {
+      play(){ const e = el(); if (e) e.play().catch(() => {}); },
+      pause(){ const e = el(); if (e) e.pause(); },
+      seek(t){ const e = el(); if (e) e.currentTime = t; },
+      volume(v){ const e = el(); if (e) { e.volume = v; e.muted = v === 0; } },
+      mute(m){ const e = el(); if (e) e.muted = m; },
+      rate(r){ const e = el(); if (e) e.playbackRate = r; },
+      loop(b){ const e = el(); if (e) { e.loop = b; setSt((s) => Object.assign({}, s, { loop: b })); } },
+    };
+  }, []);
+  return { st, ctl };
+}
+
+let _ytApiP = null;
+function loadYtApi(){
+  if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+  return _ytApiP || (_ytApiP = new Promise((res) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) prev(); res(window.YT); };
+    const sc = document.createElement('script');
+    sc.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(sc);
+  }));
+}
+
+function useYtApiCtl(hostRef, videoId, active){
+  const [st, setSt] = useState(YT_BASE_ST);
+  const pRef = useRef(null), loopRef = useRef(false);
+  useEffect(() => {
+    if (!active) return;
+    let dead = false;
+    const sync = () => {
+      const p = pRef.current;
+      if (!p || !p.getPlayerState) return;
+      setSt((s) => Object.assign({}, s, { playing: p.getPlayerState() === 1, t: p.getCurrentTime() || 0, d: p.getDuration() || 0, vol: p.getVolume() / 100, muted: p.isMuted(), rate: p.getPlaybackRate() }));
+    };
+    loadYtApi().then((YT) => {
+      if (dead || !hostRef.current) return;
+      const mount = document.createElement('div');
+      hostRef.current.appendChild(mount);
+      pRef.current = new YT.Player(mount, {
+        videoId, width:'100%', height:'100%', host:'https://www.youtube-nocookie.com',
+        playerVars: { autoplay:1, controls:0, rel:0, modestbranding:1, playsinline:1, disablekb:1 },
+        events: {
+          onReady: (e) => { try { e.target.playVideo(); } catch {} sync(); },
+          onStateChange: (e) => { if (e.data === 0 && loopRef.current) { e.target.seekTo(0); e.target.playVideo(); } sync(); },
+        },
+      });
+    });
+    const timer = setInterval(sync, 300);
+    return () => { dead = true; clearInterval(timer); try { if (pRef.current && pRef.current.destroy) pRef.current.destroy(); } catch {} pRef.current = null; };
+  }, [active, videoId]);
+  const ctl = useMemo(() => {
+    const p = () => pRef.current;
+    return {
+      play(){ const x = p(); if (x && x.playVideo) x.playVideo(); },
+      pause(){ const x = p(); if (x && x.pauseVideo) x.pauseVideo(); },
+      seek(t){ const x = p(); if (x && x.seekTo) x.seekTo(t, true); },
+      volume(v){ const x = p(); if (x && x.setVolume) { x.setVolume(Math.round(v * 100)); if (v === 0) x.mute(); else x.unMute(); } },
+      mute(m){ const x = p(); if (x && x.mute) { if (m) x.mute(); else x.unMute(); } },
+      rate(r){ const x = p(); if (x && x.setPlaybackRate) x.setPlaybackRate(r); },
+      loop(b){ loopRef.current = b; setSt((s) => Object.assign({}, s, { loop: b })); },
+    };
+  }, []);
+  return { st, ctl };
+}
+
+function YtBar({ st, ctl, isSaved, busy, pct, onSave, onRemove, videoId }){
+  const [menu, setMenu] = useState(false);
+  const [sub, setSub] = useState('');
+  const [sleep, setSleep] = useState(0);
+  useEffect(() => {
+    if (!sleep) return;
+    const t = setTimeout(() => { ctl.pause(); setSleep(0); }, sleep * 60000);
+    return () => clearTimeout(t);
+  }, [sleep]);
+  const fmt = (n) => ytDuration(Math.max(0, Math.floor(n || 0)));
+  const close = () => { setMenu(false); setSub(''); };
+  const vol = st.muted ? 0 : st.vol;
+  const done = st.d ? (st.t / st.d) * 100 : 0;
+  const ck = (on) => (on ? html`<span class="ck"><${Icon} name="check" size=${14} /></span>` : null);
+  return html`
+    <div class="yt-ctl">
+      <button class="yt-cb" onClick=${() => (st.playing ? ctl.pause() : ctl.play())} aria-label=${st.playing ? 'Pause' : 'Play'}>
+        <${Icon} name=${st.playing ? 'pause' : 'play'} size=${20} filled=${true} />
+      </button>
+      <span class="yt-time">${fmt(st.t)} / ${fmt(st.d)}</span>
+      <input class="yt-seek" type="range" min="0" max=${st.d || 0} step="0.1" value=${Math.min(st.t, st.d || 0)}
+        style=${{ '--p': done + '%' }} aria-label="Seek" onInput=${(e) => ctl.seek(+e.target.value)} />
+      <button class="yt-cb" onClick=${() => (vol === 0 ? ctl.volume(1) : ctl.mute(true))} aria-label=${vol === 0 ? 'Unmute' : 'Mute'}>
+        <${Icon} name=${vol === 0 ? 'mute' : 'volume'} size=${20} />
+      </button>
+      <input class="yt-vol" type="range" min="0" max="1" step="0.05" value=${vol}
+        style=${{ '--p': (vol * 100) + '%' }} aria-label="Volume" onInput=${(e) => ctl.volume(+e.target.value)} />
+      <div class="yt-more">
+        <button class="yt-cb" onClick=${() => { setMenu(!menu); setSub(''); }} aria-label="More options" aria-expanded=${menu}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
+        </button>
+        ${menu ? html`
+          <div class="yt-scrim" onClick=${close}></div>
+          <div class="yt-menu" role="menu">
+            ${sub === '' ? html`
+              <button role="menuitem" disabled=${busy} onClick=${() => { if (isSaved) onRemove(); else onSave(); close(); }}>
+                <${Icon} name=${isSaved ? 'trash' : 'download'} size=${16} />
+                ${isSaved ? 'Remove download' : (busy ? (pct >= 0 ? `Saving… ${pct}%` : 'Saving…') : 'Save for offline')}
+              </button>
+              <button role="menuitem" onClick=${() => setSub('speed')}>Playback speed <em>${st.rate}x</em></button>
+              <button role="menuitem" onClick=${() => ctl.loop(!st.loop)}>Loop <em>${st.loop ? 'On' : 'Off'}</em></button>
+              <button role="menuitem" onClick=${() => setSub('sleep')}>Sleep timer <em>${sleep ? sleep + ' min' : 'Off'}</em></button>
+              <a role="menuitem" href=${`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noopener" onClick=${close}>Open on YouTube</a>
+            ` : (sub === 'speed' ? html`
+              <button role="menuitem" class="back" onClick=${() => setSub('')}>‹ Playback speed</button>
+              ${[0.75, 1, 1.25, 1.5, 2].map((r) => html`<button key=${r} role="menuitem" onClick=${() => { ctl.rate(r); close(); }}>${r === 1 ? 'Normal' : r + 'x'} ${ck(st.rate === r)}</button>`)}
+            ` : html`
+              <button role="menuitem" class="back" onClick=${() => setSub('')}>‹ Sleep timer</button>
+              ${[0, 15, 30, 60].map((m) => html`<button key=${m} role="menuitem" onClick=${() => { setSleep(m); close(); }}>${m ? m + ' minutes' : 'Off'} ${ck(sleep === m)}</button>`)}
+            `)}
+          </div>
+        ` : null}
+      </div>
+    </div>
+  `;
+}
+
 function YtPlayer({ video, channelName, onClose }){
   const { mediaMap, savedIds } = useYtOffline();
   const media = mediaMap[video.id];
@@ -2654,6 +2797,7 @@ function YtPlayer({ video, channelName, onClose }){
   const [savedType, setSavedType] = useState('');
   const [dl, setDl] = useState(null);
   const mediaRef = useRef(null);
+  const frameRef = useRef(null);
 
   /* Saved copy → play from the browser's own storage (works offline). */
   useEffect(() => {
@@ -2672,6 +2816,9 @@ function YtPlayer({ video, channelName, onClose }){
   const kind = (media && media.type === 'audio') || (!media && savedType === 'audio') ? 'audio' : 'video';
   const mediaUrl = media ? new URL(media.src, location.href).href : '';
   const src = blobUrl || (isSaved ? '' : mediaUrl);
+  const nat = useNativeCtl(mediaRef, native, kind + '|' + src);
+  const yt = useYtApiCtl(frameRef, video.id, !native);
+  const { st, ctl } = native ? nat : yt;
 
   /* Screen stays on while watching video (YouTube or file). Audio-only
      playback lets the screen sleep so the battery isn't wasted. */
@@ -2719,22 +2866,16 @@ function YtPlayer({ video, channelName, onClose }){
         ${native ? (kind === 'audio' ? html`
           <div class="yt-audio">
             ${video.thumb ? html`<img src=${video.thumb} alt="" />` : null}
-            <audio ref=${mediaRef} src=${src || undefined} onPlay=${markPlayed} controls autoplay preload="auto"></audio>
+            <audio ref=${mediaRef} src=${src || undefined} onPlay=${markPlayed} autoplay preload="auto"></audio>
           </div>
         ` : html`
           <div class="yt-frame">
-            <video ref=${mediaRef} src=${src || undefined} poster=${video.thumb} onPlay=${markPlayed} controls autoplay playsinline preload="auto"></video>
+            <video ref=${mediaRef} src=${src || undefined} poster=${video.thumb} onPlay=${markPlayed}
+              onClick=${() => (st.playing ? ctl.pause() : ctl.play())} autoplay playsinline preload="auto"></video>
           </div>
-        `) : html`
-          <div class="yt-frame">
-            <iframe
-              src=${`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1`}
-              title=${video.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-              allowfullscreen
-            ></iframe>
-          </div>
-        `}
+        `) : html`<div class="yt-frame" ref=${frameRef}></div>`}
+        <${YtBar} st=${st} ctl=${ctl} isSaved=${isSaved} busy=${!!(dl && dl.pct !== undefined)} pct=${dl && dl.pct}
+          onSave=${save} onRemove=${removeSaved} videoId=${video.id} />
         <div class="yt-modal-info">
           <div>
             <div class="yt-modal-title">${video.title}</div>

@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v9';
+const SHELL_VERSION = 'v10';
 const DATA_VERSION  = 'v1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
@@ -34,7 +34,7 @@ const SHELL_ASSETS = [
   './',
   './index.html',
   './offline.html',
-  './app.js?v=23',
+  './app.js?v=24',
   './offline.js?v=2',
   './manifest.json',
   './icon-192.png',

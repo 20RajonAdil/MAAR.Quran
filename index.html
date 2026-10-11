@@ -650,6 +650,25 @@ body{padding-bottom:var(--tab-h);}
 .yt-dlbtn:hover{transform:scale(1.08);background:rgba(10,11,13,.95);}
 .yt-dlbtn.done{background:var(--emerald-hi);color:var(--ink);border-color:transparent;}
 .yt-hint{position:absolute;z-index:3;right:10px;top:54px;max-width:70%;font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:10px;background:rgba(10,11,13,.92);color:var(--ink);border:1px solid var(--line);}
+.yt-ctl{position:relative;display:flex;align-items:center;gap:10px;margin-top:14px;padding:8px 12px;border-radius:999px;background:var(--soft);border:1px solid var(--gold-dim);}
+.yt-cb{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:transparent;color:var(--gold-hi);display:grid;place-items:center;cursor:pointer;transition:background .2s var(--ease);}
+.yt-cb:hover{background:var(--gold-dim);}
+.yt-time{flex:none;font-size:12.5px;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.yt-seek,.yt-vol{-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;outline:none;cursor:pointer;margin:0;background:linear-gradient(to right,var(--gold) var(--p,0%),var(--line) var(--p,0%));}
+.yt-seek{flex:1;min-width:60px;}.yt-vol{flex:none;width:72px;}
+.yt-seek::-webkit-slider-thumb,.yt-vol::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--gold-hi);border:0;}
+.yt-seek::-moz-range-thumb,.yt-vol::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--gold-hi);border:0;}
+.yt-seek::-moz-range-track,.yt-vol::-moz-range-track{background:transparent;}
+.yt-more{position:relative;flex:none;}
+.yt-scrim{position:fixed;inset:0;z-index:5;}
+.yt-menu{position:absolute;right:0;bottom:calc(100% + 10px);z-index:6;min-width:230px;padding:6px;border-radius:16px;background:var(--bg-raised);border:1px solid var(--gold-dim);box-shadow:0 20px 50px -10px rgba(0,0,0,.9);}
+.yt-menu button,.yt-menu a{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:11px 12px;border:0;border-radius:10px;background:transparent;color:var(--ink);font:inherit;font-size:13.5px;cursor:pointer;text-decoration:none;}
+.yt-menu button:hover,.yt-menu a:hover{background:var(--card-hi);}
+.yt-menu em{margin-left:auto;font-style:normal;color:var(--muted);}
+.yt-menu .back{color:var(--gold-hi);font-weight:600;}
+.yt-menu button[disabled]{opacity:.6;cursor:progress;}
+.yt-menu .ck{margin-left:auto;display:grid;color:var(--gold-hi);}
+@media(max-width:560px){.yt-vol{display:none;}.yt-ctl{gap:6px;padding:6px 8px;}}
 @media(max-width:560px){
   .yt-sub{display:none;}
   .yt-grid{grid-template-columns:1fr;}
@@ -670,7 +689,7 @@ body{padding-bottom:var(--tab-h);}
 <script src="https://unpkg.com/htm@3/dist/htm.js" crossorigin></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="offline.js?v=2"></script>
-<script src="app.js?v=23"></script>
+<script src="app.js?v=24"></script>
 
 <script>
 /* ---- Service worker registration ----------------------------------
