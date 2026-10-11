@@ -2587,6 +2587,28 @@ async function ytCleanupStale(){
   } catch {}
 }
 
+async function ytDownload(video, media, onPct){
+  const url = new URL(media.src, location.href).href;
+  const kind = media.type === 'audio' ? 'audio' : 'video';
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const total = +r.headers.get('content-length') || 0;
+  const chunks = []; let got = 0;
+  if (r.body && r.body.getReader) {
+    const reader = r.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value); got += value.length;
+      if (onPct) onPct(total ? Math.round((got / total) * 100) : -1);
+    }
+  } else { chunks.push(new Uint8Array(await r.arrayBuffer())); }
+  const blob = new Blob(chunks, { type: r.headers.get('content-type') || (kind === 'audio' ? 'audio/mpeg' : 'video/mp4') });
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  await YTStore.put(video.id, { blob, type: kind, title: video.title, savedAt: Date.now() });
+  ytMeta.touch(video.id, { savedAt: Date.now(), lastPlayedAt: Date.now() });
+}
+
 /* media.json maps a YouTube video id to a file you host:
    { "VIDEO_ID": { "src": "media/name.mp3", "type": "audio" } }  (type: audio | video) */
 function useYtOffline(){
@@ -2683,28 +2705,11 @@ function YtPlayer({ video, channelName, onClose }){
 
   const markPlayed = () => { if (isSaved) ytMeta.touch(video.id, { lastPlayedAt: Date.now() }); };
   async function save(){
-    if (!media || dl) return;
+    if (dl && dl.pct !== undefined) return;
+    if (!media) { setDl({ none: true }); return; }
     setDl({ pct: 0 });
-    try {
-      const r = await fetch(mediaUrl);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const total = +r.headers.get('content-length') || 0;
-      const chunks = []; let got = 0;
-      if (r.body && r.body.getReader) {
-        const reader = r.body.getReader();
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value); got += value.length;
-          setDl({ pct: total ? Math.round((got / total) * 100) : -1 });
-        }
-      } else { chunks.push(new Uint8Array(await r.arrayBuffer())); }
-      const blob = new Blob(chunks, { type: r.headers.get('content-type') || (kind === 'audio' ? 'audio/mpeg' : 'video/mp4') });
-      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-      await YTStore.put(video.id, { blob, type: kind, title: video.title, savedAt: Date.now() });
-      ytMeta.touch(video.id, { savedAt: Date.now(), lastPlayedAt: Date.now() });
-      setDl(null);
-    } catch { setDl({ error: true }); }
+    try { await ytDownload(video, media, (p) => setDl({ pct: p })); setDl(null); }
+    catch { setDl({ error: true }); }
   }
   async function removeSaved(){ try { await YTStore.del(video.id); ytMeta.drop(video.id); } catch {} }
 
@@ -2735,15 +2740,16 @@ function YtPlayer({ video, channelName, onClose }){
             <div class="yt-modal-title">${video.title}</div>
             <div class="yt-modal-meta">${channelName} · ${ytWhole.format(video.views || 0)} views · ${ytAgo(video.publishedAt)}${isSaved ? ' · saved offline' : ''}</div>
             ${isSaved ? html`<div class="yt-modal-meta">Removed automatically if not played for 28 days.</div>` : null}
+            ${dl && dl.none ? html`<div class="yt-dl-note">An offline copy of this video isn't available yet.</div>` : null}
             ${dl && dl.error ? html`<div class="yt-dl-note">Couldn't download. Check your connection and try again.</div>` : null}
           </div>
           <div class="yt-modal-actions">
             ${isSaved
               ? html`<button class="btn btn-ghost" onClick=${removeSaved}><${Icon} name="trash" size=${14} /> Remove download</button>`
-              : (media ? html`<button class="btn btn-gold" onClick=${save} disabled=${!!(dl && !dl.error)}>
+              : html`<button class="btn btn-gold" onClick=${save} disabled=${!!(dl && dl.pct !== undefined)}>
                   <${Icon} name="download" size=${14} />
-                  ${dl && !dl.error ? (dl.pct >= 0 ? `Saving… ${dl.pct}%` : 'Saving…') : 'Save for offline'}
-                </button>` : null)}
+                  ${dl && dl.pct !== undefined ? (dl.pct >= 0 ? `Saving… ${dl.pct}%` : 'Saving…') : 'Save for offline'}
+                </button>`}
             <a class="btn btn-ghost" href=${`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener">YouTube</a>
             <button class="btn btn-ghost" onClick=${onClose}>Close</button>
           </div>
@@ -2753,14 +2759,31 @@ function YtPlayer({ video, channelName, onClose }){
   `;
 }
 
-function YtCard({ video, channelName, onPlay, index, saved }){
+function YtCard({ video, channelName, onPlay, index, saved, media }){
+  const [pct, setPct] = useState(null);
+  const [hint, setHint] = useState('');
+  const flash = (t) => { setHint(t); setTimeout(() => setHint(''), 2600); };
+  async function quickSave(e){
+    e.stopPropagation();
+    if (saved || pct !== null) return;
+    if (!media) { flash('Not available offline yet'); return; }
+    setPct(0);
+    try { await ytDownload(video, media, (p) => setPct(p)); } catch { flash('Download failed'); }
+    setPct(null);
+  }
+  const open = () => onPlay(video);
   return html`
-    <button class="yt-card reveal" style=${{ transitionDelay: ((index % 6) * 50) + 'ms' }} onClick=${() => onPlay(video)} title=${video.title}>
+    <div class="yt-card reveal" role="button" tabindex="0" style=${{ transitionDelay: ((index % 6) * 50) + 'ms' }}
+      onClick=${open} onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }} title=${video.title}>
       <span class="yt-thumb">
         <img src=${video.thumb} alt="" loading="lazy" decoding="async" />
         <span class="yt-play"><span><${Icon} name="play" size=${20} filled=${true} /></span></span>
         ${ytIsNew(video.publishedAt) ? html`<span class="yt-new">New</span>` : null}
-        ${saved ? html`<span class="yt-saved">Saved</span>` : null}
+        <button type="button" class=${'yt-dlbtn' + (saved ? ' done' : '')} onClick=${quickSave}
+          aria-label=${saved ? 'Saved offline' : 'Download for offline'} title=${saved ? 'Saved offline' : 'Download for offline'}>
+          ${saved ? html`<${Icon} name="check" size=${16} />` : (pct !== null ? html`<b>${pct >= 0 ? pct : '…'}</b>` : html`<${Icon} name="download" size=${16} />`)}
+        </button>
+        ${hint ? html`<span class="yt-hint">${hint}</span>` : null}
         <span class="yt-tag">${channelName}</span>
         ${video.duration != null ? html`<span class="yt-dur">${ytDuration(video.duration)}</span>` : null}
       </span>
@@ -2772,14 +2795,14 @@ function YtCard({ video, channelName, onPlay, index, saved }){
           <span>${ytAgo(video.publishedAt)}</span>
         </span>
       </span>
-    </button>
+    </div>
   `;
 }
 
 function VideosSection(){
   const ref = useReveal();
   const { data, status, reload } = useYouTube();
-  const { savedIds } = useYtOffline();
+  const { mediaMap, savedIds } = useYtOffline();
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('new');
   const [q, setQ] = useState('');
@@ -2870,7 +2893,7 @@ function VideosSection(){
       ${data ? html`
         <div class="yt-grid">
           ${list.slice(0, limit).map((v, i) => html`
-            <${YtCard} key=${v.id} video=${v} index=${i} saved=${savedIds.includes(v.id)} channelName=${nameOf(v.channel)} onPlay=${setPlaying} />
+            <${YtCard} key=${v.id} video=${v} index=${i} saved=${savedIds.includes(v.id)} media=${mediaMap[v.id]} channelName=${nameOf(v.channel)} onPlay=${setPlaying} />
           `)}
         </div>
         ${!list.length ? html`<div class="yt-empty"><p>No videos match your search.</p></div>` : null}
@@ -2895,6 +2918,7 @@ function VideosSection(){
 function VideosTeaser({ setTab }){
   const ref = useReveal();
   const { data } = useYouTube();
+  const { mediaMap, savedIds } = useYtOffline();
   const [playing, setPlaying] = useState(null);
   if (!data || !data.videos || !data.videos.length) return null;
   const nameOf = (id) => ((data.channels || []).find((c) => c.id === id) || {}).name || id;
@@ -2909,7 +2933,7 @@ function VideosTeaser({ setTab }){
         <button class="btn btn-ghost" onClick=${() => setTab('videos')}>See all videos <${Icon} name="chev" size=${14} /></button>
       </div>
       <div class="yt-grid">
-        ${latest.map((v, i) => html`<${YtCard} key=${v.id} video=${v} index=${i} channelName=${nameOf(v.channel)} onPlay=${setPlaying} />`)}
+        ${latest.map((v, i) => html`<${YtCard} key=${v.id} video=${v} index=${i} saved=${savedIds.includes(v.id)} media=${mediaMap[v.id]} channelName=${nameOf(v.channel)} onPlay=${setPlaying} />`)}
       </div>
       ${playing ? html`<${YtPlayer} video=${playing} channelName=${nameOf(playing.channel)} onClose=${() => setPlaying(null)} />` : null}
     </section>

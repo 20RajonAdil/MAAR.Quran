@@ -644,6 +644,12 @@ body{padding-bottom:var(--tab-h);}
 .yt-audio audio{width:100%;color-scheme:dark;}
 .yt-dl-note{margin-top:8px;font-size:12.5px;color:var(--danger);}
 .yt-modal-actions .btn[disabled]{opacity:.7;cursor:progress;}
+.yt-card{cursor:pointer;}
+.yt-dlbtn{position:absolute;z-index:3;right:10px;top:10px;min-width:36px;height:36px;padding:0 8px;border-radius:999px;display:grid;place-items:center;cursor:pointer;
+  background:rgba(10,11,13,.82);color:var(--gold-hi);border:1px solid var(--gold-dim);font-size:11px;transition:transform .25s var(--ease),background .25s var(--ease);}
+.yt-dlbtn:hover{transform:scale(1.08);background:rgba(10,11,13,.95);}
+.yt-dlbtn.done{background:var(--emerald-hi);color:var(--ink);border-color:transparent;}
+.yt-hint{position:absolute;z-index:3;right:10px;top:54px;max-width:70%;font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:10px;background:rgba(10,11,13,.92);color:var(--ink);border:1px solid var(--line);}
 @media(max-width:560px){
   .yt-sub{display:none;}
   .yt-grid{grid-template-columns:1fr;}
@@ -664,7 +670,7 @@ body{padding-bottom:var(--tab-h);}
 <script src="https://unpkg.com/htm@3/dist/htm.js" crossorigin></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="offline.js?v=2"></script>
-<script src="app.js?v=22"></script>
+<script src="app.js?v=23"></script>
 
 <script>
 /* ---- Service worker registration ----------------------------------
