@@ -2909,12 +2909,6 @@ function YtPlayer({ video, channelName, onClose }){
             ${dl && dl.error ? html`<div class="yt-dl-note">Couldn't download. Check your connection and try again.</div>` : null}
           </div>
           <div class="yt-modal-actions">
-            ${isSaved
-              ? html`<button class="btn btn-ghost" onClick=${removeSaved}><${Icon} name="trash" size=${14} /> Remove download</button>`
-              : html`<button class="btn btn-gold" onClick=${save} disabled=${!!(dl && dl.pct !== undefined)}>
-                  <${Icon} name="download" size=${14} />
-                  ${dl && dl.pct !== undefined ? (dl.pct >= 0 ? `Saving… ${dl.pct}%` : 'Saving…') : 'Save for offline'}
-                </button>`}
             <a class="btn btn-ghost" href=${`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener">YouTube</a>
             <button class="btn btn-ghost" onClick=${onClose}>Close</button>
           </div>
@@ -2925,17 +2919,6 @@ function YtPlayer({ video, channelName, onClose }){
 }
 
 function YtCard({ video, channelName, onPlay, index, saved, media }){
-  const [pct, setPct] = useState(null);
-  const [hint, setHint] = useState('');
-  const flash = (t) => { setHint(t); setTimeout(() => setHint(''), 2600); };
-  async function quickSave(e){
-    e.stopPropagation();
-    if (saved || pct !== null) return;
-    if (!media) { flash('Not available offline yet'); return; }
-    setPct(0);
-    try { await ytDownload(video, media, (p) => setPct(p)); } catch { flash('Download failed'); }
-    setPct(null);
-  }
   const open = () => onPlay(video);
   return html`
     <div class="yt-card reveal" role="button" tabindex="0" style=${{ transitionDelay: ((index % 6) * 50) + 'ms' }}
@@ -2944,11 +2927,7 @@ function YtCard({ video, channelName, onPlay, index, saved, media }){
         <img src=${video.thumb} alt="" loading="lazy" decoding="async" />
         <span class="yt-play"><span><${Icon} name="play" size=${20} filled=${true} /></span></span>
         ${ytIsNew(video.publishedAt) ? html`<span class="yt-new">New</span>` : null}
-        <button type="button" class=${'yt-dlbtn' + (saved ? ' done' : '')} onClick=${quickSave}
-          aria-label=${saved ? 'Saved offline' : 'Download for offline'} title=${saved ? 'Saved offline' : 'Download for offline'}>
-          ${saved ? html`<${Icon} name="check" size=${16} />` : (pct !== null ? html`<b>${pct >= 0 ? pct : '…'}</b>` : html`<${Icon} name="download" size=${16} />`)}
-        </button>
-        ${hint ? html`<span class="yt-hint">${hint}</span>` : null}
+        ${saved ? html`<span class="yt-saved">Saved</span>` : null}
         <span class="yt-tag">${channelName}</span>
         ${video.duration != null ? html`<span class="yt-dur">${ytDuration(video.duration)}</span>` : null}
       </span>
