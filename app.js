@@ -2732,7 +2732,7 @@ function useYtApiCtl(hostRef, videoId, active){
   return { st, ctl };
 }
 
-function YtBar({ st, ctl, isSaved, busy, pct, onSave, onRemove, videoId }){
+function YtBar({ st, ctl, isSaved, busy, pct, onSave, onRemove, onDownload, videoId }){
   const [menu, setMenu] = useState(false);
   const [sub, setSub] = useState('');
   const [sleep, setSleep] = useState(0);
@@ -2767,9 +2767,12 @@ function YtBar({ st, ctl, isSaved, busy, pct, onSave, onRemove, videoId }){
           <div class="yt-scrim" onClick=${close}></div>
           <div class="yt-menu" role="menu">
             ${sub === '' ? html`
+              <button role="menuitem" onClick=${() => { onDownload(); close(); }}>
+                <${Icon} name="download" size=${16} /> Download
+              </button>
               <button role="menuitem" disabled=${busy} onClick=${() => { if (isSaved) onRemove(); else onSave(); close(); }}>
-                <${Icon} name=${isSaved ? 'trash' : 'download'} size=${16} />
-                ${isSaved ? 'Remove download' : (busy ? (pct >= 0 ? `Saving… ${pct}%` : 'Saving…') : 'Save for offline')}
+                <${Icon} name=${isSaved ? 'trash' : 'offline'} size=${16} />
+                ${isSaved ? 'Remove from app' : (busy ? (pct >= 0 ? `Saving… ${pct}%` : 'Saving…') : 'Save in app (offline)')}
               </button>
               <button role="menuitem" onClick=${() => setSub('speed')}>Playback speed <em>${st.rate}x</em></button>
               <button role="menuitem" onClick=${() => ctl.loop(!st.loop)}>Loop <em>${st.loop ? 'On' : 'Off'}</em></button>
@@ -2858,6 +2861,27 @@ function YtPlayer({ video, channelName, onClose }){
     try { await ytDownload(video, media, (p) => setDl({ pct: p })); setDl(null); }
     catch { setDl({ error: true }); }
   }
+  /* Chrome-style "Download": hands the file to the browser's normal download. */
+  async function downloadFile(){
+    try {
+      let blob = null;
+      if (isSaved) { const rec = await YTStore.get(video.id); blob = rec && rec.blob; }
+      if (!blob && media) {
+        const r = await fetch(mediaUrl);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        blob = await r.blob();
+      }
+      if (!blob) { setDl({ none: true }); return; }
+      const fromSrc = media && /\.([a-z0-9]{2,4})$/i.exec(media.src);
+      const ext = fromSrc ? fromSrc[1].toLowerCase() : (kind === 'audio' ? 'mp3' : 'mp4');
+      const name = (video.title || video.id).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || video.id;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name + '.' + ext;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    } catch { setDl({ error: true }); }
+  }
   async function removeSaved(){ try { await YTStore.del(video.id); ytMeta.drop(video.id); } catch {} }
 
   return html`
@@ -2875,13 +2899,13 @@ function YtPlayer({ video, channelName, onClose }){
           </div>
         `) : html`<div class="yt-frame" ref=${frameRef}></div>`}
         <${YtBar} st=${st} ctl=${ctl} isSaved=${isSaved} busy=${!!(dl && dl.pct !== undefined)} pct=${dl && dl.pct}
-          onSave=${save} onRemove=${removeSaved} videoId=${video.id} />
+          onSave=${save} onRemove=${removeSaved} onDownload=${downloadFile} videoId=${video.id} />
         <div class="yt-modal-info">
           <div>
             <div class="yt-modal-title">${video.title}</div>
             <div class="yt-modal-meta">${channelName} · ${ytWhole.format(video.views || 0)} views · ${ytAgo(video.publishedAt)}${isSaved ? ' · saved offline' : ''}</div>
             ${isSaved ? html`<div class="yt-modal-meta">Removed automatically if not played for 28 days.</div>` : null}
-            ${dl && dl.none ? html`<div class="yt-dl-note">An offline copy of this video isn't available yet.</div>` : null}
+            ${dl && dl.none ? html`<div class="yt-dl-note">A downloadable copy of this video isn't available yet.</div>` : null}
             ${dl && dl.error ? html`<div class="yt-dl-note">Couldn't download. Check your connection and try again.</div>` : null}
           </div>
           <div class="yt-modal-actions">
