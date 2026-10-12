@@ -44,7 +44,7 @@ const html = htm.bind(React.createElement);
     for (const s of stars) {
       const a = reduceMotion ? 0.55 : 0.25 + Math.abs(Math.sin(s.tw + t * s.sp * 0.01)) * 0.65;
       ctx.beginPath();
-      ctx.fillStyle = `rgba(244,239,228,${a.toFixed(3)})`;
+      ctx.fillStyle = `rgba(245,242,237,${a.toFixed(3)})`;
       ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
       ctx.fill();
     }
@@ -1944,12 +1944,12 @@ function MoonCanvas({ phase }){
 
       // faint earthshine so the dark side is never flat black
       const earthshine = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.35, R * 0.08, cx, cy, R);
-      earthshine.addColorStop(0, 'rgba(120,150,255,.10)'); earthshine.addColorStop(1, 'rgba(6,8,14,1)');
+      earthshine.addColorStop(0, 'rgba(179,32,47,.10)'); earthshine.addColorStop(1, 'rgba(11,11,11,1)');
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = earthshine; ctx.fill();
 
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
-      const dark = 'rgba(6,8,14,1)';
+      const dark = 'rgba(11,11,11,1)';
 
       // the half that's always fully lit (or fully lit before we cut into it)
       ctx.save();
@@ -2068,7 +2068,7 @@ function QiblaSection({ geo }){
     if (userMarker.current) userMarker.current.setLatLng([coords.lat, coords.lon]);
     else userMarker.current = L.marker([coords.lat, coords.lon], { icon: userIcon, title: 'Your location', zIndexOffset: 1000 }).addTo(map);
     if (pathLine.current) map.removeLayer(pathLine.current);
-    pathLine.current = L.polyline([[coords.lat, coords.lon], [KAABA.lat, KAABA.lon]], { color: '#c6a15b', weight: 3, opacity: .85, dashArray: '2 8' }).addTo(map);
+    pathLine.current = L.polyline([[coords.lat, coords.lon], [KAABA.lat, KAABA.lon]], { color: '#cf3342', weight: 3, opacity: .85, dashArray: '2 8' }).addTo(map);
     map.fitBounds(L.latLngBounds([[coords.lat, coords.lon], [KAABA.lat, KAABA.lon]]), { padding: [40, 40], maxZoom: 6 });
   }, [coords]);
 
@@ -3317,10 +3317,10 @@ class ErrorBoundary extends React.Component {
       return html`
         <div style=${{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'32px 20px', textAlign:'center' }}>
           <div style=${{ maxWidth:'440px' }}>
-            <div style=${{ fontFamily:"'Instrument Serif',serif", fontStyle:'italic', fontSize:'26px', color:'#f4efe4', marginBottom:'12px' }}>Something went wrong</div>
-            <p style=${{ color:'#9b9587', fontSize:'13.5px', lineHeight:'1.7', marginBottom:'8px' }}>This screen stayed up instead of going blank so the problem can actually be fixed. Please share this message:</p>
-            <p style=${{ color:'#c6a15b', fontSize:'12.5px', fontFamily:'monospace', background:'rgba(244,239,228,.05)', border:'1px solid rgba(244,239,228,.1)', borderRadius:'10px', padding:'12px', marginBottom:'18px', wordBreak:'break-word', textAlign:'left' }}>${msg}</p>
-            <button onClick=${() => window.location.reload()} style=${{ background:'#c6a15b', color:'#1a1305', border:'none', borderRadius:'999px', padding:'12px 24px', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'inherit' }}>Reload the page</button>
+            <div style=${{ fontFamily:"'Instrument Serif',serif", fontStyle:'italic', fontSize:'26px', color:'#f5f2ed', marginBottom:'12px' }}>Something went wrong</div>
+            <p style=${{ color:'#a29c95', fontSize:'13.5px', lineHeight:'1.7', marginBottom:'8px' }}>This screen stayed up instead of going blank so the problem can actually be fixed. Please share this message:</p>
+            <p style=${{ color:'#cf3342', fontSize:'12.5px', fontFamily:'monospace', background:'rgba(245,242,237,.05)', border:'1px solid rgba(245,242,237,.1)', borderRadius:'10px', padding:'12px', marginBottom:'18px', wordBreak:'break-word', textAlign:'left' }}>${msg}</p>
+            <button onClick=${() => window.location.reload()} style=${{ background:'#cf3342', color:'#f5f2ed', border:'none', borderRadius:'999px', padding:'12px 24px', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'inherit' }}>Reload the page</button>
           </div>
         </div>
       `;
@@ -3334,8 +3334,8 @@ try {
 } catch (err) {
   console.error('Quran Maar failed to start:', err);
   document.getElementById('root').innerHTML =
-    '<div style="padding:60px 24px;text-align:center;color:#f4efe4;font-family:sans-serif;">' +
+    '<div style="padding:60px 24px;text-align:center;color:#f5f2ed;font-family:sans-serif;">' +
     '<h2 style="font-family:\'Instrument Serif\',serif;font-style:italic;">Something didn\'t load</h2>' +
-    '<p style="color:#9b9587;max-width:420px;margin:10px auto;">Please refresh the page. If this keeps happening while opening the file directly, try running it through a local server instead of double-clicking it.</p>' +
+    '<p style="color:#a29c95;max-width:420px;margin:10px auto;">Please refresh the page. If this keeps happening while opening the file directly, try running it through a local server instead of double-clicking it.</p>' +
     '</div>';
 }
