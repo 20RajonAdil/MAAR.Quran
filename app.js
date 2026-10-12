@@ -1944,12 +1944,12 @@ function MoonCanvas({ phase }){
 
       // faint earthshine so the dark side is never flat black
       const earthshine = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.35, R * 0.08, cx, cy, R);
-      earthshine.addColorStop(0, 'rgba(179,32,47,.10)'); earthshine.addColorStop(1, 'rgba(11,11,11,1)');
+      earthshine.addColorStop(0, 'rgba(120,150,255,.10)'); earthshine.addColorStop(1, 'rgba(6,8,14,1)');
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = earthshine; ctx.fill();
 
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
-      const dark = 'rgba(11,11,11,1)';
+      const dark = 'rgba(6,8,14,1)';
 
       // the half that's always fully lit (or fully lit before we cut into it)
       ctx.save();
