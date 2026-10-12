@@ -1,5 +1,5 @@
 /* ============================================================
-   QURAN MAAR v5 — app.js
+   QURAN MAAR v6.0 — app.js
    Real React (via ESM + htm — no build step, no Babel-in-browser,
    so first paint stays fast on mobile). Ported data/APIs from v4
    so every reciter, translation and prayer/hadith source keeps
@@ -3109,7 +3109,7 @@ function Footer(){
   return html`
     <footer class="footer shell">
       <div class="footer-row">
-        <span>Quran Maar · v5 — a free, private companion for the Qur'an, Hadith and daily prayer.</span>
+        <span>Quran Maar · v6.0 — a free, private companion for the Qur'an, Hadith and daily prayer.</span>
         <span>Built by Md Adil Ahmed Rajon</span>
       </div>
       <div class="footer-row">

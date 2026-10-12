@@ -1,5 +1,15 @@
 # MAAR Quran 🌙
 
+## Version 6.0
+
+- Videos tab: every upload from MAAR NASHID and MAAR GOJOL with live view counts
+- Custom player bar (seek, volume, speed, loop, sleep timer) and screen-awake while watching
+- Offline saving inside the site, plus Download to device; saved videos auto-delete after 28 days unplayed
+- Lock-screen controls for audio files
+- New black, crimson and off-white look
+- `add-videos.html`: step-by-step page for adding your own videos
+
+
 **MAAR Quran** is a modern Islamic learning website designed to help users read and explore the Holy Qur’an with clarity, simplicity, and respect. The project focuses on accessibility, accurate information, and a clean user experience.
 
 🔗 **Live Website:**  
