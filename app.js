@@ -952,7 +952,7 @@ function MobileMenu({ open, onClose, tab, setTab }){
 }
 
 function TabBar({ tab, setTab }){
-  const items = NAV_ITEMS.slice(0, 6);
+  const items = NAV_ITEMS.slice(0, 5);
   return html`
     <nav class="tab-bar" aria-label="Sections">
       ${items.map((n) => html`
