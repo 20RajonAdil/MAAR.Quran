@@ -1018,12 +1018,12 @@ function HomePrayerPanel({ geo }){
         <div class="mini-prayer-ticker">
           ${PRAYER_ORDER.map((k) => html`
             <div key=${k} class=${'mini-prayer-pill' + (next && k === next.name ? ' now' : '')}>
-              <div class="p-name">${k}</div>
+              <div class="p-name">${prayerLabel(k)}</div>
               <div class="p-time">${to12h(prayer.timings[k])}</div>
             </div>
           `)}
         </div>
-        ${next ? html`<div class="surah-meta" style=${{textAlign:'center'}}>Next — <b style=${{color:'var(--gold-hi)'}}>${next.name}</b> at ${to12h(next.time)} · in ${fmtCountdown(next.msLeft)}</div>` : null}
+        ${next ? html`<div class="surah-meta" style=${{textAlign:'center'}}>Next — <b style=${{color:'var(--gold-hi)'}}>${prayerLabel(next.name, next.date)}</b> at ${to12h(next.time)} · in ${fmtCountdown(next.msLeft)}</div>` : null}
         <div class="home-clock-row">
           <div class="clock-box"><div class="c-val">${now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' })}</div><div class="c-lbl">Local time</div></div>
           <div class="clock-box"><div class="c-val">${prayer.date?.gregorian ? `${prayer.date.gregorian.day} ${prayer.date.gregorian.month.en.slice(0,3)}` : '--'}</div><div class="c-lbl">Gregorian</div></div>
@@ -1690,6 +1690,11 @@ function HadithNoteOverlay({ collection, hadith, value, onChange, onClose, isRtl
    9. PRAYER TIMES
 --------------------------------------------------------------- */
 const PRAYER_ORDER = ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];
+/* On Fridays the Dhuhr slot is shown as Jumu'ah (the Friday congregational prayer).
+   Uses the device's local date, so it switches at midnight on its own. */
+function prayerLabel(name, date){
+  return (name === 'Dhuhr' && (date || new Date()).getDay() === 5) ? "Jumu'ah" : name;
+}
 
 /* Offline fallback for prayer times + Hijri date. The API call below
    still runs first whenever there's a connection (it's the more
