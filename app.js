@@ -2012,6 +2012,12 @@ function qiblaDistanceKm(lat, lon){
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+/* Qibla location names: results Nominatim labels "Israel" are shown as "Palestine",
+   and a search for "Palestine" also finds those places. Display-only — the coordinates
+   and the Qibla calculation are untouched. */
+const QB_PALESTINE_RE = /\b(state of palestine|palestinian territories|palestine)\b/gi;
+function qbRelabel(s){ return String(s || '').replace(/\bIsrael\b/g, 'Palestine'); }
+
 function QiblaSection({ geo }){
   const mapElRef = useRef(null);
   const mapObj = useRef(null);
@@ -2090,12 +2096,21 @@ function QiblaSection({ geo }){
   function runSearch(q){
     setSearchQuery(q);
     if (q.trim().length < 3) { setSearchResults([]); return; }
-    fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=0&limit=6&q=${encodeURIComponent(q)}`)
-      .then((r) => r.json()).then((j) => setSearchResults(j || [])).catch(() => setSearchResults([]));
+    const base = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=0&limit=6&q=';
+    const alt = q.replace(QB_PALESTINE_RE, 'Israel');
+    const urls = [base + encodeURIComponent(q)];
+    if (alt !== q) urls.push(base + encodeURIComponent(alt));
+    Promise.all(urls.map((u) => fetch(u).then((r) => r.json()).catch(() => []))).then((lists) => {
+      const seen = new Set(), out = [];
+      lists.forEach((l) => (Array.isArray(l) ? l : []).forEach((r) => {
+        if (r && !seen.has(r.place_id)) { seen.add(r.place_id); out.push(r); }
+      }));
+      setSearchResults(out.slice(0, 6));
+    });
   }
   function pickResult(r){
     setCoords({ lat: parseFloat(r.lat), lon: parseFloat(r.lon) });
-    setPlaceName(r.display_name.split(',').slice(0, 2).join(', '));
+    setPlaceName(qbRelabel(r.display_name.split(',').slice(0, 2).join(', ')));
     setSearchOpen(false); setSearchQuery(''); setSearchResults([]);
   }
 
@@ -2124,7 +2139,7 @@ function QiblaSection({ geo }){
           <div class="qb-info-box"><div class="qb-info-val">${compassPoint(bearing)}</div><div class="qb-info-lbl">Qibla direction</div></div>
           <div class="qb-info-box"><div class="qb-info-val">${bearing.toFixed(1)}°</div><div class="qb-info-lbl">Bearing from true north</div></div>
           <div class="qb-info-box"><div class="qb-info-val">${distance >= 1 ? Math.round(distance).toLocaleString() + ' km' : Math.round(distance*1000) + ' m'}</div><div class="qb-info-lbl">Distance to the Kaaba</div></div>
-          <div class="qb-info-box"><div class="qb-info-val" style=${{fontSize:'14px'}}>${placeName || `${coords.lat.toFixed(2)}, ${coords.lon.toFixed(2)}`}</div><div class="qb-info-lbl">Detected location</div></div>
+          <div class="qb-info-box"><div class="qb-info-val" style=${{fontSize:'14px'}}>${qbRelabel(placeName) || `${coords.lat.toFixed(2)}, ${coords.lon.toFixed(2)}`}</div><div class="qb-info-lbl">Detected location</div></div>
         </div>
 
         ${headingNote ? html`<div class="qb-note reveal">${headingNote}</div>` : null}
@@ -2152,7 +2167,7 @@ function QiblaSection({ geo }){
             </div>
             ${searchResults.length > 0 ? html`
               <div class="qb-search-results">
-                ${searchResults.map((r, i) => html`<div key=${i} class="qb-search-result" onClick=${() => pickResult(r)}>${r.display_name}</div>`)}
+                ${searchResults.map((r, i) => html`<div key=${i} class="qb-search-result" onClick=${() => pickResult(r)}>${qbRelabel(r.display_name)}</div>`)}
               </div>
             ` : null}
           </div>
