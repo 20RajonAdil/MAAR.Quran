@@ -756,6 +756,9 @@ const ICONS = {
   check: 'M4.5 12.5 9.5 17.5 19.5 7',
   cloudOff: 'M3 3l18 18M7.5 18A4.5 4.5 0 0 1 7 9.02M9.5 5.7A6 6 0 0 1 18 10a4 4 0 0 1 2.4 7.2',
   offline: 'M12 20h.01M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M2 9a15 15 0 0 1 20 0',
+  android: 'M5 17a7 7 0 0 1 14 0H5ZM8 9.5 6.5 7M16 9.5 17.5 7M9.5 13.5h.01M14.5 13.5h.01M9 20.5v-3.5M15 20.5v-3.5',
+  phone: 'M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3ZM11 18h2',
+  share: 'M12 15V4M8 8l4-4 4 4M7 11H6v9h12v-9h-1',
 };
 function Icon({ name, size = 18, filled = false }){
   const d = ICONS[name] || '';
@@ -968,8 +971,51 @@ function TabBar({ tab, setTab }){
 /* ---------------------------------------------------------------
    6. HOME
 --------------------------------------------------------------- */
+const ANDROID_APK_URL = 'https://github.com/20RajonAdil/MAAR.Quran/releases/download/v1.0/Quran.MAAR.apk';
+const SITE_HOST_PATH = '20rajonadil.github.io/MAAR.Quran';
+
+/* Hide the install buttons when the site is already running as an installed app. */
+function isRunningAsApp(){
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true
+      || /; wv\)/.test(navigator.userAgent);
+  } catch { return false; }
+}
+
+function IosInstallModal({ onClose }){
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, []);
+  return html`
+    <div class="app-modal" role="dialog" aria-modal="true" aria-labelledby="ios-install-title" onClick=${(e) => e.target === e.currentTarget && onClose()}>
+      <div class="app-modal-box">
+        <button class="icon-btn app-modal-x" onClick=${onClose} aria-label="Close"><${Icon} name="close" size=${18} /></button>
+        <h2 id="ios-install-title">Install on iPhone / iPad</h2>
+        <p class="lead">iOS doesn't use APK files — instead, Safari can add this site to your Home Screen as its own app icon, opening full-screen with no browser bar. This must be done in <strong>Safari</strong> (not Chrome or another browser) for it to work.</p>
+        <ol class="app-steps">
+          <li><span>Open <code>${SITE_HOST_PATH}</code> in <b>Safari</b> (you're most of the way there already if you're reading this on your iPhone).</span></li>
+          <li><span>Tap the <b>Share</b> icon <${Icon} name="share" size=${18} /> in Safari's toolbar.</span></li>
+          <li><span>Scroll down the share menu and tap <b>"Add to Home Screen."</b></span></li>
+          <li><span>Tap <b>"Add"</b> in the top right corner.</span></li>
+          <li><span>A <b>"Quran MAAR"</b> icon now appears on your Home Screen and opens like a normal app — and it keeps working offline.</span></li>
+        </ol>
+        <div class="app-modal-actions">
+          <button class="btn btn-gold" onClick=${onClose}>Got it</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function Hero({ setTab, surahCount }){
   const ref = useReveal();
+  const [iosOpen, setIosOpen] = useState(false);
+  const installed = useMemo(isRunningAsApp, []);
   return html`
     <section class="hero shell" ref=${ref}>
       <div class="hero-arch" aria-hidden="true"></div>
@@ -980,7 +1026,12 @@ function Hero({ setTab, surahCount }){
         <div class="hero-cta">
           <button class="btn btn-gold" onClick=${() => setTab('quran')}><${Icon} name="book" size=${16} /> Open the Qur'an</button>
           <button class="btn btn-ghost" onClick=${() => document.getElementById('home-today')?.scrollIntoView({ behavior:'smooth', block:'start' })}><${Icon} name="sun" size=${16} /> Today's prayer times</button>
+          ${!installed && html`
+            <a class="btn btn-ghost" href=${ANDROID_APK_URL} download="Quran.MAAR.apk" rel="noopener"><${Icon} name="android" size=${16} /> Download for Android</a>
+            <button class="btn btn-ghost" onClick=${() => setIosOpen(true)}><${Icon} name="phone" size=${16} /> Download for iPhone</button>
+          `}
         </div>
+        ${iosOpen && html`<${IosInstallModal} onClose=${() => setIosOpen(false)} />`}
         <div class="hero-stats">
           <div class="hero-stat"><b>${surahCount || 114}</b><span>Surahs</span></div>
           <div class="hero-stat"><b>5</b><span>Reciters</span></div>

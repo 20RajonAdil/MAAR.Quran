@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v18';
+const SHELL_VERSION = 'v19';
 const DATA_VERSION  = 'v1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
@@ -34,7 +34,7 @@ const SHELL_ASSETS = [
   './',
   './index.html',
   './offline.html',
-  './app.js?v=32',
+  './app.js?v=33',
   './offline.js?v=2',
   './manifest.json',
   './icon-192.png',
@@ -46,13 +46,52 @@ const SHELL_ASSETS = [
   './logo.png',
   './moon-photo.png',
   './cloud-photo.jpg',
-  // third-party runtime dependencies — without these the app cannot boot offline
-  'https://unpkg.com/react@18/umd/react.production.min.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-  'https://unpkg.com/htm@3/dist/htm.js',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  // runtime libraries are self-hosted so the app boots with zero network
+  './vendor/react.production.min.js',
+  './vendor/react-dom.production.min.js',
+  './vendor/htm.js',
+  './vendor/leaflet.js',
+  './vendor/leaflet.css',
+  './vendor/images/layers.png',
+  './vendor/images/layers-2x.png',
+  './vendor/images/marker-icon.png',
+  './vendor/images/marker-icon-2x.png',
+  './vendor/images/marker-shadow.png',
 ];
+
+/* Google Fonts stylesheet used by index.html. Every font file it points to
+   is downloaded at install so all Arabic/Latin faces work offline, not only
+   the ones already drawn on screen. */
+const FONT_CSS_URL = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&display=swap';
+/* Small data files worth having before the first offline launch. */
+const DATA_PRECACHE = ['https://api.alquran.cloud/v1/surah'];
+
+async function precacheFonts() {
+  const cache = await caches.open(SHELL_CACHE);
+  try {
+    const res = await fetch(FONT_CSS_URL);
+    if (!res || !res.ok) return;
+    await cache.put(FONT_CSS_URL, res.clone());
+    const css = await res.text();
+    const urls = Array.from(new Set((css.match(/https:\/\/fonts\.gstatic\.com[^)'"\s]+/g) || [])));
+    for (let i = 0; i < urls.length; i += 6) {
+      await Promise.all(urls.slice(i, i + 6).map(async (u) => {
+        try {
+          if (await cache.match(u)) return;
+          const r = await fetch(u);
+          if (r && r.ok) await cache.put(u, r);
+        } catch (e) { /* non-fatal */ }
+      }));
+    }
+  } catch (e) { /* offline during install — runtime caching covers it later */ }
+}
+
+async function precacheData() {
+  const cache = await caches.open(DATA_CACHE);
+  await Promise.all(DATA_PRECACHE.map(async (u) => {
+    try { const r = await fetch(u); if (r && r.ok) await cache.put(u, r); } catch (e) {}
+  }));
+}
 
 /* ---------- request classification ---------- */
 const AUDIO_HOSTS = ['cdn.islamic.network', 'archive.org', 'ia800', 'ia600', 'dn720'];
@@ -168,6 +207,7 @@ self.addEventListener('install', (event) => {
           }
         })
       );
+      await Promise.all([precacheFonts(), precacheData()]);
     })()
   );
 });
@@ -246,19 +286,33 @@ async function staleWhileRevalidate(request, cacheName) {
 }
 
 async function handleNavigation(event) {
-  try {
-    const preload = await event.preloadResponse;
-    if (preload) return preload;
-    return await fetch(event.request);
-  } catch (e) {
-    const cache = await caches.open(SHELL_CACHE);
-    return (
-      (await cache.match('./index.html')) ||
-      (await cache.match('./')) ||
-      (await cache.match('./offline.html')) ||
-      new Response('<h1>Offline</h1>', { status: 503, headers: { 'Content-Type': 'text/html' } })
-    );
+  const url = new URL(event.request.url);
+  const isShell = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+  const cache = await caches.open(SHELL_CACHE);
+
+  if (!isShell) {
+    try { return (await event.preloadResponse) || (await fetch(event.request)); }
+    catch (e) {
+      return (await cache.match('./offline.html')) ||
+        new Response('<h1>Offline</h1>', { status: 503, headers: { 'Content-Type': 'text/html' } });
+    }
   }
+
+  /* App shell: open instantly from the device, refresh quietly behind it.
+     This also means "connected but no internet" never hangs on a spinner. */
+  const cached = (await cache.match('./index.html', { ignoreSearch: true })) || (await cache.match('./'));
+  const refresh = (async () => {
+    try {
+      const res = (await event.preloadResponse) || (await fetch(new Request('./index.html', { cache: 'no-cache' })));
+      if (res && res.ok) await cache.put('./index.html', res.clone());
+      return res;
+    } catch (e) { return null; }
+  })();
+
+  if (cached) { event.waitUntil(refresh); return cached; }
+  const fresh = await refresh;
+  return fresh || (await cache.match('./offline.html')) ||
+    new Response('<h1>Offline</h1>', { status: 503, headers: { 'Content-Type': 'text/html' } });
 }
 
 /* ============================================================
