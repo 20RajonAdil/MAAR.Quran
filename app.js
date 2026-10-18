@@ -784,6 +784,7 @@ const NAV_ITEMS = [
   { id:'hadith', label:'Hadith', icon:'search' },
   { id:'videos', label:'Videos', icon:'play' },
   { id:'qibla', label:'Qibla', icon:'compass' },
+  { id:'seerah', label:'Seerah', icon:'book' },
   { id:'offline', label:'Offline', icon:'download' },
   { id:'about', label:'About', icon:'info' },
 ];
@@ -1137,6 +1138,7 @@ function QuickLinks({ setTab }){
   const items = [
     { id:'hadith', title:'Hadith', sub:'Six major collections, in nine languages', icon:'search' },
     { id:'qibla', title:'Qibla finder', sub:'A live map pointed at the Kaaba', icon:'compass' },
+    { id:'seerah', title:'Seerah', sub:'The life of Prophet Muhammad ﷺ, in 11 parts', icon:'book' },
   ];
   return html`
     <section class="section shell" ref=${ref}>
@@ -2935,7 +2937,7 @@ function YtBar({ st, ctl, isSaved, busy, pct, onSave, onRemove, onDownload, vide
   `;
 }
 
-function YtPlayer({ video, channelName, onClose }){
+function YtPlayer({ video, channelName, onClose, onNext }){
   const { mediaMap, savedIds } = useYtOffline();
   const media = mediaMap[video.id];
   const isSaved = savedIds.includes(video.id);
@@ -3046,13 +3048,14 @@ function YtPlayer({ video, channelName, onClose }){
         <div class="yt-modal-info">
           <div>
             <div class="yt-modal-title">${video.title}</div>
-            <div class="yt-modal-meta">${channelName} · ${ytWhole.format(video.views || 0)} views · ${ytAgo(video.publishedAt)}${isSaved ? ' · saved offline' : ''}</div>
+            <div class="yt-modal-meta">${[channelName, video.views != null ? `${ytWhole.format(video.views)} views` : '', video.publishedAt ? ytAgo(video.publishedAt) : '', isSaved ? 'saved offline' : ''].filter(Boolean).join(' · ')}</div>
             ${isSaved ? html`<div class="yt-modal-meta">Removed automatically if not played for 28 days.</div>` : null}
             ${dl && dl.none ? html`<div class="yt-dl-note">A downloadable copy of this video isn't available yet.</div>` : null}
             ${dl && dl.error ? html`<div class="yt-dl-note">Couldn't download. Check your connection and try again.</div>` : null}
           </div>
           <div class="yt-modal-actions">
             <a class="btn btn-ghost" href=${`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener">YouTube</a>
+            ${onNext ? html`<button class="btn btn-gold" onClick=${onNext}>Next part</button>` : null}
             <button class="btn btn-ghost" onClick=${onClose}>Close</button>
           </div>
         </div>
@@ -3072,15 +3075,17 @@ function YtCard({ video, channelName, onPlay, index, saved, media }){
         ${ytIsNew(video.publishedAt) ? html`<span class="yt-new">New</span>` : null}
         ${saved ? html`<span class="yt-saved">Saved</span>` : null}
         <span class="yt-tag">${channelName}</span>
+        ${video.part ? html`<span class="yt-part">Part ${video.part}</span>` : null}
+        ${video.watched ? html`<span class="yt-saved">Watched</span>` : null}
         ${video.duration != null ? html`<span class="yt-dur">${ytDuration(video.duration)}</span>` : null}
       </span>
       <span class="yt-body">
         <span class="yt-title">${video.title}</span>
-        <span class="yt-meta">
+        ${video.sub ? html`<span class="yt-meta"><span>${video.sub}</span></span>` : html`<span class="yt-meta">
           <span class="yt-views"><${Icon} name="eye" size=${14} /> ${ytViews(video.views)} views</span>
           <span class="yt-dot">·</span>
           <span>${ytAgo(video.publishedAt)}</span>
-        </span>
+        </span>`}
       </span>
     </div>
   `;
@@ -3197,6 +3202,76 @@ function VideosSection(){
       ` : null}
 
       ${playing ? html`<${YtPlayer} video=${playing} channelName=${nameOf(playing.channel)} onClose=${() => setPlaying(null)} />` : null}
+    </section>
+  `;
+}
+
+/* ---------------------------------------------------------------
+   12c. SEERAH — the life of Prophet Muhammad ﷺ, in 11 parts.
+   A fixed playlist (not part of the Videos feed). Plays through the
+   same player as Videos, so offline saving works the same way.
+   To add or reorder a part, edit SEERAH_IDS (YouTube video ids).
+--------------------------------------------------------------- */
+const SEERAH_IDS = [
+  'DW-00ckCAPI', 'Qnzam5KcopM', 'dAZPkwAo0lE', 'jx9syOUU1Ms', 'eOYW4vKaKpc', 'zNpV3UqwyDU',
+  'CPWL76pGaBI', 'QbV9WR28GCg', 'ebeAyx_E7pc', 'uSUxDtp-U0Q', 'pR65Sfhp-AY',
+];
+const SEERAH_WATCHED_KEY = 'seerah_watched_v1';
+const SEERAH_VIDEOS = SEERAH_IDS.map((id, i) => ({
+  id, part: i + 1, channel: 'seerah',
+  title: `Seerah of Prophet Muhammad ﷺ — Part ${i + 1}${i === SEERAH_IDS.length - 1 ? ' (Final part)' : ''}`,
+  sub: i === SEERAH_IDS.length - 1 ? 'Final part' : `Part ${i + 1} of ${SEERAH_IDS.length}`,
+  thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+}));
+
+function SeerahSection(){
+  const ref = useReveal();
+  const { mediaMap, savedIds } = useYtOffline();
+  const [watched, setWatched] = useState(() => store.getArray(SEERAH_WATCHED_KEY));
+  const [playing, setPlaying] = useState(null);
+
+  const open = useCallback((v) => {
+    setPlaying(v);
+    setWatched((prev) => {
+      if (prev.includes(v.id)) return prev;
+      const next = [...prev, v.id]; store.setJSON(SEERAH_WATCHED_KEY, next); return next;
+    });
+  }, []);
+  const list = SEERAH_VIDEOS.map((v) => ({ ...v, watched: watched.includes(v.id) }));
+  const done = list.filter((v) => v.watched).length;
+  const nextUp = list.find((v) => !v.watched) || list[0];
+  const idx = playing ? SEERAH_VIDEOS.findIndex((v) => v.id === playing.id) : -1;
+  const onNext = idx >= 0 && idx < SEERAH_VIDEOS.length - 1 ? () => open(SEERAH_VIDEOS[idx + 1]) : null;
+
+  return html`
+    <section class="section shell" ref=${ref}>
+      <div class="section-head reveal">
+        <div>
+          <div class="eyebrow">Seerah</div>
+          <h2>The Seerah of Prophet Muhammad ﷺ</h2>
+        </div>
+        <p>The life of the Prophet ﷺ, told in order across ${SEERAH_VIDEOS.length} parts. Start at Part 1 and watch through to the final part.</p>
+      </div>
+
+      <div class="sr-hero reveal">
+        <div class="sr-ar" lang="ar" dir="rtl">السيرة النبوية</div>
+        <div class="sr-prog">
+          <div class="sr-bar"><span style=${{ width: (done / list.length * 100) + '%' }}></span></div>
+          <div class="sr-count">${done} of ${list.length} parts watched</div>
+        </div>
+        <button class="btn btn-gold" onClick=${() => open(nextUp)}>
+          <${Icon} name="play" size=${14} filled=${true} /> ${done === 0 ? 'Start Part 1' : done >= list.length ? 'Watch again from Part 1' : `Continue · Part ${nextUp.part}`}
+        </button>
+        ${done ? html`<button class="btn btn-ghost" onClick=${() => { store.setJSON(SEERAH_WATCHED_KEY, []); setWatched([]); }}>Reset progress</button>` : null}
+      </div>
+
+      <div class="yt-grid">
+        ${list.map((v, i) => html`
+          <${YtCard} key=${v.id} video=${v} index=${i} saved=${savedIds.includes(v.id)} media=${mediaMap[v.id]} channelName="Seerah" onPlay=${open} />
+        `)}
+      </div>
+
+      ${playing ? html`<${YtPlayer} key=${playing.id} video=${playing} channelName="Seerah" onClose=${() => setPlaying(null)} onNext=${onNext} />` : null}
     </section>
   `;
 }
@@ -3407,6 +3482,7 @@ function App(){
     />`;
   else if (tab === 'hadith') page = html`<${HadithSection} hadithBookmarks=${hadithBookmarks} toggleHadithBookmark=${toggleHadithBookmark} />`;
   else if (tab === 'videos') page = html`<${VideosSection} />`;
+  else if (tab === 'seerah') page = html`<${SeerahSection} />`;
   else if (tab === 'qibla') page = html`<${QiblaSection} geo=${geo} />`;
   else if (tab === 'offline') page = html`<${OfflineSection} />`;
   else if (tab === 'about') page = html`<${AboutSection} />`;
