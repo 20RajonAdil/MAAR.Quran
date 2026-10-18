@@ -1376,6 +1376,27 @@ function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, ar
   `;
 }
 
+/* Fetch JSON with a few automatic retries. The Qur'an API can briefly refuse
+   a request (rate limiting, a flaky mobile connection, or the background
+   offline-save running at the same time), and one failed attempt used to be
+   a dead end for the reader. */
+async function qmFetchJson(url, tries = 3){
+  let last;
+  for (let i = 0; i < tries; i++){
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      if (!j || !j.data) throw new Error('empty response');
+      return j;
+    } catch (e) {
+      last = e;
+      await new Promise((res) => setTimeout(res, 600 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
 function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, toggleBookmark }){
   const [ayahs, setAyahs] = useState(null);
   const [status, setStatus] = useState('loading');
@@ -1387,6 +1408,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   });
   const [noteAyah, setNoteAyah] = useState(null);
   const [reciteAyah, setReciteAyah] = useState(null);
+  const [reloadTick, setReloadTick] = useState(0);
   const [readProg, setReadProg] = useState(0);
   const audioRef = useRef(null);
   const chainRef = useRef({ queue: [], index: 0, active: false });
@@ -1407,10 +1429,13 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
 
   useEffect(() => {
     setStatus('loading'); setAyahs(null);
+    let cancelled = false;
+    window.__qmReaderBusy = true; // asks the background offline-save to pause
     Promise.all([
-      fetch(`${QURAN_API}/surah/${surah.number}/${ARABIC_EDITION}`).then(r => r.json()),
-      fetch(`${QURAN_API}/surah/${surah.number}/${langEdition}`).then(r => r.json()),
+      qmFetchJson(`${QURAN_API}/surah/${surah.number}/${ARABIC_EDITION}`),
+      qmFetchJson(`${QURAN_API}/surah/${surah.number}/${langEdition}`),
     ]).then(([arRes, trRes]) => {
+      if (cancelled) return;
       const ar = arRes.data.ayahs, tr = trRes.data.ayahs;
       let list = ar.map((a, i) => ({ ...a, translation: tr[i]?.text || '' }));
       // Every surah opens with the Bismillah except Al-Fatihah (1, where it
@@ -1423,10 +1448,11 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
       }
       setAyahs(list);
       setStatus('ready');
-    }).catch(() => setStatus('error'));
+    }).catch(() => { if (!cancelled) setStatus('error'); })
+      .finally(() => { window.__qmReaderBusy = false; });
 
-    return () => { audioRef.current && audioRef.current.pause(); chainRef.current.active = false; };
-  }, [surah.number, langEdition]);
+    return () => { cancelled = true; window.__qmReaderBusy = false; audioRef.current && audioRef.current.pause(); chainRef.current.active = false; };
+  }, [surah.number, langEdition, reloadTick]);
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
@@ -1533,7 +1559,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
         </div>
         <div class="reader-body" onScroll=${onBodyScroll}>
           ${status === 'loading' ? html`<div class="center-msg"><div class="spinner"></div></div>` : null}
-          ${status === 'error' ? html`<div class="center-msg">Couldn't load this surah. Please try again.</div>` : null}
+          ${status === 'error' ? html`<div class="center-msg">Couldn't load this surah.<div style=${{ marginTop:'14px' }}><button class="qmx-pillbtn on" onClick=${() => setReloadTick((t) => t + 1)}>Try again</button></div></div>` : null}
           ${status === 'ready' && surah.number !== 1 && surah.number !== 9 ? html`
             <div class="bismillah-block">
               <div class="bismillah-ar">${BISMILLAH_AR}</div>

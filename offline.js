@@ -258,6 +258,9 @@
     async function worker() {
       for (;;) {
         if (state.cancelled) return;
+        // Step aside while the reader is fetching a surah the person just
+        // opened, so the background save never starves it (max ~15s).
+        for (let w = 0; w < 50 && window.__qmReaderBusy; w++) await new Promise((r) => setTimeout(r, 300));
         const n = cursor++;
         if (n > total) return;
         try {
