@@ -12,6 +12,11 @@
    React, ReactDOM and htm are loaded as globals ahead of this file. */
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 const html = htm.bind(React.createElement);
+/* New-feature components live in features.js (window.QMX). If that file
+   ever fails to load, these fall back to rendering nothing so the rest
+   of the app keeps working. */
+const QMX_NOOP = () => null;
+const QMXC = (name) => (window.QMX && window.QMX[name]) || QMX_NOOP;
 
 /* ---------------------------------------------------------------
    0. AMBIENT BACKGROUND — twinkling starfield + drifting gold glow.
@@ -759,6 +764,7 @@ const ICONS = {
   android: 'M5 17a7 7 0 0 1 14 0H5ZM8 9.5 6.5 7M16 9.5 17.5 7M9.5 13.5h.01M14.5 13.5h.01M9 20.5v-3.5M15 20.5v-3.5',
   phone: 'M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3ZM11 18h2',
   share: 'M12 15V4M8 8l4-4 4 4M7 11H6v9h12v-9h-1',
+  mic: 'M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm-6-3a6 6 0 0 0 12 0M12 18v3M9 21h6',
 };
 function Icon({ name, size = 18, filled = false }){
   const d = ICONS[name] || '';
@@ -1166,6 +1172,9 @@ function HomeSection({ setTab, surahCount, geo }){
           <${HomeMoonPanel} geo=${geo} />
         </div>
       </section>
+      <section class="section shell" style=${{ paddingTop: 0 }}>
+        <${QMXC('SkyClock')} geo=${geo} />
+      </section>
       <${QuickLinks} setTab=${setTab} />
       <${VideosTeaser} setTab=${setTab} />
     <//>
@@ -1341,6 +1350,8 @@ function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, ar
         </select>
       </div>
 
+      ${status === 'ready' ? html`<${QMXC('RevelationMap')} surahs=${surahs} onOpen=${setOpenSurah} />` : null}
+
       ${status === 'loading' ? html`<div class="center-msg"><div class="spinner"></div><div style=${{marginTop:'10px'}}>Loading surahs…</div></div>` : null}
       ${status === 'error' ? html`<div class="center-msg">Couldn't reach the Qur'an API, and no offline copy is stored yet. Connect once and use <strong>Offline \u2192 Save Qur'an text</strong> so this screen works without a connection.</div>` : null}
 
@@ -1375,6 +1386,8 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
   });
   const [noteAyah, setNoteAyah] = useState(null);
+  const [reciteAyah, setReciteAyah] = useState(null);
+  const [readProg, setReadProg] = useState(0);
   const audioRef = useRef(null);
   const chainRef = useRef({ queue: [], index: 0, active: false });
   const rowRefs = useRef({});
@@ -1485,19 +1498,40 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     playChainFrom(0);
   }
 
+  /* How far through the surah the person has read (furthest point reached,
+     so scrolling back up never un-draws the illustration). A surah short
+     enough to fit on screen has nothing to scroll, so it opens complete. */
+  function onBodyScroll(e){
+    const el = e.currentTarget;
+    const max = el.scrollHeight - el.clientHeight;
+    const p = max > 4 ? el.scrollTop / max : 1;
+    setReadProg((prev) => (p > prev + 0.004 ? Math.min(1, p) : prev));
+  }
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const t = setTimeout(() => {
+      const el = document.querySelector('.reader-body');
+      if (el && el.scrollHeight - el.clientHeight <= 4) setReadProg(1);
+    }, 80);
+    return () => clearTimeout(t);
+  }, [status, surah.number]);
+
   const isBookmarked = (a) => bookmarks.some((b) => b.surah === surah.number && b.ayah === a.numberInSurah);
 
   return html`
     <div class="reader-overlay" onClick=${(e) => e.target === e.currentTarget && onClose()}>
       <div class="reader-panel">
         <div class="reader-head">
-          <div>
-            <h3>${surah.englishName}</h3>
-            <div class="surah-meta">${surah.englishNameTranslation} · ${surah.numberOfAyahs} ayahs · ${surah.revelationType}</div>
+          <div class="qmx-readhead">
+            <${QMXC('SurahMedallion')} n=${surah.number} progress=${readProg} size=${56} />
+            <div style=${{ minWidth: 0 }}>
+              <h3>${surah.englishName}</h3>
+              <div class="surah-meta">${surah.englishNameTranslation} · ${surah.numberOfAyahs} ayahs · ${surah.revelationType}</div>
+            </div>
           </div>
           <button class="icon-btn" onClick=${onClose} aria-label="Close"><${Icon} name="close" size=${16} /></button>
         </div>
-        <div class="reader-body">
+        <div class="reader-body" onScroll=${onBodyScroll}>
           ${status === 'loading' ? html`<div class="center-msg"><div class="spinner"></div></div>` : null}
           ${status === 'error' ? html`<div class="center-msg">Couldn't load this surah. Please try again.</div>` : null}
           ${status === 'ready' && surah.number !== 1 && surah.number !== 9 ? html`
@@ -1519,14 +1553,18 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
                   <button class=${'mini-btn' + (notes[noteKeyFor(a)] ? ' active' : '')} onClick=${() => setNoteAyah(a)} aria-label="Write a reflection on this ayah">
                     <${Icon} name="note" size=${13} />
                   </button>
+                  <button class="mini-btn" onClick=${() => { stopAudio(); setReciteAyah(a); }} aria-label="Recite and check this ayah">
+                    <${Icon} name="mic" size=${13} />
+                  </button>
                 </div>
                 <span class="ayah-badge">${a.numberInSurah}</span>
               </div>
-              <div class="ayah-ar">${a.text}</div>
+              <div class="ayah-ar">${playingId === a.numberInSurah ? html`<${QMXC('WordGlow')} text=${a.text} audioRef=${audioRef} active=${true} />` : a.text}</div>
               <div class="ayah-tr">${a.translation}</div>
             </div>
           `) : null}
         </div>
+        <${QMXC('CalligraphyWave')} active=${!!playingId || playingWhole} />
         <div class="reader-player">
           <button class="player-play" onClick=${() => playingWhole ? stopAudio() : playWholeSurah()} aria-label="Play full surah">
             <${Icon} name=${playingWhole ? 'pause' : 'play'} size=${16} filled=${true} />
@@ -1542,6 +1580,14 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
           value=${notes[noteKeyFor(noteAyah)] || ''}
           onChange=${(text) => setNoteText(noteKeyFor(noteAyah), text)}
           onClose=${() => setNoteAyah(null)}
+        />
+      ` : null}
+      ${reciteAyah ? html`
+        <${QMXC('ReciteCheck')}
+          ayah=${reciteAyah}
+          surahName=${surah.englishName}
+          onClose=${() => setReciteAyah(null)}
+          onHear=${() => playAyah(reciteAyah)}
         />
       ` : null}
     </div>
