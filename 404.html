@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- GitHub Pages serves this file for any unknown URL, from any depth.
+     Pin <base> so every asset and link below resolves from the site root. -->
+<script>
+(function () {
+  var base = /github\.io$/i.test(location.hostname) ? '/MAAR.Quran/' : '/';
+  document.write('<base href="' + base + '">');
+})();
+</script>
+<title>404 — Page not found · Quran Maar</title>
+<meta name="description" content="This page could not be found. Return to Quran Maar to read the Qur'an, listen to recitation and check prayer times.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0b0b0b">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+/* Quran Maar design tokens — same palette as the main site:
+   black ground, crimson accents, off-white ink. */
+:root{
+  --bg:#0b0b0b; --bg-soft:#121010; --bg-raised:#181414;
+  --ink:#f5f2ed; --muted:#a29c95; --muted-2:#706b66;
+  --crimson:#cf3342; --crimson-deep:#8b0d1a; --crimson-dark:#4a0b14;
+  --line:rgba(245,242,237,.10);
+  --ease:cubic-bezier(.22,.68,.18,1);
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;overflow:hidden;
+}
+#root,.app{position:relative;min-height:100%;height:100%}
+::selection{background:rgba(179,32,47,.4)}
+
+/* ---------- sky ---------- */
+.sky{
+  position:absolute;inset:0;overflow:hidden;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 42%, rgba(139,13,26,.34), transparent 70%),
+    radial-gradient(ellipse 90% 60% at 50% 110%, rgba(74,11,20,.55), transparent 70%),
+    linear-gradient(180deg,#070606 0%, #0e0a0b 55%, #140a0d 100%);
+}
+.layer{position:absolute;inset:-4%;will-change:transform;
+  transition:transform .35s var(--ease)}
+.star{
+  position:absolute;border-radius:50%;background:var(--ink);
+  animation:twinkle var(--d,4s) ease-in-out var(--delay,0s) infinite;
+}
+.star.red{background:#ff8a94}
+@keyframes twinkle{0%,100%{opacity:var(--lo,.2);transform:scale(.8)}50%{opacity:1;transform:scale(1.25)}}
+
+.orb{position:absolute;border-radius:50%;
+  box-shadow:0 0 0 8px rgba(245,242,237,.035),0 0 0 18px rgba(245,242,237,.02),0 0 40px rgba(245,242,237,.08);
+  animation:bob 9s ease-in-out infinite}
+.orb.a{left:6%;top:9%;width:30px;height:30px;background:radial-gradient(circle at 35% 30%,#bdb6ae,#4a4442)}
+.orb.b{right:8%;top:38%;width:34px;height:34px;background:radial-gradient(circle at 35% 30%,#d9b9bc,#4a2a2f);animation-delay:-4s;
+  box-shadow:0 0 0 9px rgba(207,51,66,.07),0 0 0 20px rgba(207,51,66,.035),0 0 50px rgba(207,51,66,.18)}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+.cloud{position:absolute;display:flex;flex-direction:column;gap:7px;opacity:.55;animation:drift var(--t,60s) linear infinite alternate}
+.cloud i{display:block;height:7px;border-radius:8px;background:#2b2326}
+@keyframes drift{from{transform:translateX(-26px)}to{transform:translateX(26px)}}
+
+.shoot{position:absolute;width:140px;height:1.5px;opacity:0;
+  background:linear-gradient(90deg,transparent,rgba(245,242,237,.9));
+  transform:rotate(-28deg);animation:shoot 9s linear var(--delay,2s) infinite}
+@keyframes shoot{
+  0%{opacity:0;transform:translate(0,0) rotate(-28deg)}
+  2%{opacity:1}
+  9%{opacity:0;transform:translate(-340px,180px) rotate(-28deg)}
+  100%{opacity:0;transform:translate(-340px,180px) rotate(-28deg)}
+}
+
+/* faint mihrab arch — the signature shape used across the site */
+.arch{
+  position:absolute;left:50%;top:50%;width:min(86vw,640px);height:min(92vh,760px);
+  transform:translate(-50%,-50%);
+  border:1px solid rgba(245,242,237,.07);border-bottom:none;
+  border-radius:999px 999px 0 0;pointer-events:none;
+  mask-image:linear-gradient(180deg,#000 40%,transparent 100%);
+  -webkit-mask-image:linear-gradient(180deg,#000 40%,transparent 100%);
+  animation:archIn 1.6s var(--ease) both;
+}
+.arch.two{width:min(98vw,760px);height:min(98vh,840px);border-color:rgba(207,51,66,.08);animation-delay:.25s}
+@keyframes archIn{from{opacity:0;transform:translate(-50%,-47%) scale(.96)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+
+/* ---------- content ---------- */
+.content{
+  position:relative;z-index:2;min-height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:28px 20px calc(70px + env(safe-area-inset-bottom,0px));text-align:center;
+}
+.stage{position:relative;font-size:clamp(100px,min(21vw,27vh),232px);line-height:1;
+  display:flex;align-items:center;justify-content:center}
+.digit{
+  font-family:'Instrument Serif',serif;font-weight:400;line-height:.8;
+  font-size:1em;color:var(--ink);letter-spacing:-.02em;
+  text-shadow:0 0 30px rgba(207,51,66,.35);
+  opacity:0;animation:rise 1s var(--ease) var(--d,.2s) forwards;
+}
+@keyframes rise{from{opacity:0;transform:translateY(30px) scale(.96);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+
+.moonwrap{position:relative;width:.64em;height:.64em;margin:0 .02em;flex:none;
+  opacity:0;animation:moonIn 1.4s var(--ease) .45s forwards}
+@keyframes moonIn{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+.ring{position:absolute;left:50%;top:50%;border-radius:50%;
+  width:calc(var(--s) * 1em);height:calc(var(--s) * 1em);
+  margin:calc(var(--s) * -.5em) 0 0 calc(var(--s) * -.5em);
+  background:rgba(var(--c),var(--a));
+  animation:breathe 5.5s ease-in-out var(--dl) infinite;pointer-events:none}
+@keyframes breathe{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:.72}}
+.moon{
+  position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle at 36% 30%,#fffaf7 0%,#f7eceb 55%,#e9d4d6 100%);
+  box-shadow:0 0 .12em rgba(255,236,232,.9),0 0 .4em rgba(207,51,66,.55),inset -.05em -.06em .1em rgba(207,51,66,.18);
+  animation:spin 90s linear infinite;
+}
+.crater{position:absolute;border-radius:50%;background:radial-gradient(circle at 40% 35%,#f4b9c0,#d9778a);opacity:.9}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.astro{position:absolute;left:-.62em;top:-.08em;width:.34em;min-width:50px;aspect-ratio:1;
+  animation:floaty 7s ease-in-out infinite;z-index:3}
+.astro svg.body{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 8px 14px rgba(0,0,0,.5))}
+@keyframes floaty{
+  0%,100%{transform:translate(0,0) rotate(-8deg)}
+  33%{transform:translate(8px,-14px) rotate(6deg)}
+  66%{transform:translate(-6px,6px) rotate(-14deg)}
+}
+.tether{position:absolute;right:62%;top:34%;width:3.4em;height:4.4em;overflow:visible;z-index:1;pointer-events:none}
+.tether path{fill:none;stroke:rgba(245,242,237,.7);stroke-width:1.4;stroke-linecap:round;
+  stroke-dasharray:1;stroke-dashoffset:1;animation:draw 3.2s var(--ease) 1s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+.tagline{margin-top:clamp(22px,4.5vh,42px);font-size:clamp(15px,2.2vw,19px);letter-spacing:.06em;color:var(--ink);font-weight:400;min-height:1.6em}
+.caret{display:inline-block;width:1px;height:1.1em;background:var(--crimson);margin-left:3px;vertical-align:-.2em;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.arabic{font-family:'Amiri',serif;font-size:clamp(18px,2.6vw,24px);color:#ff8a94;margin-top:8px;
+  opacity:0;animation:fade .9s var(--ease) 2.2s forwards}
+.sub{max-width:460px;margin-top:14px;color:var(--muted);font-size:14.5px;line-height:1.75;
+  opacity:0;animation:fade .9s var(--ease) 2.5s forwards}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.path{margin-top:18px;display:inline-flex;max-width:min(92vw,520px);align-items:center;gap:8px;
+  padding:7px 14px;border:1px dashed rgba(245,242,237,.16);border-radius:10px;
+  font:500 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);
+  opacity:0;animation:fade .9s var(--ease) 2.7s forwards}
+.path b{color:var(--crimson);font-weight:600}
+.path span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.actions{margin-top:26px;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;
+  opacity:0;animation:fade .9s var(--ease) 2.9s forwards}
+.btn{
+  position:relative;display:inline-flex;align-items:center;gap:9px;
+  padding:13px 26px;border-radius:999px;font:600 14px 'Plus Jakarta Sans',sans-serif;
+  text-decoration:none;cursor:pointer;border:1px solid var(--line);color:var(--ink);background:rgba(245,242,237,.04);
+  transition:transform .25s var(--ease),background .25s,border-color .25s,box-shadow .25s;
+}
+.btn:hover{transform:translateY(-2px);border-color:rgba(245,242,237,.3);background:rgba(245,242,237,.08)}
+.btn.primary{background:linear-gradient(135deg,var(--crimson-deep),var(--crimson));border-color:transparent;
+  box-shadow:0 10px 30px -8px rgba(207,51,66,.6)}
+.btn.primary:hover{box-shadow:0 14px 38px -8px rgba(207,51,66,.85)}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.btn svg{width:16px;height:16px;flex:none}
+
+.original{margin-top:22px;display:flex;flex-direction:column;align-items:center;gap:6px;
+  opacity:0;animation:fade .9s var(--ease) 3.1s forwards}
+.original small{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-2);font-weight:600}
+.original a{color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;
+  border-bottom:1px solid rgba(207,51,66,.55);padding-bottom:2px;transition:color .2s,border-color .2s;word-break:break-all}
+.original a:hover{color:#ff8a94;border-color:#ff8a94}
+
+.credit{position:absolute;right:20px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:2;
+  display:flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.08em;color:var(--muted-2)}
+.credit img{width:20px;height:20px;border-radius:6px;opacity:.85}
+
+@media (max-width:640px){
+  .astro{left:-.5em;top:-.45em;width:.38em}
+  .credit{left:0;right:0;justify-content:center}
+  .btn{padding:12px 22px}
+  .orb.b{top:20%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition:none!important}
+  .digit,.moonwrap,.arabic,.sub,.path,.actions,.original{opacity:1}
+  .tether path{stroke-dashoffset:0}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<noscript>
+  <p style="padding:40px;text-align:center;font-family:system-ui">404 — page not found.
+  <a href="https://20rajonadil.github.io/MAAR.Quran" style="color:#cf3342">Return to Quran Maar</a></p>
+</noscript>
+
+<script src="vendor/react.production.min.js"></script>
+<script src="vendor/react-dom.production.min.js"></script>
+<script src="vendor/htm.js"></script>
+<script>
+const html = htm.bind(React.createElement);
+const { useState, useEffect, useMemo, useRef } = React;
+
+const ORIGINAL_URL = 'https://20rajonadil.github.io/MAAR.Quran';
+
+/* deterministic random so the sky doesn't reshuffle between renders */
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+  let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function useTyped(text, startDelay){
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { setN(text.length); return; }
+    let i = 0, timer;
+    const t0 = setTimeout(function tick(){
+      i++; setN(i);
+      if (i < text.length) timer = setTimeout(tick, 55 + Math.random() * 60);
+    }, startDelay);
+    return () => { clearTimeout(t0); clearTimeout(timer); };
+  }, [text, startDelay]);
+  return text.slice(0, n);
+}
+
+function Stars(){
+  const stars = useMemo(() => {
+    const r = rng(404);
+    return Array.from({ length: 130 }, () => ({
+      x: r() * 100, y: r() * 100,
+      s: r() < .12 ? 2.6 : r() < .5 ? 1.6 : 1,
+      d: 2 + r() * 4.5, delay: r() * 5, lo: .1 + r() * .3,
+      red: r() < .14
+    }));
+  }, []);
+  return html`<div class="layer" data-depth="10">
+    ${stars.map((s, i) => html`<span key=${i} class=${'star' + (s.red ? ' red' : '')}
+      style=${{ left: s.x + '%', top: s.y + '%', width: s.s, height: s.s,
+        '--d': s.d + 's', '--delay': s.delay + 's', '--lo': s.lo }}></span>`)}
+  </div>`;
+}
+
+function Clouds(){
+  const groups = [
+    { l: '2%',  t: '27%', w: [150, 96, 190], tt: '70s' },
+    { l: '72%', t: '82%', w: [120, 70, 98],  tt: '55s' },
+    { l: '58%', t: '12%', w: [90, 60],       tt: '80s' },
+  ];
+  return html`<div class="layer" data-depth="22">
+    ${groups.map((g, i) => html`<div key=${i} class="cloud" style=${{ left: g.l, top: g.t, '--t': g.tt }}>
+      ${g.w.map((w, j) => html`<i key=${j} style=${{ width: w, marginLeft: j % 2 ? 26 : 0 }}></i>`)}
+    </div>`)}
+  </div>`;
+}
+
+function Astronaut(){
+  return html`<div class="astro" aria-hidden="true">
+    <svg class="tether" viewBox="0 0 340 440" preserveAspectRatio="none" style=${{ pointerEvents: 'none' }}>
+      <path pathLength="1" d="M330 20 C 210 -10, 60 30, 70 170 S 150 330, 20 430"/>
+    </svg>
+    <svg class="body" viewBox="0 0 100 100">
+      <defs>
+        <linearGradient id="visor" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ff8a94"/><stop offset=".55" stop-color="#cf3342"/><stop offset="1" stop-color="#4a0b14"/>
+        </linearGradient>
+      </defs>
+      <g stroke-linecap="round" fill="none">
+        <path d="M40 52 L12 42" stroke="#f5f2ed" stroke-width="9"/>
+        <path d="M62 52 L90 36" stroke="#f5f2ed" stroke-width="9"/>
+        <path d="M46 72 L34 94" stroke="#f5f2ed" stroke-width="10"/>
+        <path d="M58 72 L78 84" stroke="#f5f2ed" stroke-width="10"/>
+        <path d="M30 98 L38 96" stroke="#cf3342" stroke-width="6"/>
+        <path d="M80 90 L76 82" stroke="#cf3342" stroke-width="6"/>
+      </g>
+      <rect x="28" y="46" width="12" height="26" rx="5" fill="#a29c95"/>
+      <rect x="38" y="44" width="28" height="32" rx="11" fill="#ece7e0"/>
+      <rect x="45" y="55" width="14" height="8" rx="3" fill="#cf3342" opacity=".85"/>
+      <circle cx="52" cy="27" r="19" fill="#f5f2ed"/>
+      <ellipse cx="55" cy="28" rx="12.5" ry="10" fill="url(#visor)"/>
+      <ellipse cx="51" cy="24" rx="4" ry="2.4" fill="#fff" opacity=".55"/>
+    </svg>
+  </div>`;
+}
+
+function Moon(){
+  const rings = [
+    { s: 1.9, a: .035, c: '207,51,66', dl: '0s' },
+    { s: 1.62, a: .05,  c: '207,51,66', dl: '.35s' },
+    { s: 1.4,  a: .08,  c: '230,120,130', dl: '.7s' },
+    { s: 1.2,  a: .12,  c: '245,200,200', dl: '1.05s' },
+    { s: 1.04, a: .2,   c: '255,236,232', dl: '1.4s' },
+  ];
+  const craters = [
+    { l: '58%', t: '16%', w: '17%' }, { l: '66%', t: '56%', w: '10%' },
+    { l: '18%', t: '62%', w: '9%' },  { l: '40%', t: '74%', w: '6%' },
+  ];
+  return html`<div class="moonwrap" aria-hidden="true">
+    ${rings.map((r, i) => html`<span key=${i} class="ring"
+      style=${{ '--s': r.s, '--a': r.a, '--c': r.c, '--dl': r.dl }}></span>`)}
+    <div class="moon">
+      ${craters.map((c, i) => html`<span key=${i} class="crater"
+        style=${{ left: c.l, top: c.t, width: c.w, height: c.w }}></span>`)}
+    </div>
+  </div>`;
+}
+
+const Icon = {
+  home: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>`,
+  back: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>`,
+};
+
+function App(){
+    const typed = useTyped("it looks like you're lost…", 1500);
+  const done = typed.length >= "it looks like you're lost…".length;
+  const requested = useMemo(() => {
+    try { return decodeURIComponent(location.pathname + location.search); }
+    catch (e) { return location.pathname; }
+  }, []);
+
+  /* gentle pointer / tilt parallax */
+  useEffect(() => {
+    const el = document.getElementById('root');
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const layers = el.querySelectorAll('.layer');
+    const move = (x, y) => layers.forEach(l => {
+      const d = +l.dataset.depth || 10;
+      l.style.transform = `translate(${-x * d}px, ${-y * d}px)`;
+    });
+    const onPtr = e => move(e.clientX / innerWidth - .5, e.clientY / innerHeight - .5);
+    const onTilt = e => { if (e.gamma != null) move(Math.max(-1, Math.min(1, e.gamma / 30)) * .5, Math.max(-1, Math.min(1, (e.beta - 45) / 30)) * .5); };
+    addEventListener('pointermove', onPtr);
+    addEventListener('deviceorientation', onTilt);
+    return () => { removeEventListener('pointermove', onPtr); removeEventListener('deviceorientation', onTilt); };
+  }, []);
+
+  const goBack = e => {
+    e.preventDefault();
+    if (history.length > 1 && document.referrer) history.back();
+    else location.href = './';
+  };
+
+  return html`<div class="app">
+    <div class="sky" aria-hidden="true">
+      <${Stars} />
+      <div class="layer" data-depth="16">
+        <span class="orb a"></span><span class="orb b"></span>
+      </div>
+      <${Clouds} />
+      <span class="shoot" style=${{ left: '78%', top: '8%', '--delay': '2s' }}></span>
+      <span class="shoot" style=${{ left: '92%', top: '30%', '--delay': '6.5s' }}></span>
+      <span class="shoot" style=${{ left: '60%', top: '4%', '--delay': '11s' }}></span>
+      <div class="arch"></div><div class="arch two"></div>
+    </div>
+
+    <main class="content">
+      <div class="stage" role="img" aria-label="Error 404">
+        <${Astronaut} />
+        <span class="digit" style=${{ '--d': '.2s' }}>4</span>
+        <${Moon} />
+        <span class="digit" style=${{ '--d': '.35s' }}>4</span>
+      </div>
+
+      <h1 class="tagline" aria-label="it looks like you're lost…">${typed}${!done && html`<span class="caret"></span>`}</h1>
+      <p class="arabic" lang="ar" dir="rtl">الصفحة غير موجودة</p>
+      <p class="sub">The page you're looking for has drifted out of orbit. Let's bring you back to the Qur'an, recitation and prayer times.</p>
+
+      <div class="path" title=${requested}><b>GET</b><span>${requested}</span></div>
+
+      <div class="actions">
+        <a class="btn primary" href="./">${Icon.home} Back to Quran Maar</a>
+        <a class="btn" href="./" onClick=${goBack}>${Icon.back} Go back</a>
+      </div>
+
+      <div class="original">
+        <small>Original link</small>
+        <a href=${ORIGINAL_URL} rel="noopener">${ORIGINAL_URL}</a>
+      </div>
+    </main>
+
+    <div class="credit"><img src="icon-192.png" alt="" /><span>quran maar</span></div>
+  </div>`;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
+</script>
+</body>
+</html>
