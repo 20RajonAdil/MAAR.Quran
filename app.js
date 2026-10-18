@@ -3054,6 +3054,7 @@ function YtPlayer({ video, channelName, onClose, onNext }){
             ${dl && dl.error ? html`<div class="yt-dl-note">Couldn't download. Check your connection and try again.</div>` : null}
           </div>
           <div class="yt-modal-actions">
+            ${video.pulse ? html`<a class="btn btn-ghost" href=${video.pulse} target="_blank" rel="noopener">MAAR Pulse</a>` : null}
             <a class="btn btn-ghost" href=${`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener">YouTube</a>
             ${onNext ? html`<button class="btn btn-gold" onClick=${onNext}>Next part</button>` : null}
             <button class="btn btn-ghost" onClick=${onClose}>Close</button>
@@ -3216,12 +3217,14 @@ const SEERAH_IDS = [
   'DW-00ckCAPI', 'Qnzam5KcopM', 'dAZPkwAo0lE', 'jx9syOUU1Ms', 'eOYW4vKaKpc', 'zNpV3UqwyDU',
   'CPWL76pGaBI', 'QbV9WR28GCg', 'ebeAyx_E7pc', 'uSUxDtp-U0Q', 'pR65Sfhp-AY',
 ];
+const SEERAH_PULSE = 'https://maar-puls.vercel.app';
 const SEERAH_WATCHED_KEY = 'seerah_watched_v1';
 const SEERAH_VIDEOS = SEERAH_IDS.map((id, i) => ({
   id, part: i + 1, channel: 'seerah',
   title: `Seerah of Prophet Muhammad ﷺ — Part ${i + 1}${i === SEERAH_IDS.length - 1 ? ' (Final part)' : ''}`,
   sub: i === SEERAH_IDS.length - 1 ? 'Final part' : `Part ${i + 1} of ${SEERAH_IDS.length}`,
   thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+  pulse: `${SEERAH_PULSE}/watch/${id}`,
 }));
 
 function SeerahSection(){
@@ -3250,7 +3253,7 @@ function SeerahSection(){
           <div class="eyebrow">Seerah</div>
           <h2>The Seerah of Prophet Muhammad ﷺ</h2>
         </div>
-        <p>The life of the Prophet ﷺ, told in order across ${SEERAH_VIDEOS.length} parts. Start at Part 1 and watch through to the final part.</p>
+        <p>The life of the Prophet ﷺ, told in order across ${SEERAH_VIDEOS.length} parts, from MAAR Pulse. Start at Part 1 and watch through to the final part.</p>
       </div>
 
       <div class="sr-hero reveal">
@@ -3262,16 +3265,17 @@ function SeerahSection(){
         <button class="btn btn-gold" onClick=${() => open(nextUp)}>
           <${Icon} name="play" size=${14} filled=${true} /> ${done === 0 ? 'Start Part 1' : done >= list.length ? 'Watch again from Part 1' : `Continue · Part ${nextUp.part}`}
         </button>
+        <a class="btn btn-ghost" href=${SEERAH_PULSE} target="_blank" rel="noopener">Open MAAR Pulse</a>
         ${done ? html`<button class="btn btn-ghost" onClick=${() => { store.setJSON(SEERAH_WATCHED_KEY, []); setWatched([]); }}>Reset progress</button>` : null}
       </div>
 
       <div class="yt-grid">
         ${list.map((v, i) => html`
-          <${YtCard} key=${v.id} video=${v} index=${i} saved=${savedIds.includes(v.id)} media=${mediaMap[v.id]} channelName="Seerah" onPlay=${open} />
+          <${YtCard} key=${v.id} video=${v} index=${i} saved=${savedIds.includes(v.id)} media=${mediaMap[v.id]} channelName="MAAR Pulse" onPlay=${open} />
         `)}
       </div>
 
-      ${playing ? html`<${YtPlayer} key=${playing.id} video=${playing} channelName="Seerah" onClose=${() => setPlaying(null)} onNext=${onNext} />` : null}
+      ${playing ? html`<${YtPlayer} key=${playing.id} video=${playing} channelName="MAAR Pulse" onClose=${() => setPlaying(null)} onNext=${onNext} />` : null}
     </section>
   `;
 }
