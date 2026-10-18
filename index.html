@@ -583,6 +583,74 @@ body{padding-bottom:var(--tab-h);}
   .offline-row .o-acts{width:100%;justify-content:flex-end;}
 }
 
+/* ---------- hero orb ---------- */
+.hero>.reveal{position:relative;z-index:1;}
+.hero-orb{position:absolute;right:1%;top:44%;width:min(440px,34vw);aspect-ratio:1;pointer-events:none;
+  transform:translate(calc(var(--px,0)*-16px),calc(-50% + var(--py,0)*-12px));transition:transform .5s var(--ease);}
+.orb-ring{position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);
+  background:radial-gradient(circle,rgba(207,51,66,.22),rgba(207,51,66,.05) 60%,transparent 70%);animation:orbBreathe 6s ease-in-out infinite;}
+.orb-ring.r1{width:100%;height:100%;opacity:.55}.orb-ring.r2{width:78%;height:78%;animation-delay:-2s;opacity:.7}.orb-ring.r3{width:56%;height:56%;animation-delay:-4s}
+@keyframes orbBreathe{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.06)}}
+.orb-star{position:absolute;inset:0;width:100%;height:100%;color:rgba(245,242,237,.28);animation:orbSpin 90s linear infinite;}
+.orb-star.s2{inset:9%;width:82%;height:82%;color:rgba(207,51,66,.5);animation-duration:70s;animation-direction:reverse;}
+@keyframes orbSpin{to{transform:rotate(360deg)}}
+.orb-orbit{position:absolute;inset:3%;border-radius:50%;animation:orbSpin 26s linear infinite;}
+.orb-orbit i{position:absolute;left:50%;top:-4px;width:8px;height:8px;border-radius:50%;background:#f5f2ed;box-shadow:0 0 14px 3px rgba(245,242,237,.7);}
+.orb-moon{position:absolute;left:50%;top:50%;width:34%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);
+  background:radial-gradient(circle at 36% 30%,#fffaf7,#f7eceb 55%,#e6cdd0);
+  box-shadow:0 0 40px 8px rgba(255,236,232,.5),0 0 120px 30px rgba(207,51,66,.45);}
+.orb-moon .oc{position:absolute;border-radius:50%;background:radial-gradient(circle at 40% 35%,#f4b9c0,#d9778a);opacity:.9}
+.oc.c1{left:56%;top:16%;width:17%;aspect-ratio:1}.oc.c2{left:64%;top:56%;width:10%;aspect-ratio:1}.oc.c3{left:18%;top:62%;width:9%;aspect-ratio:1}
+@media (max-width:1060px){.hero-orb{display:none}}
+@media (prefers-reduced-motion:reduce){.orb-ring,.orb-star,.orb-orbit{animation:none}}
+
+/* ---------- live prayer ring ---------- */
+.pr-card{position:relative;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:28px 54px;padding:34px 30px;overflow:hidden;
+  border:1px solid var(--line);border-radius:34px 34px 22px 22px;
+  background:radial-gradient(90% 120% at 50% 110%,var(--s2),transparent 70%),linear-gradient(170deg,var(--s0),var(--s1));
+  box-shadow:0 30px 70px -40px var(--glow);transition:box-shadow 1s var(--ease);}
+.pr-card::before{content:'';position:absolute;left:50%;top:-40%;width:70%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(circle,var(--glow),transparent 65%);opacity:.22;pointer-events:none;}
+.pr-card.night::after{content:'';position:absolute;inset:0;pointer-events:none;opacity:.8;
+  background-image:radial-gradient(1.2px 1.2px at 12% 22%,#fff,transparent),radial-gradient(1px 1px at 28% 70%,#fff,transparent),radial-gradient(1.4px 1.4px at 46% 16%,#fff,transparent),
+  radial-gradient(1px 1px at 63% 78%,#fff,transparent),radial-gradient(1.3px 1.3px at 80% 28%,#fff,transparent),radial-gradient(1px 1px at 91% 64%,#fff,transparent),radial-gradient(1px 1px at 6% 84%,#fff,transparent);
+  animation:prTwinkle 5s ease-in-out infinite;}
+@keyframes prTwinkle{0%,100%{opacity:.35}50%{opacity:.9}}
+.pr-empty{padding:40px 10px;color:var(--muted);text-align:center;position:relative;}
+.pr-ring-wrap{position:relative;width:min(300px,74vw);aspect-ratio:1;flex:none;}
+.pr-ring{width:100%;height:100%;overflow:visible;}
+.pr-track{fill:none;stroke:rgba(245,242,237,.12);stroke-width:5;}
+.pr-prog{fill:none;stroke-width:5;stroke-linecap:round;filter:drop-shadow(0 0 6px var(--glow));transition:stroke-dashoffset 1s linear;}
+.pr-dot{fill:#f5f2ed;filter:drop-shadow(0 0 8px var(--glow));}
+.pr-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.pr-lbl{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:700;}
+.pr-name{font-family:'Instrument Serif',serif;font-style:italic;font-size:clamp(34px,9vw,46px);line-height:1.1;margin:4px 0 2px;}
+.pr-count{font-variant-numeric:tabular-nums;font-size:clamp(24px,7vw,32px);font-weight:700;letter-spacing:.02em;}
+.pr-at{font-size:12px;color:var(--muted);margin-top:4px;}
+.pr-side{position:relative;flex:1 1 260px;max-width:380px;min-width:240px;}
+.pr-phase{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:14px;}
+.pr-phase-dot{width:8px;height:8px;border-radius:50%;background:var(--glow);box-shadow:0 0 10px var(--glow);}
+.pr-list{display:flex;flex-direction:column;gap:6px;}
+.pr-row{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-radius:14px;background:rgba(245,242,237,.04);border:1px solid transparent;font-size:14px;color:var(--muted);transition:all .4s var(--ease);}
+.pr-row b{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600;}
+.pr-row.next{background:rgba(245,242,237,.1);border-color:var(--glow);color:var(--ink);box-shadow:0 0 24px -8px var(--glow);}
+.pr-row.done{opacity:.45}
+.pr-note{margin-top:10px;font-size:11.5px;color:var(--muted-2);}
+@media (max-width:640px){.pr-card{padding:26px 18px}.pr-side{max-width:none;width:100%}}
+
+/* ---------- ayah of the day ---------- */
+.ay-card{position:relative;padding:34px clamp(20px,5vw,56px) 30px;text-align:center;overflow:hidden;
+  border:1px solid var(--line);border-radius:999px 999px 24px 24px / 120px 120px 24px 24px;background:var(--card);}
+.ay-card::before{content:'';position:absolute;inset:0 0 auto 0;height:140px;background:radial-gradient(120% 100% at 50% 0,var(--gold-dim),transparent 70%);opacity:.55;pointer-events:none;}
+.ay-top{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;margin:24px 0 18px;}
+.ay-ref{font-size:12px;color:var(--muted);letter-spacing:.06em;}
+.ay-ar{position:relative;font-family:var(--arabic-font);font-size:clamp(26px,4.2vw,40px);line-height:2.1;color:var(--ink);max-width:880px;margin:0 auto 14px;}
+.ay-en{position:relative;font-family:'Instrument Serif',serif;font-style:italic;font-size:clamp(18px,2.4vw,24px);line-height:1.55;color:#e8e2da;max-width:760px;margin:0 auto 24px;}
+.ay-actions{position:relative;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;}
+.ay-actions .btn:disabled{opacity:.6;cursor:wait}
+.ay-msg{font-size:12.5px;color:var(--muted);}
+@media (max-width:640px){.ay-card{border-radius:44px 44px 22px 22px / 70px 70px 22px 22px;padding-top:26px}}
+
 /* ---------- seerah ---------- */
 .yt-part{position:absolute;left:10px;top:10px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   background:linear-gradient(135deg,var(--emerald-hi),var(--gold));color:var(--gold-hi);z-index:2;}
@@ -732,7 +800,7 @@ body{padding-bottom:var(--tab-h);}
 <script src="vendor/leaflet.js"></script>
 <script src="offline.js?v=3"></script>
 <script src="features.js?v=1"></script>
-<script src="app.js?v=36"></script>
+<script src="app.js?v=37"></script>
 
 <script>
 /* ---- Service worker registration ----------------------------------

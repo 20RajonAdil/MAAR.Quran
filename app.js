@@ -1019,6 +1019,35 @@ function IosInstallModal({ onClose }){
   `;
 }
 
+/* Glowing moon inside a slowly turning eight-point star. Follows the
+   pointer a few pixels for depth; still when reduced motion is on. */
+function HeroOrb(){
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const onMove = (e) => {
+      el.style.setProperty('--px', ((e.clientX / innerWidth) - .5).toFixed(3));
+      el.style.setProperty('--py', ((e.clientY / innerHeight) - .5).toFixed(3));
+    };
+    addEventListener('pointermove', onMove, { passive:true });
+    return () => removeEventListener('pointermove', onMove);
+  }, []);
+  const star = (cls, sz) => html`<svg class=${'orb-star ' + cls} viewBox="0 0 200 200" fill="none" stroke="currentColor" stroke-width=${sz}>
+      <rect x="40" y="40" width="120" height="120" /><rect x="40" y="40" width="120" height="120" transform="rotate(45 100 100)" />
+    </svg>`;
+  return html`
+    <div class="hero-orb" ref=${ref} aria-hidden="true">
+      <span class="orb-ring r1"></span><span class="orb-ring r2"></span><span class="orb-ring r3"></span>
+      ${star('s1', .5)}${star('s2', .4)}
+      <span class="orb-orbit"><i></i></span>
+      <div class="orb-moon">
+        <span class="oc c1"></span><span class="oc c2"></span><span class="oc c3"></span>
+      </div>
+    </div>
+  `;
+}
+
 function Hero({ setTab, surahCount }){
   const ref = useReveal();
   const [iosOpen, setIosOpen] = useState(false);
@@ -1026,6 +1055,7 @@ function Hero({ setTab, surahCount }){
   return html`
     <section class="hero shell" ref=${ref}>
       <div class="hero-arch" aria-hidden="true"></div>
+      <${HeroOrb} />
       <div class="reveal in">
         <div class="hero-kicker">Bismillah — Light · Time · Guidance</div>
         <h1>Read, listen<br/>and return<br/>to <em>stillness.</em></h1>
@@ -1050,9 +1080,250 @@ function Hero({ setTab, surahCount }){
   `;
 }
 
+/* ---------------------------------------------------------------
+   6b. LIVE PRAYER RING — countdown to the next prayer; the card's
+   sky changes with the current part of the day (Fajr … Isha).
+--------------------------------------------------------------- */
+const PRAYER_SKY = {
+  Fajr:    { sky:['#0b1030','#2c2150','#8a3a62'], glow:'#c26a9a', note:'Pre-dawn',        night:true  },
+  Sunrise: { sky:['#1a0c10','#6b2a22','#d98a3a'], glow:'#f0a24a', note:'Morning light',   night:false },
+  Dhuhr:   { sky:['#150f0f','#4a2420','#c24a3a'], glow:'#ff8f6e', note:'Midday',          night:false },
+  Asr:     { sky:['#140c0b','#55301c','#c9772e'], glow:'#e8a050', note:'Afternoon',       night:false },
+  Maghrib: { sky:['#12060a','#5a0f22','#d03a3c'], glow:'#ff6a5a', note:'Sunset',          night:false },
+  Isha:    { sky:['#050507','#0d0d20','#2e1028'], glow:'#a03a60', note:'Night',           night:true  },
+};
+const RING_PRAYERS = ['Fajr','Dhuhr','Asr','Maghrib','Isha'];
+
+function prayerClock(timings, now){
+  const at = (k, dayOffset = 0) => {
+    const [h, m] = String(timings[k] || '00:00').split(':').map((x) => parseInt(x, 10));
+    const d = new Date(now); d.setHours(h, m, 0, 0); d.setDate(d.getDate() + dayOffset); return d;
+  };
+  const marks = [
+    { k:'Isha', d:at('Isha', -1) }, { k:'Fajr', d:at('Fajr') }, { k:'Sunrise', d:at('Sunrise') },
+    { k:'Dhuhr', d:at('Dhuhr') }, { k:'Asr', d:at('Asr') }, { k:'Maghrib', d:at('Maghrib') },
+    { k:'Isha', d:at('Isha') }, { k:'Fajr', d:at('Fajr', 1) },
+  ];
+  let i = 0; while (i < marks.length - 1 && marks[i + 1].d <= now) i++;
+  const phase = marks[i].k;
+  const prayersOnly = marks.filter((m) => m.k !== 'Sunrise');
+  let j = 0; while (j < prayersOnly.length - 1 && prayersOnly[j + 1].d <= now) j++;
+  const prev = prayersOnly[j], next = prayersOnly[Math.min(j + 1, prayersOnly.length - 1)];
+  const span = next.d - prev.d;
+  return { phase, prev, next, progress: span > 0 ? Math.min(1, Math.max(0, (now - prev.d) / span)) : 0, msLeft: Math.max(0, next.d - now) };
+}
+
+function PrayerRing({ geo, prayer }){
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
+  const valid = !!(prayer.timings && ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'].every((k) => /^\d{1,2}:\d{2}/.test(String(prayer.timings[k] || ''))));
+  const ready = geo.status === 'ready' && prayer.status === 'ready' && valid;
+  const c = ready ? prayerClock(prayer.timings, now) : null;
+  const sky = PRAYER_SKY[c ? c.phase : 'Isha'];
+  const R = 88, C = 2 * Math.PI * R;
+  const ang = c ? c.progress * 2 * Math.PI - Math.PI / 2 : -Math.PI / 2;
+  return html`
+    <section class="section shell" style=${{ paddingBottom: 0 }}>
+      <div class=${'pr-card' + (sky.night ? ' night' : '')}
+        style=${{ '--s0': sky.sky[0], '--s1': sky.sky[1], '--s2': sky.sky[2], '--glow': sky.glow }}>
+        ${!ready ? html`
+          <div class="pr-empty">
+            ${geo.status === 'error' ? html`<p>Allow location access to see your live prayer countdown.</p>` : html`<div class="spinner"></div>`}
+          </div>
+        ` : html`
+          <div class="pr-ring-wrap">
+            <svg class="pr-ring" viewBox="0 0 200 200" role="img" aria-label=${`Next prayer ${prayerLabel(c.next.k)} in ${fmtCountdown(c.msLeft)}`}>
+              <defs>
+                <linearGradient id="prg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#f5f2ed" /><stop offset="1" stop-color="var(--glow)" />
+                </linearGradient>
+              </defs>
+              <circle cx="100" cy="100" r=${R} class="pr-track" />
+              <circle cx="100" cy="100" r=${R} class="pr-prog" stroke="url(#prg)"
+                stroke-dasharray=${C} stroke-dashoffset=${C * (1 - c.progress)} transform="rotate(-90 100 100)" />
+              <circle cx=${100 + R * Math.cos(ang)} cy=${100 + R * Math.sin(ang)} r="5" class="pr-dot" />
+            </svg>
+            <div class="pr-center">
+              <div class="pr-lbl">Next prayer</div>
+              <div class="pr-name">${prayerLabel(c.next.k, c.next.d)}</div>
+              <div class="pr-count">${fmtCountdown(c.msLeft)}</div>
+              <div class="pr-at">at ${to12h(prayer.timings[c.next.k])}</div>
+            </div>
+          </div>
+          <div class="pr-side">
+            <div class="pr-phase"><span class="pr-phase-dot"></span>${sky.note}${geo.city ? html` · ${geo.city}` : null}</div>
+            <div class="pr-list">
+              ${RING_PRAYERS.map((k) => {
+                const isNext = c.next.k === k;
+                const passed = !isNext && ['Fajr','Dhuhr','Asr','Maghrib','Isha'].indexOf(k) < ['Fajr','Dhuhr','Asr','Maghrib','Isha'].indexOf(c.next.k) && c.next.d.getDate() === now.getDate();
+                return html`<div key=${k} class=${'pr-row' + (isNext ? ' next' : '') + (passed ? ' done' : '')}>
+                  <span>${prayerLabel(k)}</span><b>${to12h(prayer.timings[k])}</b>
+                </div>`;
+              })}
+            </div>
+            ${prayer.offline ? html`<div class="pr-note">Offline estimate — times may differ by a few minutes.</div>` : null}
+          </div>
+        `}
+      </div>
+    </section>
+  `;
+}
+
+/* ---------------------------------------------------------------
+   6c. AYAH OF THE DAY — one verse a day from a hand-picked list,
+   with "Share as image" (a ready-to-post card, made on the device).
+--------------------------------------------------------------- */
+const DAILY_AYAH_REFS = [
+  '2:255','2:286','2:152','2:153','2:186','2:45','2:156','2:201','3:8','3:26','3:139','3:159','3:173','3:200',
+  '4:103','5:8','6:162','7:23','7:56','8:46','9:51','10:62','11:88','12:87','13:28','14:7','15:9','16:90','16:128',
+  '17:23','17:80','18:10','20:114','21:87','23:118','24:35','25:63','28:24','29:69','31:17','33:41','33:56',
+  '39:10','39:53','40:60','41:34','42:36','49:13','51:56','55:13','57:4','59:22','59:23','64:11','65:2','65:3',
+  '93:3','94:5','94:6','112:1',
+];
+const DAILY_AYAH_KEY = 'daily_ayah_v1';
+const localDayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function dailyAyahRef(d = new Date()){
+  const days = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+  return DAILY_AYAH_REFS[days % DAILY_AYAH_REFS.length];
+}
+
+function useDailyAyah(){
+  const key = localDayKey();
+  const [ayah, setAyah] = useState(() => {
+    const c = store.getJSON(DAILY_AYAH_KEY, null);
+    return c && c.day === key ? c : (c ? { ...c, stale:true } : null);
+  });
+  const [status, setStatus] = useState(ayah && !ayah.stale ? 'ok' : 'loading');
+  const load = useCallback(() => {
+    const ref = dailyAyahRef();
+    setStatus('loading');
+    fetch(`${QURAN_API}/ayah/${ref}/editions/quran-uthmani,en.sahih`)
+      .then((r) => r.json())
+      .then((j) => {
+        const [ar, en] = j.data;
+        const a = { day: key, ref, arabic: ar.text, english: en.text, surah: ar.surah.englishName, surahAr: ar.surah.name, surahNo: ar.surah.number, ayahNo: ar.numberInSurah };
+        store.setJSON(DAILY_AYAH_KEY, a); setAyah(a); setStatus('ok');
+      })
+      .catch(() => setStatus('error'));
+  }, [key]);
+  useEffect(() => { if (!ayah || ayah.day !== key) load(); }, []);
+  return { ayah, status, reload: load };
+}
+
+function ayahWrap(ctx, text, maxW){
+  const words = text.split(/\s+/); const lines = []; let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+async function ayahImageBlob(a){
+  try { await Promise.all([document.fonts.load('60px Amiri'), document.fonts.load('italic 40px "Instrument Serif"'), document.fonts.load('600 28px "Plus Jakarta Sans"')]); } catch {}
+  const W = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0b0b0b'); bg.addColorStop(.6, '#1a0a0e'); bg.addColorStop(1, '#4a0b14');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, 330, 20, W / 2, 330, 640);
+  glow.addColorStop(0, 'rgba(207,51,66,.35)'); glow.addColorStop(1, 'rgba(207,51,66,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+  // mihrab arch outline
+  ctx.strokeStyle = 'rgba(245,242,237,.14)'; ctx.lineWidth = 2;
+  const ax = 70, ay = 70, aw = W - 140, ah = H - 140, ar = aw / 2;
+  ctx.beginPath(); ctx.moveTo(ax, ay + ah); ctx.lineTo(ax, ay + ar); ctx.arc(W / 2, ay + ar, ar, Math.PI, 0); ctx.lineTo(ax + aw, ay + ah); ctx.stroke();
+  // little stars
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 70; i++) { ctx.fillStyle = `rgba(245,242,237,${.1 + rnd() * .4})`; ctx.beginPath(); ctx.arc(rnd() * W, rnd() * H, .8 + rnd() * 1.6, 0, 7); ctx.fill(); }
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#cf3342'; ctx.font = '600 24px "Plus Jakarta Sans", sans-serif';
+  ctx.fillText('AYAH OF THE DAY', W / 2, 190);
+
+  const maxW = W - 300;
+  let size = 68, lines;
+  ctx.direction = 'rtl';
+  for (; size >= 30; size -= 2) { ctx.font = `${size}px Amiri, "Noto Naskh Arabic", serif`; lines = ayahWrap(ctx, a.arabic, maxW); if (lines.length * size * 1.85 <= 560) break; }
+  ctx.fillStyle = '#f5f2ed';
+  let y = 290; const lh = size * 1.85;
+  const blockH = lines.length * lh; y = 250 + Math.max(0, (560 - blockH) / 2) + size;
+  lines.forEach((ln) => { ctx.fillText(ln, W / 2, y); y += lh; });
+  ctx.direction = 'ltr';
+
+  y = Math.max(y + 10, 860);
+  ctx.strokeStyle = 'rgba(207,51,66,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(W / 2 - 50, y); ctx.lineTo(W / 2 + 50, y); ctx.stroke();
+  let es = 40, el;
+  for (; es >= 24; es -= 2) { ctx.font = `italic ${es}px "Instrument Serif", Georgia, serif`; el = ayahWrap(ctx, a.english, W - 280); if (el.length * es * 1.4 <= 1130 - (y + 40)) break; }
+  ctx.fillStyle = '#e8e2da'; let ey = y + 40 + es;
+  el.forEach((ln) => { ctx.fillText(ln, W / 2, ey); ey += es * 1.4; });
+
+  ctx.fillStyle = '#cf3342'; ctx.font = '600 26px "Plus Jakarta Sans", sans-serif';
+  ctx.fillText(`${a.surah} · ${a.surahNo}:${a.ayahNo}`, W / 2, 1180);
+  ctx.fillStyle = 'rgba(245,242,237,.75)'; ctx.font = 'italic 40px "Instrument Serif", Georgia, serif';
+  ctx.fillText('Quran Maar', W / 2, 1250);
+  ctx.fillStyle = 'rgba(245,242,237,.45)'; ctx.font = '500 22px "Plus Jakarta Sans", sans-serif';
+  ctx.fillText(SITE_HOST_PATH, W / 2, 1288);
+  return new Promise((res) => cv.toBlob(res, 'image/png'));
+}
+
+function DailyAyah(){
+  const ref = useReveal();
+  const { ayah, status, reload } = useDailyAyah();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const flash = (t) => { setMsg(t); clearTimeout(flash._t); flash._t = setTimeout(() => setMsg(''), 3200); };
+
+  async function shareImage(){
+    if (!ayah || busy) return;
+    setBusy(true);
+    try {
+      const blob = await ayahImageBlob(ayah);
+      const file = new File([blob], `ayah-${ayah.surahNo}-${ayah.ayahNo}.png`, { type:'image/png' });
+      if (navigator.canShare && navigator.canShare({ files:[file] })) {
+        try { await navigator.share({ files:[file], title:'Ayah of the day', text:`${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} — ${SITE_HOST_PATH}` }); setBusy(false); return; }
+        catch (e) { if (e && e.name === 'AbortError') { setBusy(false); return; } }
+      }
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Image saved to your device.');
+    } catch { flash("Couldn't make the image. Try again."); }
+    setBusy(false);
+  }
+  async function copyText(){
+    if (!ayah) return;
+    const t = `${ayah.arabic}\n\n"${ayah.english}"\n— ${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo}\n${SITE_HOST_PATH}`;
+    try { await navigator.clipboard.writeText(t); flash('Copied.'); } catch { flash("Couldn't copy."); }
+  }
+
+  return html`
+    <section class="section shell" ref=${ref} style=${{ paddingBottom: 0 }}>
+      <div class="ay-card reveal">
+        <div class="ay-top">
+          <div class="eyebrow" style=${{ marginBottom: 0 }}>Ayah of the day</div>
+          ${ayah ? html`<div class="ay-ref">${ayah.surah} · ${ayah.surahNo}:${ayah.ayahNo}</div>` : null}
+        </div>
+        ${!ayah && status === 'loading' ? html`<div class="center-msg" style=${{ padding:'40px 10px' }}><div class="spinner"></div></div>` : null}
+        ${!ayah && status === 'error' ? html`<div class="center-msg" style=${{ padding:'30px 10px' }}><p>Couldn't load today's ayah.</p><button class="btn btn-ghost" onClick=${reload}>Try again</button></div>` : null}
+        ${ayah ? html`
+          <p class="ay-ar" lang="ar" dir="rtl">${ayah.arabic}</p>
+          <p class="ay-en">${ayah.english}</p>
+          <div class="ay-actions">
+            <button class="btn btn-gold" onClick=${shareImage} disabled=${busy}>${busy ? 'Making image…' : 'Share as image'}</button>
+            <button class="btn btn-ghost" onClick=${copyText}>Copy text</button>
+            ${msg ? html`<span class="ay-msg" role="status">${msg}</span>` : null}
+          </div>
+        ` : null}
+      </div>
+    </section>
+  `;
+}
+
 /* ---- Home: Today panel — live prayer ticker + clocks, 12-hour format ---- */
-function HomePrayerPanel({ geo }){
-  const prayer = usePrayerTimes(geo);
+function HomePrayerPanel({ geo, prayerData }){
+  const own = usePrayerTimes(prayerData ? { status:'idle' } : geo);
+  const prayer = prayerData || own;
   const [tick, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
   const next = useMemo(() => nextPrayer(prayer.timings), [prayer.timings, tick]);
@@ -1165,12 +1436,15 @@ function QuickLinks({ setTab }){
 
 function HomeSection({ setTab, surahCount, geo }){
   const ref = useReveal([geo.status]);
+  const prayerData = usePrayerTimes(geo);
   return html`
     <${React.Fragment}>
       <${Hero} setTab=${setTab} surahCount=${surahCount} />
+      <${PrayerRing} geo=${geo} prayer=${prayerData} />
+      <${DailyAyah} />
       <section id="home-today" class="section shell" ref=${ref}>
         <div class="home-grid">
-          <${HomePrayerPanel} geo=${geo} />
+          <${HomePrayerPanel} geo=${geo} prayerData=${prayerData} />
           <${HomeMoonPanel} geo=${geo} />
         </div>
       </section>
@@ -1862,7 +2136,8 @@ function computePrayerTimesLocal(date, lat, lon){
   const { declination, eqt } = sunPosition(jd);
   const noon = 12 - lon / 15 - eqt;
   const asrFactor = 1; // standard (Shafi'i/Maliki/Hanbali) shadow ratio
-  const asrAngle = 90 - Math.atan(1 / (asrFactor + Math.tan(Math.abs(lat - declination) * Math.PI / 180))) * 180 / Math.PI;
+  /* sunAngleTime takes degrees BELOW the horizon, so Asr (sun above the horizon) is negative */
+  const asrAngle = -Math.atan(1 / (asrFactor + Math.tan(Math.abs(lat - declination) * Math.PI / 180))) * 180 / Math.PI;
   const raw = {
     Fajr: sunAngleTime(18, jd, lat, lon, -1),
     Sunrise: sunAngleTime(0.833, jd, lat, lon, -1),
