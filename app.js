@@ -1597,6 +1597,14 @@ function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, ar
     fetch(`${QURAN_API}/surah`).then(r => r.json()).then((j) => {
       setSurahs(j.data || []);
       setStatus('ready');
+      /* Links from the static surah pages arrive as ?tab=quran&surah=N */
+      try {
+        const want = parseInt(new URLSearchParams(window.location.search).get('surah'), 10);
+        if (want >= 1 && want <= 114 && !window.__surahDeepLinked) {
+          const hit = (j.data || []).find((x) => x.number === want);
+          if (hit) { window.__surahDeepLinked = true; setOpenSurah(hit); }
+        }
+      } catch {}
     }).catch(() => setStatus('error'));
   }, []);
 
@@ -4152,6 +4160,7 @@ function Footer(){
       </div>
       <div class="footer-row">
         <span>YouTube: <a href="https://www.youtube.com/@MAAR-NASHID" target="_blank" rel="noopener">MAAR NASHID</a> · <a href="https://www.youtube.com/@MAARGOJOL" target="_blank" rel="noopener">MAAR GOJOL</a></span>
+        <span><a href="surah/">Read all 114 surahs</a></span>
       </div>
     </footer>
   `;

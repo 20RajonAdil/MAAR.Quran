@@ -1,4 +1,6 @@
 # Quran Maar — robots.txt
+# Everything public is open to crawlers. Old versions and utility pages carry
+# a noindex tag instead (a project-site robots.txt isn't read by Google).
 User-agent: *
 Allow: /
 

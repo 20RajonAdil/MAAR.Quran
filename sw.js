@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v28';
+const SHELL_VERSION = 'v29';
 const DATA_VERSION  = 'v1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
@@ -36,7 +36,7 @@ const SHELL_ASSETS = [
   './offline.html',
   './404.html',
   './features.js?v=1',
-  './app.js?v=41',
+  './app.js?v=42',
   './offline.js?v=3',
   './manifest.json',
   './icon-192.png',
@@ -289,7 +289,10 @@ async function staleWhileRevalidate(request, cacheName) {
 
 async function handleNavigation(event) {
   const url = new URL(event.request.url);
-  const isShell = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+  /* Only the app root is the shell. Other pages (e.g. /surah/…/, the static SEO
+     pages) must come from the network, not be swapped for the app. */
+  const root = new URL(self.registration.scope).pathname;
+  const isShell = url.pathname === root || url.pathname === root + 'index.html';
   const cache = await caches.open(SHELL_CACHE);
 
   if (!isShell) {
