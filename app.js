@@ -451,6 +451,9 @@ function qmCollectState(){
     arabicFontIndex: store.get('arabic_font_index'),
     bookmarks: store.getArray('v5_bookmarks'),
     hadithBookmarks: store.getArray('v5_hadith_bookmarks'),
+    dailyTasks: store.getJSON('daily_tasks_v1', {}),
+    khatam: store.getJSON('khatam_v1', null),
+    seerahWatched: store.getArray('seerah_watched_v1'),
   };
 }
 function qmApplyState(incoming){
@@ -465,6 +468,10 @@ function qmApplyState(incoming){
   // back out as an array crashes on the next render.
   if (Array.isArray(s.bookmarks)) store.setJSON('v5_bookmarks', s.bookmarks);
   if (Array.isArray(s.hadithBookmarks)) store.setJSON('v5_hadith_bookmarks', s.hadithBookmarks);
+  // Daily goals, khatam plan and Seerah progress (same shape checks)
+  if (s.dailyTasks && typeof s.dailyTasks === 'object' && !Array.isArray(s.dailyTasks)) store.setJSON('daily_tasks_v1', s.dailyTasks);
+  if (s.khatam && typeof s.khatam === 'object' && Number.isFinite(s.khatam.days) && Number.isFinite(s.khatam.pages) && typeof s.khatam.start === 'string') store.setJSON('khatam_v1', s.khatam);
+  if (Array.isArray(s.seerahWatched)) store.setJSON('seerah_watched_v1', s.seerahWatched);
 }
 
 function qmIdbOpen(){
