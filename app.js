@@ -785,6 +785,7 @@ const NAV_ITEMS = [
   { id:'videos', label:'Videos', icon:'play' },
   { id:'qibla', label:'Qibla', icon:'compass' },
   { id:'seerah', label:'Seerah', icon:'book' },
+  { id:'daily', label:'Daily', icon:'sun' },
   { id:'offline', label:'Offline', icon:'download' },
   { id:'about', label:'About', icon:'info' },
 ];
@@ -1410,6 +1411,7 @@ function QuickLinks({ setTab }){
     { id:'hadith', title:'Hadith', sub:'Six major collections, in nine languages', icon:'search' },
     { id:'qibla', title:'Qibla finder', sub:'A live map pointed at the Kaaba', icon:'compass' },
     { id:'seerah', title:'Seerah', sub:'The life of Prophet Muhammad ﷺ, in 11 parts', icon:'book' },
+    { id:'daily', title:'Daily goals', sub:'Tasks, a Qur\'an khatam planner and duas', icon:'sun' },
   ];
   return html`
     <section class="section shell" ref=${ref}>
@@ -3483,6 +3485,242 @@ function VideosSection(){
 }
 
 /* ---------------------------------------------------------------
+   12b. DAILY — a to-do list of good deeds with a streak, a Qur'an
+   khatam planner, and a library of Qur'anic duas. Everything is
+   saved on the device only.
+--------------------------------------------------------------- */
+const DAILY_TASKS = [
+  { id:'prayers',  title:'Pray all five prayers',            hint:'On time, as best you can.' },
+  { id:'quran',    title:'Read at least one page of the Qur\'an', hint:'Even a single page counts.' },
+  { id:'morning',  title:'Morning adhkar',                   hint:'After Fajr, until the sun is well up.' },
+  { id:'evening',  title:'Evening adhkar',                   hint:'After Asr, until Maghrib.' },
+  { id:'tasbih',   title:'Tasbih after a prayer',            hint:'SubhanAllah ×33 · Alhamdulillah ×33 · Allahu Akbar ×34.' },
+  { id:'salawat',  title:'Send salawat on the Prophet ﷺ',    hint:'Say it ten times: Allahumma salli ala Muhammad.' },
+  { id:'istighfar',title:'Istighfar ×100',                   hint:'Astaghfirullah — say it during the day, any time.' },
+  { id:'sadaqah',  title:'Give sadaqah',                     hint:'Any amount, or a kind word or smile.' },
+  { id:'kindness', title:'One act of kindness',              hint:'Call a relative, help someone, forgive someone.' },
+];
+const DAILY_KEY = 'daily_tasks_v1';
+const KHATAM_KEY = 'khatam_v1';
+const MUSHAF_PAGES = 604;
+const dayKeyOf = (d) => localDayKey(d);
+const dayShift = (n, from = new Date()) => { const d = new Date(from); d.setDate(d.getDate() + n); return d; };
+
+function tasksFor(date){
+  const list = DAILY_TASKS.slice();
+  if (date.getDay() === 5) list.push({ id:'kahf', title:'Read Surah Al-Kahf', hint:'A Friday sunnah.' });
+  return list;
+}
+
+function streakOf(log){
+  const MIN = 3;
+  const qualifies = (d) => (log[dayKeyOf(d)] || []).length >= MIN;
+  let n = 0, d = new Date();
+  if (!qualifies(d)) d = dayShift(-1);          // today isn't over yet
+  while (qualifies(d)) { n++; d = dayShift(-1, d); }
+  return n;
+}
+
+function Ring({ value, size = 120, stroke = 9, children }){
+  const R = (size - stroke) / 2, C = 2 * Math.PI * R;
+  return html`<div class="dl-ring" style=${{ width:size, height:size }}>
+    <svg viewBox=${`0 0 ${size} ${size}`} width=${size} height=${size}>
+      <defs><linearGradient id="dlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f5f2ed"/><stop offset="1" stop-color="#cf3342"/></linearGradient></defs>
+      <circle cx=${size/2} cy=${size/2} r=${R} class="dl-track" stroke-width=${stroke} />
+      <circle cx=${size/2} cy=${size/2} r=${R} class="dl-prog" stroke-width=${stroke} stroke="url(#dlg)"
+        stroke-dasharray=${C} stroke-dashoffset=${C * (1 - Math.min(1, Math.max(0, value)))} transform=${`rotate(-90 ${size/2} ${size/2})`} />
+    </svg>
+    <div class="dl-ring-in">${children}</div>
+  </div>`;
+}
+
+function DailyTasks(){
+  const [log, setLog] = useState(() => store.getJSON(DAILY_KEY, {}));
+  const today = new Date(), key = dayKeyOf(today);
+  const tasks = tasksFor(today);
+  const done = (log[key] || []).filter((id) => tasks.some((t) => t.id === id));
+  const toggle = (id) => setLog((prev) => {
+    const cur = prev[key] || [];
+    const next = { ...prev, [key]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] };
+    // keep ~120 days
+    const keep = Object.keys(next).sort().slice(-120); const trimmed = {}; keep.forEach((k) => (trimmed[k] = next[k]));
+    store.setJSON(DAILY_KEY, trimmed); return trimmed;
+  });
+  const streak = streakOf(log);
+  const week = Array.from({ length: 7 }, (_, i) => { const d = dayShift(i - 6); return { d, n: (log[dayKeyOf(d)] || []).length }; });
+  const all = done.length === tasks.length;
+  return html`
+    <div class="dl-card">
+      <div class="dl-head">
+        <${Ring} value=${done.length / tasks.length} size=${116}>
+          <b>${done.length}/${tasks.length}</b><span>today</span>
+        <//>
+        <div class="dl-head-txt">
+          <div class="eyebrow" style=${{ marginBottom: 6 }}>Today's goals</div>
+          <h3>${all ? 'Mashallah — all done today' : 'Small deeds, done every day'}</h3>
+          <div class="dl-streak"><b>${streak}</b> day streak <span>· do 3 or more goals a day to keep it</span></div>
+          <div class="dl-week" aria-label="Last 7 days">
+            ${week.map((w, i) => html`<span key=${i} class=${'dl-dot' + (w.n >= 3 ? ' on' : w.n ? ' some' : '') + (i === 6 ? ' today' : '')} title=${`${w.d.toLocaleDateString([], { weekday:'long' })}: ${w.n} done`}>${w.d.toLocaleDateString([], { weekday:'narrow' })}</span>`)}
+          </div>
+        </div>
+      </div>
+      <ul class="dl-list">
+        ${tasks.map((t) => { const on = done.includes(t.id); return html`
+          <li key=${t.id}>
+            <button class=${'dl-task' + (on ? ' on' : '')} onClick=${() => toggle(t.id)} aria-pressed=${on}>
+              <span class="dl-check"><${Icon} name="check" size=${14} /></span>
+              <span class="dl-task-txt"><b>${t.title}</b><small>${t.hint}</small></span>
+            </button>
+          </li>`; })}
+      </ul>
+    </div>
+  `;
+}
+
+function Khatam({ setTab }){
+  const [plan, setPlan] = useState(() => store.getJSON(KHATAM_KEY, null));
+  const [custom, setCustom] = useState('');
+  const save = (p) => { setPlan(p); store.setJSON(KHATAM_KEY, p); };
+  const start = (days) => { const n = Math.max(1, Math.min(365, parseInt(days, 10) || 0)); if (n) save({ days:n, start:localDayKey(), pages:0 }); };
+
+  if (!plan) return html`
+    <div class="dl-card">
+      <div class="eyebrow">Khatam planner</div>
+      <h3>Finish the whole Qur'an</h3>
+      <p class="dl-sub">Pick how many days you want to take. We'll work out your daily pages and track your progress.</p>
+      <div class="dl-presets">
+        ${[[30,'30 days'],[60,'60 days'],[90,'90 days'],[180,'6 months']].map(([n, l]) => html`<button key=${n} class="btn btn-ghost" onClick=${() => start(n)}>${l} · ${Math.ceil(MUSHAF_PAGES / n)} pages/day</button>`)}
+      </div>
+      <div class="dl-custom">
+        <input type="number" min="1" max="365" inputmode="numeric" placeholder="Custom days" value=${custom} onInput=${(e) => setCustom(e.target.value)} aria-label="Custom number of days" />
+        <button class="btn btn-gold" onClick=${() => start(custom)} disabled=${!custom}>Start plan</button>
+      </div>
+    </div>`;
+
+  const startDate = new Date(plan.start + 'T00:00:00');
+  const dayNo = Math.max(1, Math.floor((new Date().setHours(0,0,0,0) - startDate.getTime()) / 864e5) + 1);
+  const perDay = Math.ceil(MUSHAF_PAGES / plan.days);
+  const expected = Math.min(MUSHAF_PAGES, perDay * Math.min(dayNo, plan.days));
+  const diff = plan.pages - expected;
+  const finished = plan.pages >= MUSHAF_PAGES;
+  const left = Math.max(0, plan.days - dayNo + 1);
+  const remaining = MUSHAF_PAGES - plan.pages;
+  const needNow = left > 0 ? Math.ceil(remaining / left) : remaining;
+  const add = (n) => save({ ...plan, pages: Math.max(0, Math.min(MUSHAF_PAGES, plan.pages + n)) });
+  return html`
+    <div class="dl-card">
+      <div class="dl-head">
+        <${Ring} value=${plan.pages / MUSHAF_PAGES} size=${128}><b>${Math.round(plan.pages / MUSHAF_PAGES * 100)}%</b><span>${plan.pages}/${MUSHAF_PAGES}</span><//>
+        <div class="dl-head-txt">
+          <div class="eyebrow" style=${{ marginBottom: 6 }}>Khatam planner · ${plan.days}-day plan</div>
+          ${finished ? html`<h3>Khatam complete — Alhamdulillah</h3><p class="dl-sub">May Allah accept it from you. Start a new plan whenever you're ready.</p>` : html`
+            <h3>Day ${Math.min(dayNo, plan.days)} of ${plan.days}</h3>
+            <p class="dl-sub">Aim for <b>${perDay} pages</b> a day. ${diff === 0 ? "You're exactly on track." : diff > 0 ? `You're ${diff} page${diff === 1 ? '' : 's'} ahead.` : `You're ${-diff} page${diff === -1 ? '' : 's'} behind — about ${needNow} a day gets you back on plan.`}</p>`}
+          <div class="dl-actions">
+            ${!finished ? html`<button class="btn btn-gold" onClick=${() => add(perDay)}>+ ${perDay} pages (today's target)</button>` : null}
+            <button class="btn btn-ghost" onClick=${() => add(1)}>+1 page</button>
+            <button class="btn btn-ghost" onClick=${() => add(-1)} aria-label="Remove one page">−1</button>
+            <button class="btn btn-ghost" onClick=${() => setTab('quran')}>Open the Qur'an</button>
+            <button class="btn btn-ghost" onClick=${() => { if (confirm('Reset your khatam plan?')) save(null); }}>Reset</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* Qur'anic duas — single ayahs, fetched from the same Qur'an API as the
+   reader (text + transliteration + translation + audio) and cached. */
+const DUA_GROUPS = [
+  { id:'forgive', label:'Forgiveness', items:[['7:23','Adam and Hawwa'],['3:16','The believers'],['14:41','Ibrahim'],['71:28','Nuh'],['3:147','The believers before us']] },
+  { id:'guide',   label:'Guidance',    items:[['1:6','Al-Fatihah'],['3:8','The people of knowledge'],['3:193','The believers'],['18:10','The People of the Cave'],['20:114','For knowledge']] },
+  { id:'family',  label:'Family',      items:[['25:74','Servants of the Most Merciful'],['46:15','A believer at forty'],['14:40','Ibrahim'],['3:38','Zakariya'],['17:24','For our parents'],['2:128','Ibrahim and Ismail']] },
+  { id:'relief',  label:'Hardship & relief', items:[['21:87','Yunus'],['21:83','Ayyub'],['28:24','Musa'],['20:25','Musa'],['2:250','Believers facing trial']] },
+  { id:'life',    label:'This life & the next', items:[['2:201','Rabbana atina'],['2:286','End of Al-Baqarah'],['17:80','Entering and leaving'],['23:29','Nuh'],['23:97','Seeking refuge']] },
+];
+const DUA_CACHE_KEY = 'dua_cache_v1';
+async function loadDua(ref){
+  const cache = store.getJSON(DUA_CACHE_KEY, {});
+  if (cache[ref]) return cache[ref];
+  const r = await fetch(`${QURAN_API}/ayah/${ref}/editions/quran-uthmani,en.transliteration,en.sahih,ar.alafasy`);
+  const j = await r.json();
+  const [ar, tr, en, au] = j.data;
+  const out = { ref, arabic: ar.text, translit: tr.text, english: en.text, audio: au && au.audio, surah: ar.surah.englishName, n: ar.surah.number, a: ar.numberInSurah };
+  const next = store.getJSON(DUA_CACHE_KEY, {}); next[ref] = out; store.setJSON(DUA_CACHE_KEY, next);
+  return out;
+}
+
+function DuaCard({ d, note }){
+  const [playing, setPlaying] = useState(false);
+  const aud = useRef(null);
+  useEffect(() => () => { if (aud.current) aud.current.pause(); }, []);
+  const toggle = () => {
+    if (!d.audio) return;
+    if (!aud.current) { aud.current = new Audio(d.audio); aud.current.onended = () => setPlaying(false); }
+    if (playing) { aud.current.pause(); setPlaying(false); } else { aud.current.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
+  };
+  const copy = () => { try { navigator.clipboard.writeText(`${d.arabic}\n\n${d.translit}\n\n"${d.english}"\n— Qur'an ${d.n}:${d.a}`); } catch {} };
+  return html`
+    <article class="dl-dua">
+      <header><span class="dl-dua-note">${note}</span><span class="dl-dua-ref">${d.surah} · ${d.n}:${d.a}</span></header>
+      <p class="dl-dua-ar" lang="ar" dir="rtl">${d.arabic}</p>
+      <p class="dl-dua-tr">${d.translit}</p>
+      <p class="dl-dua-en">${d.english}</p>
+      <footer>
+        ${d.audio ? html`<button class="btn btn-ghost" onClick=${toggle}><${Icon} name=${playing ? 'pause' : 'play'} size=${14} filled=${!playing} /> ${playing ? 'Pause' : 'Listen'}</button>` : null}
+        <button class="btn btn-ghost" onClick=${copy}>Copy</button>
+      </footer>
+    </article>`;
+}
+
+function Duas(){
+  const [gid, setGid] = useState(DUA_GROUPS[0].id);
+  const [data, setData] = useState({});
+  const [status, setStatus] = useState('loading');
+  const group = DUA_GROUPS.find((g) => g.id === gid);
+  const load = useCallback(() => {
+    let live = true; setStatus('loading');
+    Promise.all(group.items.map(([ref]) => loadDua(ref).then((d) => [ref, d])))
+      .then((pairs) => { if (!live) return; setData((prev) => ({ ...prev, ...Object.fromEntries(pairs) })); setStatus('ok'); })
+      .catch(() => { if (live) setStatus('error'); });
+    return () => { live = false; };
+  }, [gid]);
+  useEffect(load, [gid]);
+  return html`
+    <div class="dl-card">
+      <div class="eyebrow">Duas from the Qur'an</div>
+      <h3>Words Allah taught us to ask with</h3>
+      <div class="dl-chips" role="tablist">
+        ${DUA_GROUPS.map((g) => html`<button key=${g.id} role="tab" aria-selected=${g.id === gid} class=${'dl-chip' + (g.id === gid ? ' on' : '')} onClick=${() => setGid(g.id)}>${g.label}</button>`)}
+      </div>
+      ${status === 'loading' && !group.items.every(([r]) => data[r]) ? html`<div class="center-msg" style=${{ padding:'30px 10px' }}><div class="spinner"></div></div>` : null}
+      ${status === 'error' && !group.items.every(([r]) => data[r]) ? html`<div class="center-msg" style=${{ padding:'24px 10px' }}><p>Couldn't load these duas. Check your connection.</p><button class="btn btn-ghost" onClick=${load}>Try again</button></div>` : null}
+      <div class="dl-dua-grid">
+        ${group.items.filter(([r]) => data[r]).map(([r, note]) => html`<${DuaCard} key=${r} d=${data[r]} note=${note} />`)}
+      </div>
+    </div>`;
+}
+
+function DailySection({ setTab }){
+  const ref = useReveal();
+  const [view, setView] = useState('today');
+  const views = [['today','Today\'s goals'],['khatam','Khatam planner'],['duas','Duas']];
+  return html`
+    <section class="section shell" ref=${ref}>
+      <div class="section-head reveal">
+        <div><div class="eyebrow">Daily</div><h2>Build a daily rhythm</h2></div>
+        <p>A short list of good deeds to tick off each day, a plan to complete the Qur'an, and duas to learn and keep. Saved only on your device.</p>
+      </div>
+      <div class="dl-chips dl-tabs reveal" role="tablist">
+        ${views.map(([id, l]) => html`<button key=${id} role="tab" aria-selected=${view === id} class=${'dl-chip' + (view === id ? ' on' : '')} onClick=${() => setView(id)}>${l}</button>`)}
+      </div>
+      ${view === 'today' ? html`<${DailyTasks} />` : null}
+      ${view === 'khatam' ? html`<${Khatam} setTab=${setTab} />` : null}
+      ${view === 'duas' ? html`<${Duas} />` : null}
+    </section>
+  `;
+}
+
+/* ---------------------------------------------------------------
    12c. SEERAH — the life of Prophet Muhammad ﷺ, in 11 parts.
    A fixed playlist (not part of the Videos feed). Plays through the
    same player as Videos, so offline saving works the same way.
@@ -3762,6 +4000,7 @@ function App(){
   else if (tab === 'hadith') page = html`<${HadithSection} hadithBookmarks=${hadithBookmarks} toggleHadithBookmark=${toggleHadithBookmark} />`;
   else if (tab === 'videos') page = html`<${VideosSection} />`;
   else if (tab === 'seerah') page = html`<${SeerahSection} />`;
+  else if (tab === 'daily') page = html`<${DailySection} setTab=${setTab} />`;
   else if (tab === 'qibla') page = html`<${QiblaSection} geo=${geo} />`;
   else if (tab === 'offline') page = html`<${OfflineSection} />`;
   else if (tab === 'about') page = html`<${AboutSection} />`;
