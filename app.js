@@ -3863,7 +3863,13 @@ function Hifz(){
     fetch(`${QURAN_API}/surah/${cfg.surah}/editions/quran-uthmani,${cfg.reciter}`).then((r) => r.json()).then((j) => {
       if (!live) return;
       const [t, a] = j.data;
-      setData(t.ayahs.map((x, i) => ({ n: x.numberInSurah, text: x.text, audio: a.ayahs[i] && a.ayahs[i].audio })));
+      // Same as the Qur'an reader: the API embeds the Bismillah in ayah 1 of every
+      // surah except Al-Fatihah (1) and At-Tawbah (9) — strip it and show it as a header.
+      setData(t.ayahs.map((x, i) => {
+        let text = x.text;
+        if (i === 0 && cfg.surah !== 1 && cfg.surah !== 9) { const c = text.replace(BISMILLAH_STRIP_RE, '').trim(); if (c) text = c; }
+        return { n: x.numberInSurah, text, audio: a.ayahs[i] && a.ayahs[i].audio };
+      }));
       setStatus('ok');
     }).catch(() => live && setStatus('error'));
     return () => { live = false; };
@@ -3936,6 +3942,11 @@ function Hifz(){
           <span class="hf-prog">Ayah ${range[cur.idx] ? range[cur.idx].n : '–'} · repeat ${cur.rep}/${cfg.verseReps} · round ${cur.round}${cfg.rangeReps ? '/' + cfg.rangeReps : ' (loop)'}</span>
         </div>
         <div class="hf-list">
+          ${cfg.surah !== 1 && cfg.surah !== 9 && from === 1 && range.length ? html`
+            <div class="bismillah-block">
+              <div class="bismillah-ar">${BISMILLAH_AR}</div>
+              <div class="bismillah-en">${BISMILLAH_EN}</div>
+            </div>` : null}
           ${range.map((a, i) => html`
             <div key=${a.n} class=${'hf-ayah' + (playing && i === cur.idx ? ' now' : '')} onClick=${() => setRevealed((r) => ({ ...r, [a.n]: !r[a.n] }))}>
               <span class="hf-n">${a.n}</span>
