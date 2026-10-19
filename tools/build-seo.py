@@ -107,7 +107,7 @@ def head(title, desc, canon, depth, extra_ld):
 
 FOOT = """<footer><div class="wrap">
 <p><a href="{up}">Quran Maar</a> — a free, private companion for the Qur'an, Hadith and daily prayer. Arabic: Uthmani Hafs. English: Saheeh International.</p>
-<p><a href="{up}surah/">All 114 surahs</a> · <a href="{up}?tab=hadith">Hadith</a> · <a href="{up}?tab=qibla">Qibla</a> · <a href="{up}?tab=daily">Daily goals</a> · <a href="{up}?tab=seerah">Seerah</a></p>
+<p><a href="{up}surah/">All 114 surahs</a> · <a href="{up}ayat-al-kursi/">Ayat al-Kursi</a> · <a href="{up}duas/">Duas from the Qur'an</a> · <a href="{up}prayer-times/">Prayer times</a> · <a href="{up}qibla/">Qibla</a> · <a href="{up}hadith/">Hadith</a> · <a href="{up}seerah/">Seerah</a> · <a href="{up}hijri-calendar/">Hijri calendar</a> · <a href="{up}daily-goals/">Daily goals</a> · <a href="{up}hifz/">Hifz helper</a></p>
 </div></footer>
 </body></html>
 """
@@ -180,9 +180,118 @@ def hub_page(info):
     out.append(FOOT.format(up='../'))
     return '\n'.join(out)
 
+# ---------------------------------------------------------------------------
+# Guide pages (features, duas, Ayat al-Kursi). Each has real, specific content.
+# ---------------------------------------------------------------------------
+DUA_GROUPS = [
+ ("Forgiveness",[("7:23","Adam and Hawwa"),("3:16","The believers"),("14:41","Ibrahim"),("71:28","Nuh"),("3:147","The believers before us")]),
+ ("Guidance",[("1:6","Al-Fatihah"),("3:8","The people of knowledge"),("3:193","The believers"),("18:10","The People of the Cave"),("20:114","For knowledge")]),
+ ("Family",[("25:74","Servants of the Most Merciful"),("46:15","A believer at forty"),("14:40","Ibrahim"),("3:38","Zakariya"),("17:24","For our parents"),("2:128","Ibrahim and Ismail")]),
+ ("Hardship and relief",[("21:87","Yunus"),("21:83","Ayyub"),("28:24","Musa"),("20:25","Musa"),("2:250","Believers facing trial")]),
+ ("This life and the next",[("2:201","Rabbana atina"),("2:286","End of Al-Baqarah"),("17:80","Entering and leaving"),("23:29","Nuh"),("23:97","Seeking refuge")]),
+]
+EXTRA_URLS = []
+MUTED = 'style="color:#a29c95"'
+
+def simple_page(path, title, desc, h1, lead, body, crumb):
+    url = f'{BASE}/{path}/'
+    ld = {"@context":"https://schema.org","@graph":[
+        {"@type":"WebPage","@id":url+"#page","url":url,"name":title,"description":desc,"inLanguage":"en",
+         "isPartOf":{"@type":"WebSite","@id":BASE+"/#website","name":"Quran Maar","url":BASE+"/"},
+         "primaryImageOfPage":{"@type":"ImageObject","url":BASE+"/og-image.png","width":1200,"height":630},
+         "dateModified":TODAY,"breadcrumb":{"@id":url+"#breadcrumb"}},
+        dict(breadcrumbs([("Quran Maar",BASE+"/"),(crumb,url)]), **{"@id":url+"#breadcrumb"}),
+    ]}
+    out = [head(title, desc, url, 1, ld), '<main class="wrap">',
+           f'<nav class="crumbs" aria-label="Breadcrumb"><a href="../">Quran Maar</a> › {E(crumb)}</nav>',
+           f'<h1>{E(h1)}</h1>', f'<p class="also" style="font-size:17px">{E(lead)}</p>', body, '</main>', FOOT.format(up='../')]
+    d = os.path.join(ROOT, path); os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, 'index.html'), 'w', encoding='utf-8') as f: f.write('\n'.join(out))
+    EXTRA_URLS.append(url)
+
+def cta(tab, label):
+    return f'<div class="cta"><a class="btn" href="../?tab={tab}">{E(label)}</a><a class="btn ghost" href="../surah/">Read the surahs</a></div>'
+def bullets(items):
+    return '<ul style="padding-left:20px;color:#e8e2da">' + ''.join(f'<li style="margin:6px 0">{i}</li>' for i in items) + '</ul>'
+def para(t): return f'<p {MUTED}>{t}</p>'
+
+def verse(ar, en, ref):
+    c, v = (int(x) for x in ref.split(':'))
+    a = next(x for x in ar if x['chapter']==c and x['verse']==v); e = next(x for x in en if x['chapter']==c and x['verse']==v)
+    return a['text'], e['text']
+
+def build_guides(ar, en, info):
+    # ---- Duas from the Qur'an ----
+    body = [para("Each dua below is a verse of the Qur'an, shown in Arabic with the English meaning. Tap the reference to read it in context.")]
+    total = 0
+    for grp, items in DUA_GROUPS:
+        body.append(f'<h2>{E(grp)}</h2><ol class="verses">')
+        for ref, note in items:
+            a, e = verse(ar, en, ref); c, v = ref.split(':'); total += 1
+            body.append(f'<li id="dua-{c}-{v}"><a class="n" href="../surah/{slug(int(c))}/#ayah-{v}" aria-label="Open {ref}" style="width:auto;padding:0 10px;border-radius:999px">{ref}</a><p class="ar" lang="ar" dir="rtl">{E(a)}</p><p class="en">{E(e)}</p><p class="also" style="grid-column:2;margin:0">{E(note)} · Surah {E(NAMES[int(c)-1])}</p></li>')
+        body.append('</ol>')
+    body.append(cta('daily', 'Listen to these duas in the app'))
+    simple_page('duas', "Duas from the Qur'an – Arabic & English | Quran Maar",
+        f"{total} duas taken from the Qur'an for forgiveness, guidance, family, hardship and this life and the next — Arabic text with English meaning.",
+        "Duas from the Qur'an", "Words Allah taught us to ask with — Arabic text and English meaning.", '\n'.join(body), "Duas from the Qur'an")
+
+    # ---- Ayat al-Kursi ----
+    a, e = verse(ar, en, '2:255')
+    body = (para("Ayat al-Kursi, the Throne Verse, is verse 255 of Surah Al-Baqarah, the second chapter of the Qur'an. It is among the most widely memorised and recited verses.")
+        + f'<ol class="verses"><li id="ayah-255"><a class="n" href="../surah/2-al-baqarah/#ayah-255" aria-label="Open in Surah Al-Baqarah">255</a><p class="ar" lang="ar" dir="rtl">{E(a)}</p><p class="en">{E(e)}</p></li></ol>'
+        + para('Read it in context: <a href="../surah/2-al-baqarah/#ayah-255">Surah Al-Baqarah, verse 255</a>. You can also practise memorising it with the <a href="../hifz/">Hifz helper</a>.')
+        + '<div class="cta"><a class="btn" href="../?tab=quran&amp;surah=2">Listen in the app</a><a class="btn ghost" href="../surah/2-al-baqarah/">Read Surah Al-Baqarah</a></div>')
+    simple_page('ayat-al-kursi', 'Ayat al-Kursi (Throne Verse) – Arabic & English | Quran Maar',
+        "Ayat al-Kursi, the Throne Verse (Qur'an 2:255): full Arabic text with English translation. Read it online or listen to recitation on Quran Maar.",
+        'Ayat al-Kursi — the Throne Verse', "Qur'an 2:255, in Arabic with the English meaning.", body, 'Ayat al-Kursi')
+
+    # ---- Feature pages ----
+    simple_page('prayer-times', 'Prayer Times Today – Fajr, Dhuhr, Asr, Maghrib, Isha | Quran Maar',
+        "See today's prayer times for your location with a live countdown to the next prayer. Free, private, and works offline with an estimate.",
+        'Prayer times for your location', 'Fajr, Dhuhr, Asr, Maghrib and Isha — worked out for where you are, with a live countdown.',
+        para("Quran Maar shows the five daily prayer times for your location and counts down to the next one. A ring fills as the prayer approaches, and its colours follow the part of the day, from pre-dawn to night.")
+        + bullets(['Allow your location once and the times update for where you are.', 'If you are offline, the app calculates an estimate on your device and tells you it is an estimate.', 'During Ramadan the home page also counts down to suhoor and iftar.', 'Your location is used only to work out the times.'])
+        + para("Times are calculated and can differ by a few minutes from your local mosque, so follow your mosque's timetable where it publishes one.") + cta('home', 'Open prayer times'), 'Prayer times')
+    simple_page('qibla', 'Qibla Finder – Direction of the Kaaba | Quran Maar',
+        'Find the Qibla direction from where you are with a live map pointed at the Kaaba in Makkah. Free and private.',
+        'Qibla finder', 'Find the direction of the Kaaba in Makkah from wherever you are.',
+        para("The Qibla page shows a map with a line from your location to the Kaaba, so you can see the direction to face for prayer.")
+        + bullets(['Works from any place in the world.', 'Shows your position and the Kaaba on one map.', 'Uses your location only on your device.']) + cta('qibla', 'Open the Qibla finder'), 'Qibla finder')
+    simple_page('hadith', 'Hadith Collections – Bukhari, Muslim & More, Free | Quran Maar',
+        "Read six major hadith collections online — Sahih al-Bukhari, Sahih Muslim, Abu Dawood, At-Tirmidhi, An-Nasa'i and Ibn Majah — with translations in nine languages and bookmarks.",
+        'Hadith collections', 'Six major collections, translated into nine languages, with bookmarking.',
+        para('Browse the sayings and actions of the Prophet Muhammad (peace be upon him) in six well-known collections:')
+        + bullets(['Sahih al-Bukhari', 'Sahih Muslim', 'Sunan Abi Dawood', 'Jami at-Tirmidhi', "Sunan an-Nasa'i", 'Sunan Ibn Majah'])
+        + para('Pick a language where the collection is available, search, and save the hadith you want to come back to. Bookmarks stay on your device.') + cta('hadith', 'Open the Hadith collections'), 'Hadith')
+    simple_page('seerah', 'Seerah of Prophet Muhammad – 11-Part Video Series | Quran Maar',
+        'Watch the Seerah of Prophet Muhammad (peace be upon him) in 11 parts, in order, on Quran Maar. Track the parts you have watched and carry on where you left off.',
+        'The Seerah of Prophet Muhammad', 'The life of the Prophet, told in order across 11 parts.',
+        para('The Seerah tab gathers all 11 parts in one place, from Part 1 to the final part. Press Continue to pick up at the next part you have not watched, and use Next part to move straight on. Your progress is saved on your device.')
+        + bullets([f'Part {i}' + (' (final part)' if i == 11 else '') for i in range(1, 12)]) + cta('seerah', 'Watch the Seerah'), 'Seerah')
+    simple_page('hijri-calendar', 'Hijri Calendar – Islamic Dates, Ramadan & Eid | Quran Maar',
+        'A Hijri calendar with Ramadan, Eid, the Day of Arafah, Ashura and the White Days marked, plus countdowns to the next events.',
+        'Hijri calendar', 'Islamic and Gregorian dates side by side, with the main events marked.',
+        para('Move through the months and see each Gregorian date with its Hijri date underneath. Ramadan, Eid al-Fitr, the Day of Arafah, Eid al-Adha, Ashura, the Islamic New Year and the White Days are marked, and a Coming up list counts the days to the next ones.')
+        + bullets(['Fridays are highlighted.', 'The last ten nights of Ramadan, and the odd nights, are marked.', 'Close to Ramadan, the home page counts down to the first day.'])
+        + para('Dates are calculated, so they can differ by a day from the moon sighting in your area. Islamic days begin at Maghrib.') + cta('daily', 'Open the Hijri calendar'), 'Hijri calendar')
+    simple_page('daily-goals', "Daily Islamic Goals & Qur'an Khatam Planner | Quran Maar",
+        "A daily checklist of good deeds with a streak, plus a Qur'an khatam planner that works out your pages per day. Free, and saved only on your device.",
+        "Daily goals and Qur'an khatam planner", "Small deeds, done every day — and a plan to finish the Qur'an.",
+        para("Tick off a short list each day: the five prayers, a page of Qur'an, morning and evening adhkar, tasbih after prayer, salawat, istighfar, sadaqah and an act of kindness. Do three or more to keep your streak going.")
+        + '<h2>Khatam planner</h2>' + para("Choose how many days you want to take to finish the Qur'an — 30, 60, 90, 180 or your own number. The planner works out your pages per day (the Qur'an has 604 pages), shows a progress ring, and tells you whether you are ahead or behind.")
+        + para('Everything is saved on your device only.') + cta('daily', 'Open daily goals'), 'Daily goals')
+    simple_page('hifz', "Qur'an Memorisation (Hifz) Helper – Repeat Ayahs | Quran Maar",
+        "Memorise the Qur'an by repeating: pick a surah and range, set repeats and speed, and hide the text to test yourself. Free.",
+        'Hifz helper — memorise by repeating', 'Choose the ayahs, repeat them, slow them down, and test yourself.',
+        para('Pick a surah and a range of ayahs, choose how many times each ayah repeats and whether the whole range loops, and press play. Slow the recitation down while you learn it.')
+        + bullets(['Repeat each ayah 1, 3, 5, 7 or 10 times.', 'Loop the range once, 3 times, 5 times or without end.', 'Speed from 0.7× to 1.15×, with three reciters.', 'Show the text, show only the first word, or hide it and tap to reveal.']) + cta('daily', 'Open the Hifz helper'), 'Hifz helper')
+
+
 def sitemap(info):
     u = ['  <url>\n    <loc>%s/</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n    <image:image>\n      <image:loc>%s/og-image.png</image:loc>\n      <image:title>Quran Maar — Light, Time, Guidance</image:title>\n      <image:caption>Read the Qur\'an online with audio recitation, prayer times and Hadith</image:caption>\n    </image:image>\n    <image:image>\n      <image:loc>%s/logo.png</image:loc>\n      <image:title>Quran Maar logo</image:title>\n    </image:image>\n  </url>' % (BASE, TODAY, BASE, BASE),
          '  <url>\n    <loc>%s/surah/</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.9</priority>\n  </url>' % (BASE, TODAY)]
+    for gu in EXTRA_URLS:
+        u.append('  <url>\n    <loc>%s</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n    <image:image>\n      <image:loc>%s/og-image.png</image:loc>\n    </image:image>\n  </url>' % (gu, TODAY, BASE))
     for ch in info:
         n = ch['chapter']
         u.append('  <url>\n    <loc>%s/surah/%s/</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>%s</priority>\n  </url>' % (BASE, slug(n), TODAY, '0.8' if n in POPULAR else '0.6'))
@@ -203,8 +312,9 @@ def main():
         with open(os.path.join(d, 'index.html'), 'w', encoding='utf-8') as f:
             f.write(surah_page(n, ch, a, e, n+1 if n < 114 else None, n-1 if n > 1 else None))
     with open(os.path.join(out_dir, 'index.html'), 'w', encoding='utf-8') as f: f.write(hub_page(info))
+    build_guides(ar, en, info)
     with open(os.path.join(ROOT, 'sitemap.xml'), 'w', encoding='utf-8') as f: f.write(sitemap(info))
-    print('built 114 surah pages + hub + sitemap.xml')
+    print('built 114 surah pages + hub + %d guide pages + sitemap.xml' % len(EXTRA_URLS))
 
 if __name__ == '__main__':
     main()

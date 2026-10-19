@@ -4160,7 +4160,7 @@ function Footer(){
       </div>
       <div class="footer-row">
         <span>YouTube: <a href="https://www.youtube.com/@MAAR-NASHID" target="_blank" rel="noopener">MAAR NASHID</a> · <a href="https://www.youtube.com/@MAARGOJOL" target="_blank" rel="noopener">MAAR GOJOL</a></span>
-        <span><a href="surah/">Read all 114 surahs</a></span>
+        <span><a href="surah/">Read all 114 surahs</a> · <a href="ayat-al-kursi/">Ayat al-Kursi</a> · <a href="duas/">Duas</a> · <a href="prayer-times/">Prayer times</a> · <a href="qibla/">Qibla</a> · <a href="hadith/">Hadith</a> · <a href="seerah/">Seerah</a> · <a href="hijri-calendar/">Hijri calendar</a> · <a href="daily-goals/">Daily goals</a> · <a href="hifz/">Hifz</a></span>
       </div>
     </footer>
   `;

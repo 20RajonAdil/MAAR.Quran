@@ -27,6 +27,96 @@
   </url>
 
   <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/duas/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/ayat-al-kursi/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/prayer-times/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/qibla/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/hadith/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/seerah/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/hijri-calendar/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/daily-goals/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://20rajonadil.github.io/MAAR.Quran/hifz/</loc>
+    <lastmod>2026-10-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://20rajonadil.github.io/MAAR.Quran/og-image.png</image:loc>
+    </image:image>
+  </url>
+
+  <url>
     <loc>https://20rajonadil.github.io/MAAR.Quran/surah/1-al-fatihah/</loc>
     <lastmod>2026-10-19</lastmod>
     <changefreq>monthly</changefreq>
