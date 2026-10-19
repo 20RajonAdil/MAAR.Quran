@@ -706,6 +706,62 @@ body{padding-bottom:var(--tab-h);}
 .dl-dua footer .btn{padding:9px 16px;font-size:13px}
 @media (max-width:640px){.dl-dua-grid{grid-template-columns:1fr}}
 
+/* ---------- ramadan banner ---------- */
+.rm-banner{display:flex;flex-wrap:wrap;align-items:center;gap:16px 28px;padding:24px 28px;border-radius:28px 28px 18px 18px;border:1px solid rgba(207,51,66,.35);
+  background:radial-gradient(90% 140% at 0 0,rgba(207,51,66,.28),transparent 60%),linear-gradient(135deg,#1a0a0e,#2a0f16);box-shadow:0 24px 60px -36px rgba(207,51,66,.7);}
+.rm-banner.soft{border-color:var(--line);background:var(--card);box-shadow:none}
+.rm-txt{flex:1 1 260px}.rm-txt h3{font-family:'Instrument Serif',serif;font-weight:400;font-size:clamp(24px,3.6vw,32px);margin:0 0 4px}.rm-txt p{margin:0;color:var(--muted);font-size:14px}
+.rm-count{display:flex;flex-direction:column;align-items:flex-end;gap:2px}.rm-count span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.rm-count b{font-variant-numeric:tabular-nums;font-size:clamp(26px,5vw,34px);font-weight:700}
+@media (max-width:640px){.rm-count{align-items:flex-start}}
+
+/* ---------- hijri calendar ---------- */
+.cal-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:18px}
+.cal-nav{display:flex;gap:8px}.cal-nav .btn{padding:10px 18px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-wd{text-align:center;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-2);padding:4px 0;font-weight:700}
+.cal-cell{position:relative;min-height:64px;padding:8px 8px 6px;border-radius:14px;border:1px solid var(--line);background:rgba(245,242,237,.03);display:flex;flex-direction:column;gap:2px}
+.cal-cell.empty{border-color:transparent;background:none}
+.cal-cell b{font-size:15px;font-weight:600}
+.cal-h{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-cell.fri{background:rgba(207,51,66,.07)}
+.cal-cell.ev{border-color:rgba(207,51,66,.45)}
+.cal-cell.today{box-shadow:0 0 0 2px var(--bg),0 0 0 3px #f5f2ed}
+.cal-dots{position:absolute;right:7px;top:8px;display:flex;gap:3px}
+.cal-dots i,.cal-legend i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.k-eid{background:#ffd27a!important}.k-ram{background:#cf3342!important}.k-qadr{background:#a78bfa!important}.k-fast{background:#4ade80!important}.k-new{background:#60a5fa!important}.k-white{background:#f5f2ed!important}.k-fri{background:rgba(207,51,66,.35)!important}
+.cal-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:16px 0 6px;font-size:12px;color:var(--muted)}.cal-legend span{display:inline-flex;align-items:center;gap:6px}
+.cal-up{margin-top:20px}
+.cal-up-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:rgba(245,242,237,.03);margin-bottom:6px;font-size:14px}
+.cal-up-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.cal-up-n{flex:1;font-weight:600}.cal-up-d{color:var(--muted);font-size:12.5px;text-align:right}
+@media (max-width:640px){.cal-grid{gap:4px}.cal-cell{min-height:52px;padding:6px 5px}.cal-cell b{font-size:13px}.cal-h{font-size:10px}.cal-dots{right:4px;top:6px}}
+
+/* ---------- hifz ---------- */
+.hf-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.hf-form label{display:flex;flex-direction:column;gap:6px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.hf-form input{padding:11px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(245,242,237,.04);color:var(--ink);font:500 14px 'Plus Jakarta Sans',sans-serif;width:100%}
+.hf-form .select-pill{width:100%;text-transform:none;letter-spacing:0}
+.hf-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}.hf-bar .btn{padding:11px 20px}
+.hf-prog{font-size:12.5px;color:var(--muted);margin-left:4px}
+.hf-list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto}
+.hf-ayah{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:rgba(245,242,237,.03);cursor:pointer;transition:all .3s var(--ease)}
+.hf-ayah.now{border-color:#cf3342;background:rgba(207,51,66,.1);box-shadow:0 0 26px -10px #cf3342}
+.hf-n{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;border:1px solid var(--line);color:var(--muted)}
+.hf-ar{flex:1;margin:0;font-family:var(--arabic-font);font-size:clamp(22px,3.4vw,30px);line-height:2;transition:filter .3s}
+.hf-ar.blur{filter:blur(9px);user-select:none}
+
+/* ---------- qur'an word / topic search ---------- */
+.as-wrap{margin:0 0 22px;padding:22px clamp(16px,3vw,28px);border:1px solid var(--line);border-radius:22px;background:var(--card)}
+.as-note{margin:14px 2px 10px;font-size:12.5px;color:var(--muted)}
+.as-list{display:grid;gap:10px;max-height:560px;overflow:auto;padding-right:2px}
+.as-item{padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:rgba(245,242,237,.03);display:flex;flex-direction:column;gap:8px}
+.as-item header{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}.as-item header b{color:#ff8a94;letter-spacing:.06em;text-transform:uppercase;font-size:11.5px}
+.as-ar{font-family:var(--arabic-font);font-size:24px;line-height:2;margin:0}
+.as-en{margin:0;font-family:'Instrument Serif',serif;font-style:italic;font-size:18px;line-height:1.5;color:#e8e2da}
+.as-en mark{background:rgba(207,51,66,.35);color:#fff;border-radius:4px;padding:0 3px}
+.as-item footer{display:flex;gap:8px}.as-item footer .btn{padding:8px 14px;font-size:12.5px}
+
 /* ---------- seerah ---------- */
 .yt-part{position:absolute;left:10px;top:10px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   background:linear-gradient(135deg,var(--emerald-hi),var(--gold));color:var(--gold-hi);z-index:2;}
@@ -855,7 +911,7 @@ body{padding-bottom:var(--tab-h);}
 <script src="vendor/leaflet.js"></script>
 <script src="offline.js?v=3"></script>
 <script src="features.js?v=1"></script>
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 
 <script>
 /* ---- Service worker registration ----------------------------------

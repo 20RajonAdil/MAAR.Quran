@@ -1449,6 +1449,7 @@ function HomeSection({ setTab, surahCount, geo }){
   return html`
     <${React.Fragment}>
       <${Hero} setTab=${setTab} surahCount=${surahCount} />
+      <${RamadanBanner} prayer=${prayerData} setTab=${setTab} />
       <${PrayerRing} geo=${geo} prayer=${prayerData} />
       <${DailyAyah} />
       <section id="home-today" class="section shell" ref=${ref}>
@@ -1634,6 +1635,8 @@ function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, ar
           ${ARABIC_FONTS.map((f, i) => html`<option key=${i} value=${i}>${f.label}</option>`)}
         </select>
       </div>
+
+      <${AyahSearch} surahs=${surahs} onOpen=${setOpenSurah} />
 
       ${status === 'ready' ? html`<${QMXC('RevelationMap')} surahs=${surahs} onOpen=${setOpenSurah} />` : null}
 
@@ -3516,6 +3519,12 @@ const dayShift = (n, from = new Date()) => { const d = new Date(from); d.setDate
 function tasksFor(date){
   const list = DAILY_TASKS.slice();
   if (date.getDay() === 5) list.push({ id:'kahf', title:'Read Surah Al-Kahf', hint:'A Friday sunnah.' });
+  const h = hijriParts(date);
+  if (h.m === 9) {
+    list.push({ id:'fast', title:'Fast today', hint:'Suhoor before Fajr, iftar at Maghrib.' });
+    list.push({ id:'taraweeh', title:'Taraweeh or Qiyam', hint:'Even a few rakahs at night.' });
+    if (h.d >= 20) list.push({ id:'qadr', title:'Seek Laylat al-Qadr', hint:'Pray, make dua and read Qur\'an in the last ten nights.' });
+  }
   return list;
 }
 
@@ -3707,21 +3716,318 @@ function Duas(){
     </div>`;
 }
 
+/* ---------------------------------------------------------------
+   12d. HIJRI TOOLS — calendar, Ramadan banner, hifz helper.
+   Dates are calculated (tabular), so they can differ by a day from
+   the local moon sighting.
+--------------------------------------------------------------- */
+function hijriParts(date){
+  const noon = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+  const h = gregorianToHijriLocal(noon);
+  return { y: h.year, m: HIJRI_MONTHS.indexOf(h.month.en) + 1, d: h.day, name: h.month.en };
+}
+function hijriEvents(h){
+  const out = [];
+  if (h.m === 1 && h.d === 1) out.push({ k:'new', label:'Islamic New Year' });
+  if (h.m === 1 && h.d === 10) out.push({ k:'fast', label:'Day of Ashura' });
+  if (h.m === 9 && h.d === 1) out.push({ k:'ram', label:'First day of Ramadan' });
+  if (h.m === 9 && h.d === 21) out.push({ k:'ram', label:'Last ten nights begin' });
+  if (h.m === 9 && h.d > 21 && h.d % 2 === 1) out.push({ k:'qadr', label:'Odd night — seek Laylat al-Qadr' });
+  if (h.m === 10 && h.d === 1) out.push({ k:'eid', label:'Eid al-Fitr' });
+  if (h.m === 12 && h.d === 9) out.push({ k:'fast', label:'Day of Arafah' });
+  if (h.m === 12 && h.d === 10) out.push({ k:'eid', label:'Eid al-Adha' });
+  if (h.d >= 13 && h.d <= 15 && !(h.m === 9) && !(h.m === 10 && h.d === 1)) out.push({ k:'white', label:'White Day — recommended fast' });
+  return out;
+}
+function upcomingHijriEvents(limit = 6){
+  const out = [], today = new Date();
+  for (let i = 0; i < 420 && out.length < limit; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+    const h = hijriParts(d);
+    hijriEvents(h).filter((e) => e.k !== 'white' && e.k !== 'qadr').forEach((e) => out.push({ ...e, date: d, h, inDays: i }));
+  }
+  return out.slice(0, limit);
+}
+
+function RamadanBanner({ prayer, setTab }){
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
+  const h = hijriParts(now);
+  const hasTimes = prayer && prayer.timings && /^\d{1,2}:\d{2}/.test(String(prayer.timings.Fajr || '')) && /^\d{1,2}:\d{2}/.test(String(prayer.timings.Maghrib || ''));
+  if (h.m === 9) {
+    const at = (k, off = 0) => { const [hh, mm] = prayer.timings[k].split(':').map((x) => parseInt(x, 10)); const d = new Date(now); d.setHours(hh, mm, 0, 0); d.setDate(d.getDate() + off); return d; };
+    let label = '', target = null;
+    if (hasTimes) {
+      const fajr = at('Fajr'), mag = at('Maghrib');
+      if (now < fajr) { label = 'Suhoor ends (Fajr)'; target = fajr; }
+      else if (now < mag) { label = 'Iftar (Maghrib)'; target = mag; }
+      else { label = 'Suhoor ends (Fajr)'; target = at('Fajr', 1); }
+    }
+    return html`
+      <section class="section shell" style=${{ paddingBottom: 0 }}>
+        <div class="rm-banner">
+          <div class="rm-txt">
+            <div class="eyebrow" style=${{ marginBottom: 6 }}>Ramadan Mubarak</div>
+            <h3>Day ${h.d} of Ramadan, ${h.y} AH</h3>
+            <p>${h.d >= 21 ? 'The last ten nights — seek Laylat al-Qadr.' : 'May Allah accept your fasting and prayers.'}</p>
+          </div>
+          ${target ? html`<div class="rm-count"><span>${label}</span><b>${fmtCountdown(target - now)}</b></div>` : null}
+          <button class="btn btn-gold" onClick=${() => setTab('daily')}>Ramadan goals</button>
+        </div>
+      </section>`;
+  }
+  const next = upcomingHijriEvents(60).find((e) => e.k === 'ram' && e.h.d === 1);
+  if (next && next.inDays <= 45) return html`
+    <section class="section shell" style=${{ paddingBottom: 0 }}>
+      <div class="rm-banner soft">
+        <div class="rm-txt"><div class="eyebrow" style=${{ marginBottom: 6 }}>Coming soon</div><h3>Ramadan begins in about ${next.inDays} day${next.inDays === 1 ? '' : 's'}</h3><p>Calculated date — the exact day depends on the moon sighting.</p></div>
+        <button class="btn btn-ghost" onClick=${() => setTab('daily')}>Plan your Ramadan</button>
+      </div>
+    </section>`;
+  return null;
+}
+
+function HijriCalendar(){
+  const [cursor, setCursor] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
+  const year = cursor.getFullYear(), month = cursor.getMonth();
+  const first = new Date(year, month, 1), days = new Date(year, month + 1, 0).getDate();
+  const lead = (first.getDay() + 6) % 7;                    // weeks start on Monday
+  const todayKey = localDayKey();
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(null);
+  for (let d = 1; d <= days; d++) { const date = new Date(year, month, d); const h = hijriParts(date); cells.push({ date, h, ev: hijriEvents(h) }); }
+  const a = hijriParts(new Date(year, month, 1)), b = hijriParts(new Date(year, month, days));
+  const range = a.m === b.m ? `${a.name} ${a.y}` : `${a.name} – ${b.name} ${b.y}`;
+  const up = useMemo(() => upcomingHijriEvents(6), []);
+  const shift = (n) => setCursor(new Date(year, month + n, 1));
+  const kinds = { eid:'Eid', ram:'Ramadan', qadr:'Odd night', fast:'Fast day', new:'New Year', white:'White Day' };
+  return html`
+    <div class="dl-card">
+      <div class="cal-head">
+        <div>
+          <div class="eyebrow" style=${{ marginBottom: 6 }}>Hijri calendar</div>
+          <h3 style=${{ marginBottom: 2 }}>${cursor.toLocaleDateString([], { month:'long', year:'numeric' })}</h3>
+          <div class="dl-sub" style=${{ margin: 0 }}>${range} AH</div>
+        </div>
+        <div class="cal-nav">
+          <button class="btn btn-ghost" onClick=${() => shift(-1)} aria-label="Previous month">‹</button>
+          <button class="btn btn-ghost" onClick=${() => { const n = new Date(); setCursor(new Date(n.getFullYear(), n.getMonth(), 1)); }}>Today</button>
+          <button class="btn btn-ghost" onClick=${() => shift(1)} aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="cal-grid" role="grid">
+        ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((w) => html`<div key=${w} class="cal-wd">${w}</div>`)}
+        ${cells.map((c, i) => !c ? html`<div key=${'e' + i} class="cal-cell empty"></div>` : html`
+          <div key=${i} class=${'cal-cell' + (localDayKey(c.date) === todayKey ? ' today' : '') + (c.date.getDay() === 5 ? ' fri' : '') + (c.ev.some((e) => e.k !== 'white') ? ' ev' : '')}
+            title=${c.ev.map((e) => e.label).join(' · ') || undefined}>
+            <b>${c.date.getDate()}</b>
+            <span class="cal-h">${c.h.d}${c.h.d === 1 ? ' ' + c.h.name.split(' ')[0].replace(/^Rabi.*/,'Rabi\u2019') : ''}</span>
+            <span class="cal-dots">${c.ev.map((e, j) => html`<i key=${j} class=${'k-' + e.k}></i>`)}</span>
+          </div>`)}
+      </div>
+      <div class="cal-legend">
+        ${Object.entries(kinds).map(([k, l]) => html`<span key=${k}><i class=${'k-' + k}></i>${l}</span>`)}
+        <span><i class="k-fri"></i>Friday</span>
+      </div>
+      <div class="cal-up">
+        <div class="eyebrow" style=${{ marginBottom: 10 }}>Coming up</div>
+        ${up.map((e, i) => html`<div key=${i} class="cal-up-row"><span class=${'cal-up-dot k-' + e.k}></span><span class="cal-up-n">${e.label}</span><span class="cal-up-d">${e.date.toLocaleDateString([], { day:'numeric', month:'short' })} · ${e.inDays === 0 ? 'today' : e.inDays === 1 ? 'tomorrow' : `in ${e.inDays} days`}</span></div>`)}
+      </div>
+      <p class="pr-note">Dates are calculated and can differ by a day depending on the moon sighting in your area. Islamic days begin at Maghrib.</p>
+    </div>`;
+}
+
+/* ---- Hifz helper: repeat ayahs on a loop, slow down, hide the text ---- */
+const HIFZ_KEY = 'hifz_v1';
+const HIFZ_RECITERS = [['ar.alafasy','Mishary Alafasy'],['ar.husary','Mahmoud Khalil Al-Husary'],['ar.abdulbasitmurattal','Abdul Basit (Murattal)']];
+function Hifz(){
+  const saved = useMemo(() => store.getJSON(HIFZ_KEY, {}), []);
+  const [surahs, setSurahs] = useState([]);
+  const [cfg, setCfg] = useState({ surah:1, from:1, to:7, reciter:'ar.alafasy', verseReps:3, rangeReps:1, speed:1, mode:'show', ...saved });
+  const [data, setData] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const [cur, setCur] = useState({ idx:0, rep:1, round:1 });
+  const [playing, setPlaying] = useState(false);
+  const [revealed, setRevealed] = useState({});
+  const audio = useRef(null);
+  const st = useRef({});
+  const timer = useRef(null);
+  const upd = (patch) => setCfg((c) => { const n = { ...c, ...patch }; store.setJSON(HIFZ_KEY, n); return n; });
+
+  useEffect(() => { fetch(`${QURAN_API}/surah`).then((r) => r.json()).then((j) => setSurahs(j.data || [])).catch(() => {}); }, []);
+  const meta = surahs.find((x) => x.number === cfg.surah);
+  const total = meta ? meta.numberOfAyahs : 286;
+
+  useEffect(() => {
+    let live = true; setStatus('loading'); setData(null); stop();
+    fetch(`${QURAN_API}/surah/${cfg.surah}/editions/quran-uthmani,${cfg.reciter}`).then((r) => r.json()).then((j) => {
+      if (!live) return;
+      const [t, a] = j.data;
+      setData(t.ayahs.map((x, i) => ({ n: x.numberInSurah, text: x.text, audio: a.ayahs[i] && a.ayahs[i].audio })));
+      setStatus('ok');
+    }).catch(() => live && setStatus('error'));
+    return () => { live = false; };
+  }, [cfg.surah, cfg.reciter]);
+
+  const from = Math.max(1, Math.min(cfg.from, total)), to = Math.max(from, Math.min(cfg.to, total));
+  const range = data ? data.filter((x) => x.n >= from && x.n <= to) : [];
+  st.current = { range, cfg, cur };
+
+  function ensureAudio(){
+    if (!audio.current) { audio.current = new Audio(); audio.current.onended = onEnded; }
+    return audio.current;
+  }
+  function playAt(idx, rep, round){
+    const { range, cfg } = st.current; const a = range[idx]; if (!a || !a.audio) return;
+    clearTimeout(timer.current);
+    setCur({ idx, rep, round }); st.current.cur = { idx, rep, round };
+    const el = ensureAudio(); el.src = a.audio; el.playbackRate = cfg.speed; el.defaultPlaybackRate = cfg.speed;
+    el.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+  }
+  function onEnded(){
+    const { range, cfg, cur } = st.current;
+    const gap = (fn) => { timer.current = setTimeout(fn, 700); };
+    if (cur.rep < cfg.verseReps) return gap(() => playAt(cur.idx, cur.rep + 1, cur.round));
+    if (cur.idx < range.length - 1) return gap(() => playAt(cur.idx + 1, 1, cur.round));
+    if (cfg.rangeReps === 0 || cur.round < cfg.rangeReps) return gap(() => playAt(0, 1, cur.round + 1));
+    setPlaying(false);
+  }
+  function stop(){ clearTimeout(timer.current); if (audio.current) { audio.current.pause(); } setPlaying(false); setCur({ idx:0, rep:1, round:1 }); }
+  function toggle(){
+    if (!range.length) return;
+    if (playing) { clearTimeout(timer.current); audio.current && audio.current.pause(); setPlaying(false); }
+    else if (audio.current && audio.current.src && audio.current.currentTime > 0 && !audio.current.ended) { audio.current.play().then(() => setPlaying(true)); }
+    else playAt(st.current.cur.idx || 0, st.current.cur.rep || 1, st.current.cur.round || 1);
+  }
+  function jump(d){ const i = Math.max(0, Math.min(range.length - 1, cur.idx + d)); playAt(i, 1, cur.round); }
+  useEffect(() => { if (audio.current) { audio.current.playbackRate = cfg.speed; } }, [cfg.speed]);
+  useEffect(() => () => { clearTimeout(timer.current); audio.current && audio.current.pause(); }, []);
+  useEffect(() => { stop(); setRevealed({}); }, [cfg.from, cfg.to, cfg.mode]);
+
+  const shown = (a) => cfg.mode === 'first' && !revealed[a.n] ? a.text.split(' ')[0] + ' …' : a.text;
+  const opts = (arr) => arr.map(([v, l]) => html`<option key=${v} value=${v}>${l}</option>`);
+  const num = (k, v) => upd({ [k]: Math.max(1, Math.min(total, parseInt(v, 10) || 1)) });
+  return html`
+    <div class="dl-card">
+      <div class="eyebrow">Hifz helper</div>
+      <h3>Memorise by repeating</h3>
+      <p class="dl-sub">Choose the ayahs, how many times to repeat each, and play. Slow it down, or hide the text and test yourself.</p>
+      <div class="hf-form">
+        <label>Surah<select class="select-pill" value=${cfg.surah} onChange=${(e) => upd({ surah: +e.target.value, from:1, to: Math.min(5, (surahs.find((x) => x.number === +e.target.value) || { numberOfAyahs:5 }).numberOfAyahs) })}>
+          ${(surahs.length ? surahs : [{ number:cfg.surah, englishName:'Loading…' }]).map((x) => html`<option key=${x.number} value=${x.number}>${x.number}. ${x.englishName}</option>`)}
+        </select></label>
+        <label>From ayah<input type="number" min="1" max=${total} value=${cfg.from} onChange=${(e) => num('from', e.target.value)} /></label>
+        <label>To ayah<input type="number" min="1" max=${total} value=${cfg.to} onChange=${(e) => num('to', e.target.value)} /></label>
+        <label>Repeat each ayah<select class="select-pill" value=${cfg.verseReps} onChange=${(e) => upd({ verseReps: +e.target.value })}>${opts([[1,'1×'],[3,'3×'],[5,'5×'],[7,'7×'],[10,'10×']])}</select></label>
+        <label>Repeat the range<select class="select-pill" value=${cfg.rangeReps} onChange=${(e) => upd({ rangeReps: +e.target.value })}>${opts([[1,'Once'],[3,'3×'],[5,'5×'],[0,'Loop']])}</select></label>
+        <label>Speed<select class="select-pill" value=${cfg.speed} onChange=${(e) => upd({ speed: +e.target.value })}>${opts([[0.7,'0.7× (slow)'],[0.85,'0.85×'],[1,'Normal'],[1.15,'1.15×']])}</select></label>
+        <label>Reciter<select class="select-pill" value=${cfg.reciter} onChange=${(e) => upd({ reciter: e.target.value })}>${opts(HIFZ_RECITERS)}</select></label>
+        <label>Text<select class="select-pill" value=${cfg.mode} onChange=${(e) => upd({ mode: e.target.value })}>${opts([['show','Show all'],['first','First word only'],['hide','Hide (tap to reveal)']])}</select></label>
+      </div>
+
+      ${status === 'loading' ? html`<div class="center-msg" style=${{ padding:'24px' }}><div class="spinner"></div></div>` : null}
+      ${status === 'error' ? html`<div class="center-msg" style=${{ padding:'20px' }}><p>Couldn't load this surah. Check your connection.</p></div>` : null}
+      ${status === 'ok' ? html`
+        <div class="hf-bar">
+          <button class="btn btn-gold" onClick=${toggle} disabled=${!range.length}><${Icon} name=${playing ? 'pause' : 'play'} size=${14} filled=${!playing} /> ${playing ? 'Pause' : 'Play'}</button>
+          <button class="btn btn-ghost" onClick=${() => jump(-1)} disabled=${!range.length} aria-label="Previous ayah">Prev</button>
+          <button class="btn btn-ghost" onClick=${() => jump(1)} disabled=${!range.length} aria-label="Next ayah">Next</button>
+          <button class="btn btn-ghost" onClick=${stop}>Stop</button>
+          <span class="hf-prog">Ayah ${range[cur.idx] ? range[cur.idx].n : '–'} · repeat ${cur.rep}/${cfg.verseReps} · round ${cur.round}${cfg.rangeReps ? '/' + cfg.rangeReps : ' (loop)'}</span>
+        </div>
+        <div class="hf-list">
+          ${range.map((a, i) => html`
+            <div key=${a.n} class=${'hf-ayah' + (playing && i === cur.idx ? ' now' : '')} onClick=${() => setRevealed((r) => ({ ...r, [a.n]: !r[a.n] }))}>
+              <span class="hf-n">${a.n}</span>
+              <p class=${'hf-ar' + (cfg.mode === 'hide' && !revealed[a.n] ? ' blur' : '')} lang="ar" dir="rtl">${shown(a)}</p>
+            </div>`)}
+        </div>` : null}
+    </div>`;
+}
+
+/* ---- Qur'an search by word or topic, or jump straight to a verse ---- */
+const AYAH_ALIASES = { 'ayat al kursi':'2:255', 'ayatul kursi':'2:255', 'ayat ul kursi':'2:255', 'kursi':'2:255', 'throne verse':'2:255', 'light verse':'24:35', 'ayat an nur':'24:35', 'ayat al nur':'24:35' };
+const SEARCH_TOPICS = [['Patience','patience'],['Mercy','mercy'],['Forgiveness','forgive'],['Prayer','prayer'],['Charity','charity'],['Parents','parents'],['Paradise','paradise'],['Knowledge','knowledge'],['Gratitude','grateful'],['Trust in Allah','trust']];
+function AyahSearch({ surahs, onOpen }){
+  const [q, setQ] = useState('');
+  const [res, setRes] = useState(null);       // { kind, items, count } | { error }
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 3 && !/^\d{1,3}\s*[:.]\s*\d{1,3}$/.test(term)) { setRes(null); setBusy(false); return; }
+    const ctl = new AbortController(); setBusy(true);
+    const t = setTimeout(async () => {
+      try {
+        const norm = term.toLowerCase().replace(/[-’']/g, ' ').replace(/^the\s+/, '').replace(/\s+/g, ' ');
+        const m = term.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
+        const ref = m ? `${+m[1]}:${+m[2]}` : AYAH_ALIASES[norm];
+        if (ref) {
+          const j = await (await fetch(`${QURAN_API}/ayah/${ref}/editions/quran-uthmani,en.sahih`, { signal: ctl.signal })).json();
+          if (!Array.isArray(j.data)) { setRes({ error: 'verse' }); }
+          else setRes({ kind:'verse', count:1, items:[{ n:j.data[0].surah.number, name:j.data[0].surah.englishName, a:j.data[0].numberInSurah, ar:j.data[0].text, en:j.data[1].text }] });
+        } else {
+          const j = await (await fetch(`${QURAN_API}/search/${encodeURIComponent(term)}/all/en.sahih`, { signal: ctl.signal })).json();
+          const ms = j && j.data && Array.isArray(j.data.matches) ? j.data.matches : [];
+          setRes({ kind:'word', count: j.data && j.data.count || 0, items: ms.slice(0, 25).map((x) => ({ n:x.surah.number, name:x.surah.englishName, a:x.numberInSurah, en:x.text })) });
+        }
+      } catch (e) { if (e.name !== 'AbortError') setRes({ error: 'net' }); }
+      setBusy(false);
+    }, 450);
+    return () => { clearTimeout(t); ctl.abort(); };
+  }, [q]);
+
+  const hl = (text) => {
+    const w = q.trim(); if (res && res.kind !== 'word') return text;
+    try { return text.split(new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig')).map((p, i) => i % 2 ? html`<mark key=${i}>${p}</mark>` : p); } catch { return text; }
+  };
+  const open = (n) => { const s = surahs.find((x) => x.number === n); if (s) onOpen(s); };
+  const copy = (it) => { try { navigator.clipboard.writeText(`${it.ar ? it.ar + '\n\n' : ''}"${it.en}"\n— Qur'an ${it.n}:${it.a}`); } catch {} };
+  return html`
+    <div class="as-wrap reveal">
+      <div class="as-head">
+        <div class="eyebrow" style=${{ marginBottom: 6 }}>Search the Qur'an</div>
+        <div class="search-box">
+          <${Icon} name="search" size=${15} />
+          <input type="search" placeholder="Search a word or topic — patience, mercy… or a verse like 2:255, ayat al-kursi" value=${q} onInput=${(e) => setQ(e.target.value)} aria-label="Search the Qur'an by word or topic" />
+        </div>
+        <div class="dl-chips" style=${{ margin: '12px 0 0' }}>
+          ${SEARCH_TOPICS.map(([l, k]) => html`<button key=${k} class=${'dl-chip' + (q.trim().toLowerCase() === k ? ' on' : '')} onClick=${() => setQ(k)}>${l}</button>`)}
+        </div>
+      </div>
+      ${busy ? html`<div class="center-msg" style=${{ padding:'18px' }}><div class="spinner"></div></div>` : null}
+      ${!busy && res && res.error ? html`<p class="as-note">${res.error === 'verse' ? "That verse doesn't exist." : "Couldn't search. Check your connection."}</p>` : null}
+      ${!busy && res && !res.error && !res.items.length ? html`<p class="as-note">No ayahs found. Try a simpler word in English, like "patience" or "forgive".</p>` : null}
+      ${!busy && res && !res.error && res.items.length ? html`
+        <p class="as-note">${res.kind === 'verse' ? 'Verse' : `${res.count} ayah${res.count === 1 ? '' : 's'} found${res.count > res.items.length ? ` — showing the first ${res.items.length}` : ''}`} · English (Sahih International)</p>
+        <div class="as-list">
+          ${res.items.map((it) => html`
+            <article key=${it.n + ':' + it.a} class="as-item">
+              <header><b>${it.name}</b><span>${it.n}:${it.a}</span></header>
+              ${it.ar ? html`<p class="as-ar" lang="ar" dir="rtl">${it.ar}</p>` : null}
+              <p class="as-en">${hl(it.en)}</p>
+              <footer><button class="btn btn-ghost" onClick=${() => open(it.n)}>Open surah</button><button class="btn btn-ghost" onClick=${() => copy(it)}>Copy</button></footer>
+            </article>`)}
+        </div>` : null}
+    </div>`;
+}
+
 function DailySection({ setTab }){
   const ref = useReveal();
   const [view, setView] = useState('today');
-  const views = [['today','Today\'s goals'],['khatam','Khatam planner'],['duas','Duas']];
+  const views = [['today','Today\'s goals'],['khatam','Khatam planner'],['hifz','Hifz helper'],['calendar','Hijri calendar'],['duas','Duas']];
   return html`
     <section class="section shell" ref=${ref}>
       <div class="section-head reveal">
         <div><div class="eyebrow">Daily</div><h2>Build a daily rhythm</h2></div>
-        <p>A short list of good deeds to tick off each day, a plan to complete the Qur'an, and duas to learn and keep. Saved only on your device.</p>
+        <p>Good deeds to tick off each day, a plan to complete the Qur'an, a memorisation helper, the Hijri calendar and duas to keep. Saved only on your device.</p>
       </div>
       <div class="dl-chips dl-tabs reveal" role="tablist">
         ${views.map(([id, l]) => html`<button key=${id} role="tab" aria-selected=${view === id} class=${'dl-chip' + (view === id ? ' on' : '')} onClick=${() => setView(id)}>${l}</button>`)}
       </div>
       ${view === 'today' ? html`<${DailyTasks} />` : null}
       ${view === 'khatam' ? html`<${Khatam} setTab=${setTab} />` : null}
+      ${view === 'hifz' ? html`<${Hifz} />` : null}
+      ${view === 'calendar' ? html`<${HijriCalendar} />` : null}
       ${view === 'duas' ? html`<${Duas} />` : null}
     </section>
   `;
