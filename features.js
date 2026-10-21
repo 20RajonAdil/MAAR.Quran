@@ -44,7 +44,7 @@
   @keyframes qmxTw{0%,100%{opacity:.25}50%{opacity:1}}
   .qmx-chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-top:14px;}
   .qmx-chip{border:1px solid var(--line);border-radius:12px;padding:9px 10px;text-align:center;background:var(--card);}
-  .qmx-chip.now{border-color:var(--gold);background:rgba(179,32,47,.14);}
+  .qmx-chip.now{border-color:var(--gold);background:rgba(var(--accent-rgb),.14);}
   .qmx-chip .n{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
   .qmx-chip .t{font-size:14px;font-weight:700;margin-top:2px;}
   .qmx-scrub{display:flex;align-items:center;gap:12px;margin-top:14px;}
@@ -55,7 +55,7 @@
   .qmx-facts b{color:var(--ink);font-weight:600;}
 
   /* ---- Revelation map ---- */
-  .qmx-map{display:block;width:100%;height:auto;max-height:440px;border-radius:16px;background:radial-gradient(120% 90% at 30% 20%,rgba(74,11,20,.35),transparent 70%),#0e0c0c;border:1px solid var(--line);}
+  .qmx-map{display:block;width:100%;height:auto;max-height:440px;border-radius:16px;background:radial-gradient(120% 90% at 30% 20%,rgba(var(--deep-rgb),.35),transparent 70%),#0e0c0c;border:1px solid var(--line);}
   .qmx-node{cursor:pointer;}
   .qmx-node circle.core{transition:r .2s;}
   .qmx-node:hover circle.core{r:11;}
@@ -76,15 +76,15 @@
   .qmx-medal-ring{stroke:var(--gold);stroke-width:2.2;stroke-linecap:round;transition:stroke-dashoffset .35s var(--ease);}
   .qmx-medal-ghost path{fill:none;stroke:rgba(245,242,237,.16);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;}
   .qmx-medal-live path{fill:none;stroke:var(--ink);stroke-width:1.9;stroke-linejoin:round;stroke-linecap:round;transition:stroke-dashoffset .35s var(--ease),fill .8s;}
-  .qmx-medal.is-done .qmx-medal-live path{fill:rgba(207,51,66,.2);stroke:#ff8a94;}
-  .qmx-medal.is-done{filter:drop-shadow(0 0 8px rgba(207,51,66,.45));}
+  .qmx-medal.is-done .qmx-medal-live path{fill:rgba(var(--gold-rgb),.2);stroke:var(--danger);}
+  .qmx-medal.is-done{filter:drop-shadow(0 0 8px rgba(var(--gold-rgb),.45));}
   .qmx-readhead{display:flex;align-items:center;gap:13px;min-width:0;}
 
   /* ---- Word glow + wave ---- */
   .qmx-wave{display:block;width:100%;height:38px;background:var(--bg-raised);border-top:1px solid var(--line-soft);}
   .wg{transition:color .25s,text-shadow .25s;color:var(--muted);}
   .wg.wg-done{color:var(--ink);}
-  .wg.wg-on{color:#fff;text-shadow:0 0 18px rgba(207,51,66,.9),0 0 4px rgba(255,255,255,.5);}
+  .wg.wg-on{color:#fff;text-shadow:0 0 18px rgba(var(--gold-rgb),.9),0 0 4px rgba(255,255,255,.5);}
 
   /* ---- Recite & check ---- */
   .qmx-modal{position:fixed;inset:0;z-index:95;background:rgba(6,6,7,.82);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;}
@@ -95,13 +95,13 @@
   .qmx-rc-words{direction:rtl;text-align:center;font-family:var(--arabic-font);font-size:30px;line-height:2.3;margin:14px 0 6px;}
   .qmx-rc-words span{display:inline-block;margin:0 6px;padding:0 4px;border-radius:8px;transition:color .25s,background .25s;color:var(--muted);}
   .qmx-rc-words span.ok{color:#7be0a0;background:rgba(95,208,138,.12);}
-  .qmx-rc-words span.miss{color:#ff8a94;background:rgba(255,138,148,.12);}
+  .qmx-rc-words span.miss{color:var(--danger);background:rgba(255,138,148,.12);}
   .qmx-mic{width:78px;height:78px;border-radius:50%;border:none;background:var(--gold);color:#f5f2ed;display:flex;align-items:center;justify-content:center;cursor:pointer;margin:10px auto;position:relative;}
   .qmx-mic.on::after{content:'';position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--gold);animation:qmxPulse 1.4s ease-out infinite;}
   .qmx-heard{font-size:12.5px;color:var(--muted);text-align:center;min-height:20px;direction:rtl;}
   .qmx-score{text-align:center;font-size:14px;margin-top:6px;}
   .qmx-score b{font-family:'Instrument Serif',serif;font-size:30px;font-weight:400;display:block;}
-  .qmx-err{color:#ff8a94;font-size:13px;text-align:center;margin:6px 0;line-height:1.6;}
+  .qmx-err{color:var(--danger);font-size:13px;text-align:center;margin:6px 0;line-height:1.6;}
   .qmx-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;}
   @media (prefers-reduced-motion:reduce){.qmx-star,.qmx-pulse,.qmx-flow,.qmx-mic.on::after{animation:none;}}
   `;
@@ -195,7 +195,7 @@
     Sunrise: ['#243a63', '#c4573f'],
     Dhuhr:   ['#1f4a7a', '#6aa0c8'],
     Asr:     ['#25497a', '#a9b8b4'],
-    Maghrib: ['#2a2a52', '#cf3342'],
+    Maghrib: ['#2a2a52', 'var(--gold)'],
     Isha:    ['#080a16', '#1c1330'],
   };
   const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -383,7 +383,7 @@
             </g>
             ${ORDER.map((k) => html`
               <g key=${'l' + k}>
-                <circle cx=${px(T[k])} cy=${H} r="4" fill=${k === cur ? '#cf3342' : '#f5f2ed'} />
+                <circle cx=${px(T[k])} cy=${H} r="4" fill=${k === cur ? 'var(--gold)' : '#f5f2ed'} />
                 <text x=${px(T[k])} y=${H + 28} text-anchor="middle" font-size="14" font-weight="700" fill="#f5f2ed" opacity=".85">${LETTER[k]}</text>
               </g>
             `)}
@@ -443,8 +443,8 @@
     const P = PLACES;
     const node = (id, name, sub, p, dx) => html`
       <g class="qmx-node" onClick=${() => { setSel(id); setOpen(true); }} role="button" aria-label=${name + ' — ' + sub}>
-        <circle class="qmx-pulse" cx=${p.x} cy=${p.y} r="9" fill="none" stroke="#cf3342" stroke-width="2" style=${{ display: sel === id ? 'block' : 'none' }} />
-        <circle class="core" cx=${p.x} cy=${p.y} r=${sel === id ? 10 : 8} fill=${sel === id ? '#cf3342' : '#f5f2ed'} stroke="#0b0b0b" stroke-width="2" />
+        <circle class="qmx-pulse" cx=${p.x} cy=${p.y} r="9" fill="none" stroke="var(--gold)" stroke-width="2" style=${{ display: sel === id ? 'block' : 'none' }} />
+        <circle class="core" cx=${p.x} cy=${p.y} r=${sel === id ? 10 : 8} fill=${sel === id ? 'var(--gold)' : '#f5f2ed'} stroke="#0b0b0b" stroke-width="2" />
         <text x=${p.x + dx} y=${p.y - 2} font-size="17" font-weight="700" fill="#f5f2ed" text-anchor=${dx < 0 ? 'end' : 'start'}>${name}</text>
         <text x=${p.x + dx} y=${p.y + 15} font-size="12" fill="#a29c95" text-anchor=${dx < 0 ? 'end' : 'start'}>${sub}</text>
       </g>
@@ -464,8 +464,8 @@
             <path d=${LAND_D} fill="rgba(245,242,237,.045)" />
             <path d=${COAST_D} fill="none" stroke="rgba(245,242,237,.35)" stroke-width="1.6" />
             <text x="34" y="236" font-size="13" font-style="italic" fill="rgba(245,242,237,.3)">Red Sea</text>
-            <path d=${HIJRA_D} fill="none" stroke="#cf3342" stroke-width="2.2" stroke-dasharray="6 6" stroke-linecap="round" class="qmx-flow" />
-            <text x="176" y="176" font-size="11" fill="#cf3342" text-anchor="middle" transform="rotate(-72 176 176)">Hijra route (approx.)</text>
+            <path d=${HIJRA_D} fill="none" stroke="var(--gold)" stroke-width="2.2" stroke-dasharray="6 6" stroke-linecap="round" class="qmx-flow" />
+            <text x="176" y="176" font-size="11" fill="var(--gold)" text-anchor="middle" transform="rotate(-72 176 176)">Hijra route (approx.)</text>
             ${[['Jeddah', P.jeddah, -10], ['Yanbu', P.yanbu, -10], ['Taif', P.taif, 10]].map(([n, p, dx]) => html`
               <g key=${n}><circle cx=${p.x} cy=${p.y} r="3" fill="rgba(245,242,237,.45)" /><text x=${p.x + dx} y=${p.y + 4} font-size="11" fill="rgba(245,242,237,.45)" text-anchor=${dx < 0 ? 'end' : 'start'}>${n}</text></g>
             `)}
@@ -628,8 +628,8 @@
         ctx.clearRect(0, 0, W, H);
         const mid = H / 2;
         const g = ctx.createLinearGradient(0, 0, W, 0);
-        g.addColorStop(0, 'rgba(207,51,66,0)');
-        g.addColorStop(0.25, 'rgba(207,51,66,.85)');
+        g.addColorStop(0, 'rgba(var(--gold-rgb),0)');
+        g.addColorStop(0.25, 'rgba(var(--gold-rgb),.85)');
         g.addColorStop(0.6, 'rgba(245,242,237,.9)');
         g.addColorStop(1, 'rgba(245,242,237,0)');
         ctx.fillStyle = g;
