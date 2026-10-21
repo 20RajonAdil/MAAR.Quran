@@ -266,8 +266,12 @@
     atmosEl.style.opacity = '1'; atmosEl.setAttribute('data-phase', phaseInfo.name);
   }
   function phaseLabel() {
-    var el = document.getElementById('qm-phase'); if (!el || !phaseInfo) return;
+    if (!phaseInfo) return;
     var p = phaseInfo;
+    var hn = document.getElementById('qm-hero-name'), hx = document.getElementById('qm-hero-next');
+    if (hn) hn.textContent = p.name + ' \u00b7 ' + PHASES[p.name].note;
+    if (hx) hx.textContent = p.nextAt ? 'Next: ' + p.next + ' ' + hhmm(p.nextAt) : '';
+    var el = document.getElementById('qm-phase'); if (!el) return;
     el.textContent = p.name + ' \u00b7 ' + PHASES[p.name].note + (p.nextAt ? ' \u2014 next: ' + p.next + ' at ' + hhmm(p.nextAt) : '') + (p.real ? '' : ' (estimated until your location loads)');
   }
   function tick() {
@@ -303,11 +307,16 @@
       'animation:qmDraw 2.3s cubic-bezier(.4,.1,.2,1) .2s forwards,qmFill 1s ease 1.9s forwards;}' +
       '.qm-intro .qm-in-sub{font-family:"Instrument Serif",serif;font-style:italic;font-size:19px;color:var(--muted);opacity:0;animation:qmSub 1s ease 2.4s forwards;text-align:center;padding:0 20px;}' +
       '.qm-intro .qm-in-skip{position:absolute;right:16px;top:calc(env(safe-area-inset-top,0px) + 14px);background:var(--card);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:8px 16px;font-size:12.5px;font-weight:600;cursor:pointer;}' +
+      '.qm-intro .qm-in-brand{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 34px);font-family:"Instrument Serif",serif;font-size:22px;letter-spacing:.02em;color:var(--ink);opacity:0;animation:qmSub 1s ease 2.8s forwards;}' +
+      '.qm-intro .qm-in-brand b{color:rgb(var(--intro-rgb,var(--glow-rgb)));font-weight:400;}' +
+      '.qm-intro .qm-in-bar{position:absolute;left:0;bottom:0;height:3px;width:100%;transform-origin:left;transform:scaleX(0);background:linear-gradient(90deg,transparent,rgb(var(--intro-rgb,var(--glow-rgb))));animation:qmBar 4.2s linear forwards;}' +
+      '@keyframes qmBar{to{transform:scaleX(1);}}' +
       '@keyframes qmDraw{to{stroke-dashoffset:0;}}@keyframes qmFill{to{fill-opacity:1;stroke-opacity:.35;}}@keyframes qmSub{to{opacity:1;}}' +
       '</style>' +
       '<button class="qm-in-skip" type="button" aria-label="Skip the opening animation">Skip</button>' +
       '<svg viewBox="0 0 900 190" role="img" aria-label="Bismillah ir-Rahman ir-Rahim"><text x="450" y="130" text-anchor="middle" direction="rtl">\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650</text></svg>' +
-      '<div class="qm-in-sub">In the name of Allah, the Most Gracious, the Most Merciful</div>';
+      '<div class="qm-in-sub">In the name of Allah, the Most Gracious, the Most Merciful</div>' +
+      '<div class="qm-in-brand">Quran <b>Maar</b></div><i class="qm-in-bar"></i>';
 
     var done = false;
     function end() {
@@ -329,155 +338,337 @@
 
   /* ============================================================
      Settings page (mounted by app.js into the Settings tab)
+     Built once; controls update in place so the sliding / springy
+     animations play instead of the page being rebuilt on each tap.
      ============================================================ */
-  var host = null, confirming = false;
+  var host = null, toastEl = null, toastT = 0;
   function h(tag, attrs, kids) {
     var e = document.createElement(tag), k;
     for (k in (attrs || {})) {
       if (k === 'class') e.className = attrs[k];
       else if (k === 'text') e.textContent = attrs[k];
+      else if (k === 'html') e.innerHTML = attrs[k];
       else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), attrs[k]);
       else e.setAttribute(k, attrs[k]);
     }
     (kids || []).forEach(function (c) { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
-  function set(k, v) { S[k] = v; save(); apply(); refresh(); }
+  function ico(path, size) {
+    return '<svg viewBox="0 0 24 24" width="' + (size || 20) + '" height="' + (size || 20) + '" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + path + '"/></svg>';
+  }
+  function icn(name, size) { return name === 'arabic' ? '<span style="font-family:var(--arabic-font);font-size:' + ((size || 20) + 2) + 'px;line-height:1;">\u0639</span>' : ico(I[name], size); }
+  var I = {
+    palette: 'M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H17a4 4 0 0 0 4-4c0-4.4-4-8.2-9-8.2zM7.5 11h.01M10.5 7.5h.01M15 7.5h.01',
+    sun: 'M12 4.5v-2M12 21.5v-2M4.5 12h-2M21.5 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+    wave: 'M3 12c2-5 4-5 6 0s4 5 6 0 4-5 6 0',
+    play: 'M7 4.5v15l13-7.5-13-7.5z',
+    size: 'M4 18 9 6l5 12M6 14h6M16 18l2.5-6 2.5 6M17 16h3',
+    arabic: 'M4 15c3 4 9 4 12 0M16 15c2-1 3-3 3-6M12 9v3M9 6h.01M15 6h.01',
+    lines: 'M4 7h16M4 12h16M4 17h10',
+    contrast: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 3v18',
+    eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    book: 'M4 5.5c2.5-1.2 5-1.2 8 0v13c-3-1.2-5.5-1.2-8 0v-13zM20 5.5c-2.5-1.2-5-1.2-8 0v13c3-1.2 5.5-1.2 8 0v-13z',
+    tap: 'M5 3l14 7-6 2-2 6L5 3z',
+    focus: 'M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3',
+    spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',
+    reset: 'M4 12a8 8 0 1 0 2.5-5.8M4 4v4.5h4.5',
+    check: 'M5 12.5 10 17.5 19 7'
+  };
 
   var PAGE_CSS = [
-    '.qm-settings-host{max-width:720px;margin:0 auto;padding-bottom:40px;}',
-    '@media(max-width:819px){.qm-settings-host{padding-bottom:96px;}}',
-    '.qm-card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:8px 18px 14px;margin-bottom:16px;}',
-    '.qm-card>h3{margin:12px 0 4px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:700;}',
-    '.qm-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--line-soft);font-size:15px;min-height:56px;}',
-    '.qm-row:last-child{border-bottom:none;}',
-    '.qm-row.col{flex-direction:column;align-items:stretch;gap:10px;}',
-    '.qm-row small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.5;}',
-    '.qm-sw{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 0 6px;}',
-    '.qm-dot{width:40px;height:40px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;outline-offset:3px;flex:none;}',
-    '.qm-dot.on{border-color:var(--ink);box-shadow:inset 0 0 0 3px var(--bg-soft,#121010);}',
-    '.qm-seg{display:flex;flex-wrap:wrap;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:3px;}',
-    '.qm-seg button{flex:1 1 auto;background:none;border:none;color:var(--muted);font-size:13.5px;font-weight:600;padding:11px 12px;border-radius:14px;cursor:pointer;}',
-    '.qm-seg button.on{background:var(--gold);color:#f5f2ed;}',
-    '.qm-tg{position:relative;width:52px;height:30px;flex:none;border-radius:999px;border:1px solid var(--line);background:var(--card-hi);cursor:pointer;padding:0;transition:background .2s;}',
-    '.qm-tg::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--ink);transition:transform .2s;}',
-    '.qm-tg[aria-checked="true"]{background:var(--gold);border-color:var(--gold);}',
+    '.qm-settings-host{max-width:760px;margin:0 auto;padding:0 0 40px;--qm-r:26px;}',
+    '@media(max-width:819px){.qm-settings-host{padding-bottom:104px;}}',
+    '.qm-settings-host button{font-family:inherit;-webkit-tap-highlight-color:transparent;}',
+    '.qm-settings-host [hidden]{display:none !important;}',
+
+    /* live preview */
+    '.qm-hero{position:relative;overflow:hidden;border-radius:30px;padding:20px 20px 22px;margin-bottom:14px;border:1px solid var(--line);',
+    'background:radial-gradient(120% 95% at 50% -10%,rgba(var(--glow-rgb),.42),transparent 62%),radial-gradient(70% 60% at 100% 110%,rgba(var(--deep-rgb),.45),transparent 70%),var(--bg-soft,#121010);',
+    'box-shadow:0 30px 70px -34px rgba(var(--glow-rgb),.55),inset 0 1px 0 rgba(255,255,255,.07);transition:box-shadow .6s;}',
+    '.qm-hero-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);}',
+    '.qm-chip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 10px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:var(--ink);font-weight:600;backdrop-filter:blur(8px);}',
+    '.qm-live{width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 0 rgba(var(--gold-rgb),.6);animation:qmPulse 2.4s infinite;}',
+    '@keyframes qmPulse{70%{box-shadow:0 0 0 9px rgba(var(--gold-rgb),0);}100%{box-shadow:0 0 0 0 rgba(var(--gold-rgb),0);}}',
+    '.qm-hero-ar{font-family:var(--arabic-font);direction:rtl;text-align:center;font-size:clamp(30px,8vw,42px);line-height:1.9;margin:16px 0 14px;color:var(--gold-hi);text-shadow:0 0 28px rgba(var(--glow-rgb),.45);}',
+    '.qm-hero-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}',
+    '.qm-pill{padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:700;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);}',
+    '.qm-pill.solid{background:linear-gradient(135deg,var(--gold),rgba(var(--accent-rgb),1));border-color:transparent;color:#f5f2ed;box-shadow:0 10px 26px -10px rgba(var(--gold-rgb),.8);}',
+
+    /* chips */
+    '.qm-chips{display:flex;gap:8px;overflow-x:auto;margin:0 -2px 16px;padding:2px;scrollbar-width:none;}',
+    '.qm-chips::-webkit-scrollbar{display:none;}',
+    '.qm-chips button{flex:none;display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13.5px;font-weight:600;cursor:pointer;transition:transform .15s,border-color .2s,background .2s;}',
+    '.qm-chips button:active{transform:scale(.96);}',
+    '.qm-chips button:hover{border-color:var(--gold);}',
+    '.qm-chips svg{color:var(--gold);}',
+
+    /* cards */
+    '.qm-card{scroll-margin-top:84px;position:relative;border-radius:var(--qm-r);padding:20px 18px 8px;margin-bottom:16px;border:1px solid var(--line-soft);',
+    'background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);',
+    'box-shadow:0 24px 60px -34px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06);}',
+    '.qm-card-h{display:flex;align-items:center;gap:12px;margin-bottom:6px;}',
+    '.qm-card-h .qm-ic{width:42px;height:42px;border-radius:14px;}',
+    '.qm-card-h h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.01em;}',
+    '.qm-card-h p{margin:2px 0 0;font-size:13px;color:var(--muted);line-height:1.4;}',
+    '.qm-ic{display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:12px;color:var(--gold);background:rgba(var(--accent-rgb),.16);border:1px solid rgba(var(--accent-rgb),.28);}',
+
+    /* rows */
+    '.qm-row{display:flex;align-items:center;gap:14px;padding:15px 2px;min-height:60px;cursor:pointer;user-select:none;}',
+    '.qm-row+.qm-row,.qm-block+.qm-row,.qm-row+.qm-block{border-top:1px solid var(--line-soft);}',
+    '.qm-row .qm-txt{flex:1;min-width:0;font-size:15.5px;font-weight:600;line-height:1.3;}',
+    '.qm-row small,.qm-block small{display:block;margin-top:3px;font-size:12.5px;font-weight:400;color:var(--muted);line-height:1.5;}',
+    '.qm-block{padding:14px 2px;}',
+    '.qm-block>.qm-lab{display:flex;align-items:center;gap:12px;font-size:15.5px;font-weight:600;margin-bottom:12px;}',
+    '.qm-block>.qm-lab span.qm-t{flex:1;}',
+    '.qm-val{font-variant-numeric:tabular-nums;color:var(--gold);font-weight:700;font-size:14px;}',
+
+    /* toggle (spring) */
+    '.qm-tg{position:relative;flex:none;width:54px;height:32px;border-radius:999px;border:1px solid var(--line);background:var(--card-hi);cursor:pointer;padding:0;transition:background .25s,border-color .25s,box-shadow .25s;}',
+    '.qm-tg::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.45);transition:transform .35s cubic-bezier(.3,1.5,.5,1),width .2s;}',
+    '.qm-tg:active::after{width:28px;}',
+    '.qm-tg[aria-checked="true"]{background:var(--gold);border-color:var(--gold);box-shadow:0 0 18px -2px rgba(var(--gold-rgb),.55);}',
     '.qm-tg[aria-checked="true"]::after{transform:translateX(22px);}',
-    '.qm-range{width:100%;height:32px;accent-color:var(--gold);}',
-    '.qm-color{display:flex;align-items:center;gap:10px;flex:none;}',
-    '.qm-color input[type=color]{width:46px;height:40px;border:1px solid var(--line);border-radius:10px;background:none;padding:3px;cursor:pointer;}',
-    '.qm-link{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px;padding:8px;}',
-    '.qm-reset{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:16px;padding:15px;font-weight:700;font-size:15px;cursor:pointer;}',
-    '.qm-reset:hover{border-color:var(--gold);}',
-    '.qm-confirm{padding:16px;border:1px solid var(--gold);border-radius:18px;background:rgba(var(--accent-rgb,179,32,47),.10);}',
-    '.qm-confirm b{font-size:16px;}.qm-confirm p{margin:6px 0 14px;font-size:13.5px;line-height:1.55;color:var(--muted);}',
-    '.qm-confirm-btns{display:flex;gap:10px;}.qm-confirm-btns button{flex:1;border-radius:14px;padding:14px 10px;font-weight:700;font-size:14.5px;cursor:pointer;}',
-    '.qm-yes{background:var(--gold);color:#f5f2ed;border:1px solid var(--gold);}.qm-no{background:var(--card);color:var(--ink);border:1px solid var(--line);}',
-    '.qm-prev{margin:6px 0 4px;font-family:var(--arabic-font);font-size:28px;direction:rtl;text-align:center;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--card);line-height:1.9;color:var(--gold-hi);}',
-    '.qm-now{margin:12px 0 4px;padding:12px 14px;border-radius:14px;border:1px solid var(--gold-dim);background:rgba(var(--accent-rgb,179,32,47),.10);font-size:13.5px;line-height:1.5;}',
-    '.qm-now b{color:var(--gold);}',
-    '@media(max-width:520px){.qm-card{padding:6px 14px 12px;border-radius:20px;}.qm-row{font-size:14.5px;}}'
+    '.qm-tg[aria-checked="true"]:active::after{transform:translateX(18px);}',
+
+    /* sliding segmented control */
+    '.qm-seg{position:relative;display:grid;grid-template-columns:repeat(var(--n),1fr);padding:4px;border-radius:18px;background:rgba(0,0,0,.28);border:1px solid var(--line-soft);}',
+    '.qm-seg-thumb{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/var(--n));border-radius:14px;transform:translateX(calc(var(--i)*100%));',
+    'background:linear-gradient(135deg,var(--gold),rgba(var(--accent-rgb),1));box-shadow:0 8px 20px -8px rgba(var(--gold-rgb),.8);transition:transform .38s cubic-bezier(.3,1.25,.5,1);}',
+    '.qm-seg button{position:relative;z-index:1;background:none;border:none;color:var(--muted);font-size:13.5px;font-weight:700;padding:12px 4px;border-radius:14px;cursor:pointer;transition:color .2s;}',
+    '.qm-seg button.on{color:#f5f2ed;}',
+
+    /* colour tiles */
+    '.qm-sw{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}',
+    '@media(min-width:520px){.qm-sw{grid-template-columns:repeat(8,1fr);}}',
+    '.qm-dot{position:relative;aspect-ratio:1;border-radius:18px;border:2px solid transparent;padding:0;cursor:pointer;display:grid;place-items:center;color:#fff;transition:transform .2s cubic-bezier(.3,1.5,.5,1),box-shadow .25s;}',
+    '.qm-dot:active{transform:scale(.92);}',
+    '.qm-dot svg{opacity:0;transform:scale(.4);transition:opacity .2s,transform .3s cubic-bezier(.3,1.6,.5,1);filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));}',
+    '.qm-dot.on{box-shadow:0 0 0 2px var(--bg-soft,#121010),0 0 0 4px var(--ink);transform:scale(1.04);}',
+    '.qm-dot.on svg{opacity:1;transform:none;}',
+    '.qm-dot.auto{background:conic-gradient(#c26a9a,#f0a24a,#ff8f6e,#e8a050,#ff6a5a,#a03a60,#c26a9a);}',
+    '.qm-dot.custom{overflow:hidden;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);}',
+    '.qm-dot.custom input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;}',
+    '.qm-sub{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.5;}',
+    '.qm-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;}',
+    '.qm-pick{position:relative;display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:18px;border:1px solid var(--line-soft);background:rgba(0,0,0,.22);}',
+    '.qm-pick .sw{width:34px;height:34px;border-radius:11px;flex:none;border:1px solid rgba(255,255,255,.18);}',
+    '.qm-pick span.t{font-size:13px;font-weight:600;line-height:1.25;min-width:0;}',
+    '.qm-pick span.t em{display:block;font-style:normal;font-weight:400;color:var(--muted);font-size:11.5px;}',
+    '.qm-pick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;}',
+    '.qm-pick .qm-auto{position:relative;z-index:2;margin-left:auto;background:none;border:none;color:var(--gold);font-size:12px;font-weight:700;cursor:pointer;padding:6px;}',
+
+    /* background tiles */
+    '.qm-bgs{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}',
+    '.qm-bg{border:1px solid var(--line-soft);border-radius:16px;padding:8px 6px 9px;background:rgba(0,0,0,.2);color:var(--muted);font-size:11.5px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;transition:transform .2s cubic-bezier(.3,1.5,.5,1),border-color .2s,color .2s;}',
+    '.qm-bg:active{transform:scale(.94);}',
+    '.qm-bg i{display:block;width:100%;aspect-ratio:1.25;border-radius:10px;border:1px solid rgba(255,255,255,.12);}',
+    '.qm-bg.on{border-color:var(--gold);color:var(--ink);box-shadow:0 0 0 1px var(--gold);}',
+    '@media(max-width:420px){.qm-bgs{gap:7px;}.qm-bg{font-size:10.5px;padding:7px 4px 8px;}}',
+
+    /* slider */
+    '.qm-range{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin:0;cursor:pointer;--p:0%;}',
+    '.qm-range::-webkit-slider-runnable-track{height:8px;border-radius:99px;background:linear-gradient(90deg,var(--gold) var(--p),var(--card-hi) var(--p));}',
+    '.qm-range::-moz-range-track{height:8px;border-radius:99px;background:var(--card-hi);}',
+    '.qm-range::-moz-range-progress{height:8px;border-radius:99px;background:var(--gold);}',
+    '.qm-range::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;margin-top:-10px;border-radius:50%;background:#fff;border:none;box-shadow:0 3px 10px rgba(0,0,0,.5),0 0 0 4px rgba(var(--gold-rgb),.28);}',
+    '.qm-range::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#fff;border:none;box-shadow:0 3px 10px rgba(0,0,0,.5),0 0 0 4px rgba(var(--gold-rgb),.28);}',
+
+    /* reset + confirm */
+    '.qm-reset{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-size:15px;cursor:pointer;transition:transform .15s,border-color .2s;}',
+    '.qm-reset:active{transform:scale(.98);}.qm-reset:hover{border-color:var(--gold);}',
+    '.qm-confirm{padding:20px;border-radius:24px;border:1px solid var(--gold);background:linear-gradient(180deg,rgba(var(--accent-rgb),.16),rgba(var(--accent-rgb),.06));animation:qmPop .35s cubic-bezier(.3,1.4,.5,1);}',
+    '@keyframes qmPop{from{opacity:0;transform:translateY(10px) scale(.97);}to{opacity:1;transform:none;}}',
+    '.qm-confirm b{font-size:17px;}.qm-confirm p{margin:6px 0 16px;font-size:13.5px;line-height:1.55;color:var(--muted);}',
+    '.qm-confirm-btns{display:flex;gap:10px;}.qm-confirm-btns button{flex:1;border-radius:16px;padding:15px 10px;font-weight:700;font-size:14.5px;cursor:pointer;transition:transform .15s;}',
+    '.qm-confirm-btns button:active{transform:scale(.97);}',
+    '.qm-yes{background:linear-gradient(135deg,var(--gold),rgba(var(--accent-rgb),1));color:#f5f2ed;border:none;box-shadow:0 10px 24px -10px rgba(var(--gold-rgb),.8);}',
+    '.qm-no{background:var(--card);color:var(--ink);border:1px solid var(--line);}',
+    '.qm-foot{margin:14px 4px 0;text-align:center;font-size:12px;color:var(--muted-2);line-height:1.6;}',
+
+    /* toast */
+    '.qm-toast{position:fixed;left:50%;bottom:calc(var(--tab-h,64px) + env(safe-area-inset-bottom,0px) + 18px);transform:translate(-50%,20px);opacity:0;z-index:70;pointer-events:none;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:999px;background:rgba(var(--bg-rgb,11,11,11),.92);border:1px solid var(--gold);color:var(--ink);font-size:13px;font-weight:600;backdrop-filter:blur(12px);box-shadow:0 12px 34px rgba(0,0,0,.5);transition:opacity .25s,transform .35s cubic-bezier(.3,1.4,.5,1);}',
+    '.qm-toast.show{opacity:1;transform:translate(-50%,0);}',
+    '.qm-toast svg{color:var(--gold);}',
+    '@media(min-width:820px){.qm-toast{bottom:28px;}}'
   ].join('\n');
 
-  function row(label, hint, control) {
-    return h('div', { class: 'qm-row' }, [h('div', { style: 'min-width:0;' }, [label, hint ? h('small', { text: hint }) : null]), control]);
-  }
-  function toggle(key, label, hint) {
-    var b = h('button', { type: 'button', class: 'qm-tg', role: 'switch', 'aria-checked': String(!!S[key]), 'aria-label': label, onclick: function () { set(key, !S[key]); } });
-    return row(label, hint, b);
-  }
-  function seg(key, label, opts, hint) {
-    var w = h('div', { class: 'qm-seg', role: 'group', 'aria-label': label });
-    opts.forEach(function (o) {
-      w.appendChild(h('button', { type: 'button', class: S[key] === o[0] ? 'on' : '', 'aria-pressed': String(S[key] === o[0]), text: o[1], onclick: function () { set(key, o[0]); } }));
-    });
-    var r = row(label, hint, w); r.classList.add('col'); return r;
-  }
-  function colorRow(key, label, hint, fallback) {
-    var inp = h('input', { type: 'color', value: S[key] || fallback, 'aria-label': label, oninput: function (e) { S[key] = e.target.value; save(); apply(); } });
-    var rst = h('button', { type: 'button', class: 'qm-link', text: 'Auto', 'aria-label': label + ': back to automatic', onclick: function () { set(key, ''); } });
-    return row(label, hint, h('div', { class: 'qm-color' }, [S[key] ? rst : null, inp]));
-  }
-  function slider(key, label, min, max, step, hint) {
-    var out = h('b', { text: S[key] + '%' });
-    var inp = h('input', { type: 'range', class: 'qm-range', min: min, max: max, step: step, value: S[key], 'aria-label': label,
-      oninput: function (e) { S[key] = +e.target.value; out.textContent = S[key] + '%'; save(); apply(); } });
-    return h('div', { class: 'qm-row col' }, [
-      h('div', { style: 'display:flex;justify-content:space-between;' }, [h('span', { text: label }), out]), inp, hint ? h('small', { text: hint }) : null]);
+  function persist() { save(); apply(); syncSel(); toast(); }
+  function set(k, v) { S[k] = v; persist(); }
+
+  function toast(msg) {
+    if (!toastEl) return;
+    toastEl.querySelector('span').textContent = msg || 'Saved';
+    toastEl.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(function () { toastEl && toastEl.classList.remove('show'); }, 1300);
   }
 
-  function refresh() {
+  /* ---- builders ---- */
+  function card(icon, title, sub, id, kids) {
+    var c = h('section', { class: 'qm-card', id: id }, [
+      h('div', { class: 'qm-card-h' }, [h('span', { class: 'qm-ic', html: icn(icon, 22) }), h('div', {}, [h('h3', { text: title }), sub ? h('p', { text: sub }) : null])])
+    ].concat(kids));
+    return c;
+  }
+  function toggleRow(key, icon, label, hint) {
+    var sw = h('button', { type: 'button', class: 'qm-tg', role: 'switch', 'data-tg': key, 'aria-label': label, 'aria-checked': String(!!S[key]) });
+    var r = h('div', { class: 'qm-row', onclick: function () { S[key] = !S[key]; persist(); } }, [
+      h('span', { class: 'qm-ic', html: icn(icon) }),
+      h('div', { class: 'qm-txt' }, [label, hint ? h('small', { text: hint }) : null]), sw]);
+    return r;
+  }
+  function segBlock(key, icon, label, opts, hint) {
+    var w = h('div', { class: 'qm-seg', role: 'group', 'aria-label': label, 'data-seg': key, style: '--n:' + opts.length + ';--i:0' }, [h('span', { class: 'qm-seg-thumb' })]);
+    opts.forEach(function (o) {
+      w.appendChild(h('button', { type: 'button', 'data-key': key, 'data-val': o[0], text: o[1], onclick: function () { S[key] = o[0]; persist(); } }));
+    });
+    return h('div', { class: 'qm-block' }, [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-ic', html: icn(icon) }), h('span', { class: 'qm-t', text: label })]), w,
+      hint ? h('small', { text: hint, style: 'margin-top:10px;' }) : null]);
+  }
+  function sliderBlock(key, icon, label, min, max, step, hint) {
+    var out = h('span', { class: 'qm-val', 'data-out': key });
+    var inp = h('input', { type: 'range', class: 'qm-range', min: min, max: max, step: step, 'data-range': key, 'aria-label': label,
+      oninput: function (e) { S[key] = +e.target.value; save(); apply(); paintRange(e.target); out.textContent = S[key] + '%'; toast(); } });
+    return h('div', { class: 'qm-block' }, [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-ic', html: icn(icon) }), h('span', { class: 'qm-t', text: label }), out]), inp,
+      hint ? h('small', { text: hint, style: 'margin-top:6px;' }) : null]);
+  }
+  function paintRange(el) { el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%'); }
+  function pickBlock(key, label, hint, fallback) {
+    var sw = h('span', { class: 'sw', 'data-sw': key });
+    var inp = h('input', { type: 'color', 'data-color': key, 'aria-label': label, oninput: function (e) { S[key] = e.target.value; save(); apply(); syncSel(); toast(); } });
+    var auto = h('button', { type: 'button', class: 'qm-auto', 'data-auto': key, text: 'Auto', 'aria-label': label + ': back to automatic', onclick: function (e) { e.stopPropagation(); S[key] = ''; persist(); } });
+    var d = h('div', { class: 'qm-pick' }, [sw, h('span', { class: 't' }, [label, h('em', { text: hint })]), auto, inp]);
+    d._fallback = fallback; sw._fallback = fallback;
+    return d;
+  }
+
+  function syncSel() {
     if (!host) return;
-    var keepY = window.scrollY;
+    var els = host.querySelectorAll('[data-key][data-val]');
+    Array.prototype.forEach.call(els, function (b) {
+      var on = String(S[b.getAttribute('data-key')]) === b.getAttribute('data-val');
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-seg]'), function (w) {
+      var i = 0, btns = w.querySelectorAll('button');
+      Array.prototype.forEach.call(btns, function (b, n) { if (b.classList.contains('on')) i = n; });
+      w.style.setProperty('--i', i);
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-tg]'), function (t) { t.setAttribute('aria-checked', String(!!S[t.getAttribute('data-tg')])); });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-range]'), function (r) {
+      var k = r.getAttribute('data-range'); r.value = S[k]; paintRange(r);
+      var o = host.querySelector('[data-out="' + k + '"]'); if (o) o.textContent = S[k] + '%';
+    });
+    /* accent tiles */
+    var autoOn = S.accent === 'auto';
+    Array.prototype.forEach.call(host.querySelectorAll('[data-acc]'), function (b) {
+      var v = b.getAttribute('data-acc'), on = v === 'auto' ? autoOn : (!autoOn && S.accent.toLowerCase() === v);
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    });
+    var ci = host.querySelector('[data-customtile]'); if (ci) {
+      var preset = ACCENTS.some(function (a) { return a[1] === S.accent.toLowerCase(); });
+      ci.classList.toggle('on', !autoOn && !preset);
+      ci.setAttribute('aria-pressed', String(!autoOn && !preset));
+    }
+    var hint = host.querySelector('#qm-acc-hint');
+    if (hint) hint.textContent = autoOn ? 'Auto: the colour changes with each prayer time. Pick a colour to keep it fixed.' : 'Fixed colour. Choose the rainbow tile to follow the prayer times again.';
+    /* glow / intro pickers */
+    Array.prototype.forEach.call(host.querySelectorAll('[data-sw]'), function (sw) {
+      var k = sw.getAttribute('data-sw');
+      sw.style.background = S[k] || (k === 'glow' ? 'rgb(' + (getComputedStyle(root).getPropertyValue('--glow-rgb').trim() || '179,32,47') + ')' : 'var(--gold)');
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-auto]'), function (b) { b.hidden = !S[b.getAttribute('data-auto')]; });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-color]'), function (i) { i.value = S[i.getAttribute('data-color')] || '#cf3342'; });
+    phaseLabel();
+  }
+
+  function build() {
     host.innerHTML = '';
-    if (!document.getElementById('qm-page-css')) { var st = h('style', { id: 'qm-page-css', text: PAGE_CSS }); document.head.appendChild(st); }
+    if (!document.getElementById('qm-page-css')) document.head.appendChild(h('style', { id: 'qm-page-css', text: PAGE_CSS }));
+
+    /* live preview */
+    host.appendChild(h('div', { class: 'qm-hero', 'aria-label': 'Live preview of your colours' }, [
+      h('div', { class: 'qm-hero-top' }, [h('span', { class: 'qm-chip' }, [h('i', { class: 'qm-live' }), h('span', { id: 'qm-hero-name', text: '' })]), h('span', { id: 'qm-hero-next', text: '' })]),
+      h('div', { class: 'qm-hero-ar', text: '\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650' }),
+      h('div', { class: 'qm-hero-btns' }, [h('span', { class: 'qm-pill solid', text: 'Open the Qur\u2019an' }), h('span', { class: 'qm-pill', text: 'Prayer times' })])
+    ]));
+
+    /* jump chips */
+    function chip(icon, label, id) {
+      return h('button', { type: 'button', html: ico(I[icon], 16) + '<span>' + label + '</span>', onclick: function () {
+        var t = document.getElementById(id); if (t) t.scrollIntoView({ behavior: motionLevel() === 'off' ? 'auto' : 'smooth', block: 'start' }); } });
+    }
+    host.appendChild(h('div', { class: 'qm-chips', role: 'navigation', 'aria-label': 'Jump to a settings group' }, [
+      chip('palette', 'Colours', 'qm-s-colours'), chip('sun', 'Prayer colours', 'qm-s-prayer'), chip('wave', 'Motion', 'qm-s-motion'), chip('eye', 'Access', 'qm-s-access')]));
 
     /* colours */
     var sw = h('div', { class: 'qm-sw', role: 'group', 'aria-label': 'Accent colour' });
-    var autoOn = S.accent === 'auto';
-    sw.appendChild(h('button', { type: 'button', class: 'qm-dot' + (autoOn ? ' on' : ''), style: 'background:conic-gradient(#c26a9a,#f0a24a,#ff8f6e,#e8a050,#ff6a5a,#a03a60,#c26a9a)',
-      'aria-label': 'Auto: follows the prayer times', 'aria-pressed': String(autoOn), onclick: function () { set('accent', 'auto'); } }));
+    sw.appendChild(h('button', { type: 'button', class: 'qm-dot auto', 'data-acc': 'auto', 'aria-label': 'Auto: follows the prayer times', html: ico(I.check, 22), onclick: function () { S.accent = 'auto'; persist(); } }));
     ACCENTS.forEach(function (a) {
-      var on = !autoOn && S.accent.toLowerCase() === a[1];
-      sw.appendChild(h('button', { type: 'button', class: 'qm-dot' + (on ? ' on' : ''), style: 'background:' + a[1], 'aria-label': a[0], 'aria-pressed': String(on), onclick: function () { set('accent', a[1]); } }));
+      sw.appendChild(h('button', { type: 'button', class: 'qm-dot', style: 'background:' + a[1], 'data-acc': a[1], 'aria-label': a[0], html: ico(I.check, 22), onclick: function () { S.accent = a[1]; persist(); } }));
     });
-    sw.appendChild(h('input', { type: 'color', class: 'qm-dot', value: autoOn ? ORIGINAL : S.accent, 'aria-label': 'Pick any accent colour',
-      style: 'padding:0;border:2px solid var(--line);background:none;', oninput: function (e) { S.accent = e.target.value; save(); apply(); } }));
+    var ctile = h('div', { class: 'qm-dot custom', 'data-customtile': '1', role: 'group' }, [
+      h('input', { type: 'color', 'aria-label': 'Pick any accent colour', value: '#cf3342', oninput: function (e) { S.accent = e.target.value; save(); apply(); syncSel(); toast(); } })]);
+    ctile.style.background = 'conic-gradient(#ff3b3b,#ffd23b,#3bff7a,#3bd8ff,#6a3bff,#ff3bd8,#ff3b3b)';
+    sw.appendChild(ctile);
 
-    host.appendChild(h('div', { class: 'qm-card' }, [h('h3', { text: 'Colours' }),
-      h('div', { class: 'qm-prev', text: '\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650' }),
-      h('div', { class: 'qm-row col', style: 'border:none;padding-bottom:0;' }, [h('span', { text: 'Accent colour' }),
-        h('small', { text: autoOn ? 'Auto: the colour changes with each prayer time. Pick a colour to keep it fixed.' : 'Fixed colour. Choose the rainbow circle to follow the prayer times again.' })]),
-      sw,
-      colorRow('glow', 'Animation glow', 'Colour of the background glow', '#b3202f'),
-      colorRow('introColor', 'Opening Bismillah colour', 'The colour the calligraphy is drawn in', '#cf3342'),
-      seg('back', 'Background', Object.keys(BACKS).map(function (k) { return [k, BACKS[k].label]; }))
+    var bgs = h('div', { class: 'qm-bgs', role: 'group', 'aria-label': 'Background' });
+    Object.keys(BACKS).forEach(function (k) {
+      var b = BACKS[k];
+      bgs.appendChild(h('button', { type: 'button', class: 'qm-bg', 'data-key': 'back', 'data-val': k, onclick: function () { S.back = k; persist(); } },
+        [h('i', { style: 'background:linear-gradient(160deg,' + b.top + ',' + b.soft + ')' }), b.label.replace('Pure black', 'Pure')]));
+    });
+
+    host.appendChild(card('palette', 'Colours', 'Pick the look. Your choices are saved on this device.', 'qm-s-colours', [
+      h('div', { class: 'qm-block' }, [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-t', text: 'Accent colour' })]), h('p', { class: 'qm-sub', id: 'qm-acc-hint' }), sw]),
+      h('div', { class: 'qm-block' }, [h('div', { class: 'qm-pair' }, [pickBlock('glow', 'Glow', 'Background light', '#b3202f'), pickBlock('introColor', 'Bismillah', 'Opening colour', '#cf3342')])]),
+      h('div', { class: 'qm-block' }, [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-t', text: 'Background' })]), bgs])
     ]));
 
-    /* prayer colours + animation */
-    host.appendChild(h('div', { class: 'qm-card' }, [h('h3', { text: 'Prayer-time colours' }),
-      toggle('atmos', 'Colours follow the prayer times', 'The glow (and the accent, when set to Auto) shifts at Fajr, Sunrise, Dhuhr, Asr, Maghrib and Isha.'),
-      h('div', { class: 'qm-now' }, [h('b', { text: 'Now: ' }), h('span', { id: 'qm-phase', text: '' })]),
-      h('h3', { text: 'Animation' }),
-      seg('motion', 'Animation level', [['auto', 'Device'], ['full', 'Full'], ['reduced', 'Calm'], ['off', 'Off']], 'Device follows your phone or computer\u2019s reduce-motion setting.'),
-      toggle('intro', 'Opening Bismillah', 'Plays once per visit')
+    host.appendChild(card('sun', 'Prayer-time colours', 'The site changes colour with the real prayer times.', 'qm-s-prayer', [
+      toggleRow('atmos', 'spark', 'Colours follow the prayer times', 'Glow and Auto accent shift at Fajr, Sunrise, Dhuhr, Asr, Maghrib and Isha.'),
+      h('div', { class: 'qm-block' }, [h('small', { style: 'margin:0;' }, [h('b', { style: 'color:var(--gold);', text: 'Now: ' }), h('span', { id: 'qm-phase', text: '' })])])
     ]));
 
-    /* access */
-    host.appendChild(h('div', { class: 'qm-card' }, [h('h3', { text: 'Ease of access' }),
-      slider('uiScale', 'Text & layout size', 90, 140, 5, 'Makes the whole site larger, like zooming.'),
-      slider('arScale', 'Arabic text size', 80, 160, 5, 'Applied on top of the size above.'),
-      toggle('spacing', 'Extra line spacing', 'More room between lines of Arabic and translation'),
-      toggle('contrast', 'High contrast', 'Brighter text, stronger borders, underlined links'),
-      toggle('cvd', 'Colour-blind friendly colours', 'Uses a blue accent and orange warnings'),
-      toggle('dyslexia', 'Dyslexia-friendly font', 'Lexend for English and Bangla text'),
-      toggle('bigTargets', 'Larger buttons', 'Bigger tap targets, easier on small screens'),
-      toggle('focus', 'Strong keyboard focus', 'A thick outline shows where you are when using Tab')
+    host.appendChild(card('wave', 'Motion', 'Animations and the opening screen.', 'qm-s-motion', [
+      segBlock('motion', 'wave', 'Animation level', [['auto', 'Device'], ['full', 'Full'], ['reduced', 'Calm'], ['off', 'Off']], 'Device follows your phone or computer\u2019s reduce-motion setting.'),
+      toggleRow('intro', 'play', 'Opening Bismillah', 'Plays once per visit')
+    ]));
+
+    host.appendChild(card('eye', 'Reading & access', 'Make the site comfortable for you.', 'qm-s-access', [
+      sliderBlock('uiScale', 'size', 'Text & layout size', 90, 140, 5, 'Makes the whole site larger, like zooming.'),
+      sliderBlock('arScale', 'arabic', 'Arabic text size', 80, 160, 5, 'Applied on top of the size above.'),
+      toggleRow('spacing', 'lines', 'Extra line spacing', 'More room between lines of Arabic and translation'),
+      toggleRow('contrast', 'contrast', 'High contrast', 'Brighter text, stronger borders, underlined links'),
+      toggleRow('cvd', 'eye', 'Colour-blind friendly colours', 'Blue accent and orange warnings'),
+      toggleRow('dyslexia', 'book', 'Dyslexia-friendly font', 'Lexend for English and Bangla text'),
+      toggleRow('bigTargets', 'tap', 'Larger buttons', 'Bigger tap targets on small screens'),
+      toggleRow('focus', 'focus', 'Strong keyboard focus', 'A thick outline shows where you are when using Tab')
     ]));
 
     /* reset with confirmation */
-    var resetBox;
-    if (confirming) {
-      resetBox = h('div', { class: 'qm-confirm', role: 'alertdialog', 'aria-labelledby': 'qm-ctitle', 'aria-describedby': 'qm-cdesc' }, [
-        h('b', { id: 'qm-ctitle', text: 'Are you sure?' }),
-        h('p', { id: 'qm-cdesc', text: 'This puts every colour, animation and accessibility setting back to the original Quran Maar look.' }),
-        h('div', { class: 'qm-confirm-btns' }, [
-          h('button', { type: 'button', class: 'qm-yes', text: 'Yes, reset everything', onclick: function () { confirming = false; reset(); } }),
-          h('button', { type: 'button', class: 'qm-no', id: 'qm-cancel', text: 'Cancel', onclick: function () { confirming = false; refresh(); } })
-        ])
-      ]);
-    } else {
-      resetBox = h('button', { type: 'button', class: 'qm-reset', text: 'Reset to original look', onclick: function () { confirming = true; refresh(); } });
-    }
-    host.appendChild(resetBox);
-    phaseLabel();
-    if (confirming) { var c = document.getElementById('qm-cancel'); if (c) c.focus({ preventScroll: false }); }
-    else window.scrollTo(0, keepY);
+    var resetBtn = h('button', { type: 'button', class: 'qm-reset', html: ico(I.reset, 18) + '<span>Reset to original look</span>' });
+    var confirmBox = h('div', { class: 'qm-confirm', role: 'alertdialog', 'aria-labelledby': 'qm-ctitle', 'aria-describedby': 'qm-cdesc', hidden: '' }, [
+      h('b', { id: 'qm-ctitle', text: 'Are you sure?' }),
+      h('p', { id: 'qm-cdesc', text: 'This puts every colour, animation and accessibility setting back to the original Quran Maar look.' }),
+      h('div', { class: 'qm-confirm-btns' }, [
+        h('button', { type: 'button', class: 'qm-no', id: 'qm-cancel', text: 'Cancel', onclick: function () { confirmBox.hidden = true; resetBtn.hidden = false; resetBtn.focus(); } }),
+        h('button', { type: 'button', class: 'qm-yes', text: 'Yes, reset everything', onclick: function () { confirmBox.hidden = true; resetBtn.hidden = false; reset(); } })
+      ])
+    ]);
+    resetBtn.addEventListener('click', function () { resetBtn.hidden = true; confirmBox.hidden = false; document.getElementById('qm-cancel').focus(); });
+    host.appendChild(resetBtn); host.appendChild(confirmBox);
+    host.appendChild(h('p', { class: 'qm-foot', text: 'Saved on this device only. Colours you pick stay readable on the dark background automatically.' }));
+
+    toastEl = h('div', { class: 'qm-toast', role: 'status', 'aria-live': 'polite' }, [h('span', { text: 'Saved' })]);
+    toastEl.insertBefore(h('i', { html: ico(I.check, 16), style: 'display:inline-flex;' }), toastEl.firstChild);
+    document.body.appendChild(toastEl);
+    syncSel();
   }
 
-  function reset() { S = JSON.parse(JSON.stringify(DEFAULTS)); save(); apply(); refresh(); }
-  function mount(el) { host = el; confirming = false; refresh(); }
-  function unmount() { host = null; confirming = false; }
+  function reset() { S = JSON.parse(JSON.stringify(DEFAULTS)); save(); apply(); syncSel(); toast('Back to the original look'); }
+  function mount(el) { host = el; build(); }
+  function unmount() { host = null; if (toastEl && toastEl.parentNode) toastEl.parentNode.removeChild(toastEl); toastEl = null; }
 
   window.QMCustomise = { get: function () { return JSON.parse(JSON.stringify(S)); }, set: set, reset: reset, mount: mount, unmount: unmount };
 
