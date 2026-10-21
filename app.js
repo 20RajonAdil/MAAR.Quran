@@ -772,6 +772,7 @@ const ICONS = {
   phone: 'M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3ZM11 18h2',
   share: 'M12 15V4M8 8l4-4 4 4M7 11H6v9h12v-9h-1',
   mic: 'M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm-6-3a6 6 0 0 0 12 0M12 18v3M9 21h6',
+  settings: 'M4 7h9m4 0h3M4 12h3m4 0h9M4 17h11m4 0h1M15 5v4M9 10v4M17 15v4',
 };
 function Icon({ name, size = 18, filled = false }){
   const d = ICONS[name] || '';
@@ -795,6 +796,7 @@ const NAV_ITEMS = [
   { id:'daily', label:'Daily', icon:'sun' },
   { id:'offline', label:'Offline', icon:'download' },
   { id:'about', label:'About', icon:'info' },
+  { id:'settings', label:'Settings', icon:'settings' },
 ];
 
 function LocalStoreControl(){
@@ -2187,6 +2189,15 @@ function gregorianToHijriLocal(date){
   return { day, month: { en: HIJRI_MONTHS[month - 1] }, year };
 }
 
+/* Share today's prayer times with customise.js so the whole site can
+   change colour with the real prayer periods (Fajr … Isha). */
+function publishPrayer(timings){
+  try {
+    window.QM_PRAYER = timings;
+    store.setJSON('prayer:last', { day: new Date().toDateString(), timings });
+    window.dispatchEvent(new Event('qm-prayer'));
+  } catch {}
+}
 function usePrayerTimes(geo){
   const [state, setState] = useState({ status:'idle', timings:null, date:null, offline:false });
   useEffect(() => {
@@ -2194,9 +2205,11 @@ function usePrayerTimes(geo){
     setState((s) => ({ ...s, status:'loading' }));
     const today = new Date();
     const useLocalFallback = () => {
+      const localT = computePrayerTimesLocal(today, geo.lat, geo.lon);
+      publishPrayer(localT);
       setState({
         status:'ready',
-        timings: computePrayerTimesLocal(today, geo.lat, geo.lon),
+        timings: localT,
         date: {
           hijri: gregorianToHijriLocal(today),
           gregorian: { day: today.getDate(), month: { en: today.toLocaleString('en', { month:'long' }) } },
@@ -2207,7 +2220,7 @@ function usePrayerTimes(geo){
     if (typeof navigator !== 'undefined' && !navigator.onLine) { useLocalFallback(); return; }
     fetch(`https://api.aladhan.com/v1/timings?latitude=${geo.lat}&longitude=${geo.lon}&method=3`)
       .then(r => r.json())
-      .then((j) => setState({ status:'ready', timings:j.data.timings, date:j.data.date, offline:false }))
+      .then((j) => { publishPrayer(j.data.timings); setState({ status:'ready', timings:j.data.timings, date:j.data.date, offline:false }); })
       .catch(useLocalFallback);
   }, [geo.status, geo.lat, geo.lon]);
   return state;
@@ -2827,6 +2840,28 @@ function OfflineSection(){
           Add Quran Maar to your home screen to let the browser reserve storage for it. Clearing your browser's site data will remove downloads, as will iOS reclaiming space from a web app you haven't opened in a while.
         </div>
       </div>
+    </section>
+  `;
+}
+
+function SettingsSection(){
+  const ref = useReveal();
+  const host = useRef(null);
+  useEffect(() => {
+    const q = window.QMCustomise;
+    if (q && q.mount && host.current) q.mount(host.current);
+    return () => { if (q && q.unmount) q.unmount(); };
+  }, []);
+  return html`
+    <section class="section shell" ref=${ref}>
+      <div class="section-head reveal">
+        <div>
+          <div class="eyebrow">Settings</div>
+          <h2>Make it yours</h2>
+        </div>
+        <p>Colours, animation and ease of access. Saved on this device only.</p>
+      </div>
+      <div ref=${host} class="qm-settings-host"></div>
     </section>
   `;
 }
@@ -4225,6 +4260,15 @@ function App(){
   const [surahCount, setSurahCount] = useState(114);
   const geo = useGeo();
 
+  /* make sure the site-wide prayer colours have times even if the
+     visitor never opens the Home tab */
+  useEffect(() => {
+    if (geo.status !== 'ready') return;
+    const c = store.getJSON('prayer:last', null);
+    if (c && c.day === new Date().toDateString() && c.timings) { window.QM_PRAYER = c.timings; window.dispatchEvent(new Event('qm-prayer')); return; }
+    try { publishPrayer(computePrayerTimesLocal(new Date(), geo.lat, geo.lon)); } catch {}
+  }, [geo.status, geo.lat, geo.lon]);
+
   useEffect(() => { document.documentElement.style.setProperty('--arabic-font', ARABIC_FONTS[arabicFontIdx]?.stack || ARABIC_FONTS[0].stack); }, [arabicFontIdx]);
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); }, [tab]);
   useEffect(() => {
@@ -4337,6 +4381,7 @@ function App(){
   else if (tab === 'qibla') page = html`<${QiblaSection} geo=${geo} />`;
   else if (tab === 'offline') page = html`<${OfflineSection} />`;
   else if (tab === 'about') page = html`<${AboutSection} />`;
+  else if (tab === 'settings') page = html`<${SettingsSection} />`;
 
   return html`
     <${React.Fragment}>

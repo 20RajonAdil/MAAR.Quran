@@ -10,7 +10,8 @@
         colour-blind-friendly palette, dyslexia-friendly font,
         larger tap targets, strong keyboard focus
      5. Bismillah draw-on intro (once per session)
-     6. Time-of-day atmosphere (from the sun at the visitor's place)
+     6. Prayer-time colours: the site's glow (and accent, unless the
+        visitor picks their own) changes with the real prayer period
 
    Everything is vanilla JS so it works before React mounts.
    Settings live in localStorage under qm_custom.
@@ -19,6 +20,8 @@
   'use strict';
 
   var KEY = 'qm_custom';
+  var ORIGINAL = '#cf3342';
+  var phaseInfo = null;
   var root = document.documentElement;
 
   var ACCENTS = [
@@ -33,7 +36,7 @@
     pure:     { label: 'Pure black', bg: '#000000', soft: '#0a0a0a', raised: '#111111', top: '#000000' }
   };
   var DEFAULTS = {
-    accent: '#cf3342', glow: '', introColor: '', back: 'black',
+    accent: 'auto', glow: '', introColor: '', back: 'black',
     motion: 'auto', intro: true, atmos: true,
     uiScale: 100, arScale: 100, spacing: false,
     contrast: false, cvd: false, dyslexia: false, bigTargets: false, focus: true
@@ -99,12 +102,16 @@
   }
   function setVar(n, v) { if (v === null) root.style.removeProperty(n); else root.style.setProperty(n, v); }
 
-  function effectiveAccent() { return S.cvd ? '#2b8fd6' : S.accent; }
+  function effectiveAccent() {
+    if (S.cvd) return '#2b8fd6';
+    if (S.accent === 'auto') return (S.atmos && phaseInfo) ? PHASES[phaseInfo.name].hex : ORIGINAL;
+    return S.accent;
+  }
 
   function apply() {
     /* accent family */
     var acc = effectiveAccent();
-    if (acc.toLowerCase() === DEFAULTS.accent) {
+    if (acc.toLowerCase() === ORIGINAL) {
       ['--gold', '--gold-rgb', '--accent-rgb', '--deep-rgb', '--emerald', '--emerald-hi'].forEach(function (n) { setVar(n, null); });
     } else {
       var hsl = safeAccent(acc), h = hsl[0], s = hsl[1], l = hsl[2];
@@ -115,7 +122,8 @@
     }
     /* animation colours (fall back to the accent) */
     var glow = S.glow ? hexToRgb(S.glow).join(',') : null;
-    setVar('--glow-rgb', glow || (acc.toLowerCase() === DEFAULTS.accent ? '179,32,47' : getComputedStyle(root).getPropertyValue('--accent-rgb').trim() || '179,32,47'));
+    var glowFallback = (S.atmos && phaseInfo) ? PHASES[phaseInfo.name].rgb : (acc.toLowerCase() === ORIGINAL ? '179,32,47' : (getComputedStyle(root).getPropertyValue('--accent-rgb').trim() || '179,32,47'));
+    setVar('--glow-rgb', glow || glowFallback);
     setVar('--intro-rgb', S.introColor ? hexToRgb(S.introColor).join(',') : null);
     setVar('--danger', S.cvd ? '#ffb454' : null);
 
@@ -147,7 +155,7 @@
     css().textContent = STATIC_CSS.replace(/__TOP__/g, b.top);
     var tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.setAttribute('content', b.bg);
     document.dispatchEvent(new CustomEvent('qm-customise', { detail: S }));
-    updateAtmos();
+    syncAtmos();
   }
 
   function motionLevel() {
@@ -183,7 +191,7 @@
     'html.qm-dys .display,html.qm-dys .brand-text{font-family:"Lexend",sans-serif;font-style:normal;}',
     /* larger tap targets */
     'html.qm-big button,html.qm-big [role="button"],html.qm-big .nav-pill,html.qm-big select,html.qm-big input{min-height:48px;}',
-    'html.qm-big button:not(.qm-fab),html.qm-big .nav-pill{min-width:48px;}',
+    'html.qm-big button,html.qm-big .nav-pill{min-width:48px;}',
     /* motion */
     'html.qm-motion-reduced #bg-canvas,html.qm-motion-off #bg-canvas{display:none;}',
     'html.qm-motion-reduced *,html.qm-motion-reduced *::before,html.qm-motion-reduced *::after{animation-iteration-count:1 !important;scroll-behavior:auto !important;}',
@@ -193,48 +201,46 @@
   ].join('\n');
 
   /* ============================================================
-     Time-of-day atmosphere
-     Sun times come from the last location the app saved
-     (qm_geo:last). Without one it falls back to the clock.
+     Prayer-time colours
+     The five prayers + sunrise each have a colour (the same ones the
+     Home prayer ring uses). The overlay glow and, unless the visitor
+     chose their own accent, the accent change at each real prayer
+     time. Times come from the app (window.QM_PRAYER / qm_prayer:last);
+     before the app has them, plain clock times are used.
      ============================================================ */
-  var atmosEl, atmosTimer;
-  function sunTimes(d, lat, lon) {
-    var rad = Math.PI / 180;
-    var doy = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 0)) / 864e5);
-    var B = 2 * Math.PI / 365 * (doy - 81);
-    var eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
-    var decl = 23.45 * Math.sin(B) * rad;
-    var cosH = (Math.sin(-.833 * rad) - Math.sin(lat * rad) * Math.sin(decl)) / (Math.cos(lat * rad) * Math.cos(decl));
-    cosH = Math.max(-1, Math.min(1, cosH));
-    var H = Math.acos(cosH) / rad;
-    var base = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-    var noon = 720 - 4 * lon - eot;
-    return { rise: base + (noon - 4 * H) * 6e4, noon: base + noon * 6e4, set: base + (noon + 4 * H) * 6e4 };
+  var NAMES = ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+  var PHASES = {
+    Fajr:    { rgb: '194,106,154', hex: '#c26a9a', note: 'Pre-dawn' },
+    Sunrise: { rgb: '240,162,74',  hex: '#f0a24a', note: 'Morning light' },
+    Dhuhr:   { rgb: '255,143,110', hex: '#ff8f6e', note: 'Midday' },
+    Asr:     { rgb: '232,160,80',  hex: '#e8a050', note: 'Afternoon' },
+    Maghrib: { rgb: '255,106,90',  hex: '#ff6a5a', note: 'Sunset' },
+    Isha:    { rgb: '160,58,96',   hex: '#a03a60', note: 'Night' }
+  };
+  var atmosEl;
+
+  function todaysTimings() {
+    var t = window.QM_PRAYER;
+    if (!t) { try { var c = JSON.parse(localStorage.getItem('qm_prayer:last') || 'null'); if (c && c.day === new Date().toDateString()) t = c.timings; } catch (e) {} }
+    var ok = t && NAMES.every(function (k) { return /^\d{1,2}:\d{2}/.test(String(t[k] || '')); });
+    if (ok) return { t: t, real: true };
+    return { real: false, t: { Fajr: '05:00', Sunrise: '06:30', Dhuhr: '12:30', Asr: '15:30', Maghrib: '18:30', Isha: '20:00' } };
   }
-  function phase(now) {
-    var geo = null;
-    try { geo = JSON.parse(localStorage.getItem('qm_geo:last') || 'null'); } catch (e) {}
-    var rise, set, noon, M = 6e4, d = new Date(now);
-    if (geo && isFinite(geo.lat) && isFinite(geo.lon)) {
-      var t = sunTimes(d, geo.lat, geo.lon); rise = t.rise; set = t.set; noon = t.noon;
-    } else {
-      var m = new Date(now); m.setHours(6, 30, 0, 0); rise = m.getTime();
-      m.setHours(18, 30, 0, 0); set = m.getTime(); noon = (rise + set) / 2;
+  function currentPhase(nowMs) {
+    var src = todaysTimings(), t = src.t, now = new Date(nowMs);
+    function at(k, off) {
+      var p = String(t[k]).split(':'), d = new Date(now);
+      d.setHours(parseInt(p[0], 10), parseInt(p[1], 10), 0, 0); d.setDate(d.getDate() + (off || 0)); return d;
     }
-    /* the sun times above are for "today" in UTC terms; compare in a way
-       that survives the day boundary by using the nearest day */
-    var day = 864e5;
-    while (now - noon > day / 2) { rise += day; set += day; noon += day; }
-    while (noon - now > day / 2) { rise -= day; set -= day; noon -= day; }
-    if (now < rise - 100 * M) return ['Night', '28,40,96'];
-    if (now < rise - 10 * M)  return ['Fajr', '64,98,190'];
-    if (now < rise + 90 * M)  return ['Sunrise', '222,150,72'];
-    if (now < noon + 150 * M) return ['Day', '205,168,70'];
-    if (now < set - 75 * M)   return ['Afternoon', '200,140,76'];
-    if (now < set + 45 * M)   return ['Maghrib', '205,50,62'];
-    if (now < set + 110 * M)  return ['Dusk', '96,54,150'];
-    return ['Night', '28,40,96'];
+    var marks = [['Isha', at('Isha', -1)], ['Fajr', at('Fajr')], ['Sunrise', at('Sunrise')], ['Dhuhr', at('Dhuhr')],
+      ['Asr', at('Asr')], ['Maghrib', at('Maghrib')], ['Isha', at('Isha')], ['Fajr', at('Fajr', 1)]];
+    var i = 0; while (i < marks.length - 1 && marks[i + 1][1] <= now) i++;
+    var next = null;
+    for (var j = i + 1; j < marks.length; j++) { if (marks[j][0] !== 'Sunrise') { next = marks[j]; break; } }
+    return { name: marks[i][0], next: next ? next[0] : 'Fajr', nextAt: next ? next[1] : null, real: src.real };
   }
+  function hhmm(d) { return d ? ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) : ''; }
+
   function ensureAtmos() {
     if (atmosEl || !document.body) return;
     try {
@@ -246,21 +252,34 @@
     } catch (e) {}
     atmosEl = document.createElement('div');
     atmosEl.className = 'qm-atmos'; atmosEl.setAttribute('aria-hidden', 'true');
-    atmosEl.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;transition:--ar 4s linear,--ag 4s linear,--ab 4s linear,opacity .6s;' +
-      'background:radial-gradient(ellipse 85% 45% at 50% -8%,rgba(var(--ar),var(--ag),var(--ab),.22),transparent 70%),radial-gradient(ellipse 60% 40% at 105% 105%,rgba(var(--ar),var(--ag),var(--ab),.09),transparent 70%);';
+    atmosEl.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0;transition:--ar 3s linear,--ag 3s linear,--ab 3s linear,opacity .8s;' +
+      'background:radial-gradient(ellipse 90% 50% at 50% -6%,rgba(var(--ar),var(--ag),var(--ab),.34),transparent 72%),' +
+      'radial-gradient(ellipse 70% 45% at 105% 105%,rgba(var(--ar),var(--ag),var(--ab),.16),transparent 70%),' +
+      'linear-gradient(180deg,rgba(var(--ar),var(--ag),var(--ab),.07),transparent 55%);';
     document.body.insertBefore(atmosEl, document.body.firstChild);
   }
-  function updateAtmos() {
-    clearInterval(atmosTimer);
-    if (!S.atmos || motionLevel() === 'off') { if (atmosEl) atmosEl.style.opacity = '0'; return; }
+  function syncAtmos() {
     ensureAtmos(); if (!atmosEl) return;
-    function tick() {
-      var p = phase(Date.now()), c = p[1].split(',');
-      atmosEl.style.setProperty('--ar', c[0]); atmosEl.style.setProperty('--ag', c[1]); atmosEl.style.setProperty('--ab', c[2]);
-      atmosEl.style.opacity = '1'; atmosEl.setAttribute('data-phase', p[0]);
-      var lab = document.getElementById('qm-phase'); if (lab) lab.textContent = p[0];
-    }
-    tick(); atmosTimer = setInterval(tick, 300000);
+    if (!S.atmos || motionLevel() === 'off' || !phaseInfo) { atmosEl.style.opacity = '0'; return; }
+    var c = (S.glow ? hexToRgb(S.glow).join(',') : PHASES[phaseInfo.name].rgb).split(',');
+    atmosEl.style.setProperty('--ar', c[0]); atmosEl.style.setProperty('--ag', c[1]); atmosEl.style.setProperty('--ab', c[2]);
+    atmosEl.style.opacity = '1'; atmosEl.setAttribute('data-phase', phaseInfo.name);
+  }
+  function phaseLabel() {
+    var el = document.getElementById('qm-phase'); if (!el || !phaseInfo) return;
+    var p = phaseInfo;
+    el.textContent = p.name + ' \u00b7 ' + PHASES[p.name].note + (p.nextAt ? ' \u2014 next: ' + p.next + ' at ' + hhmm(p.nextAt) : '') + (p.real ? '' : ' (estimated until your location loads)');
+  }
+  function tick() {
+    var p = currentPhase(Date.now()), changed = !phaseInfo || phaseInfo.name !== p.name;
+    phaseInfo = p;
+    if (changed) apply(); else syncAtmos();
+    phaseLabel();
+  }
+  function startAtmos() {
+    tick();
+    setInterval(tick, 30000);
+    window.addEventListener('qm-prayer', tick);
   }
 
   /* ============================================================
@@ -309,9 +328,9 @@
   }
 
   /* ============================================================
-     Customise panel
+     Settings page (mounted by app.js into the Settings tab)
      ============================================================ */
-  var panel, fab, lastFocus, confirming = false;
+  var host = null, confirming = false;
   function h(tag, attrs, kids) {
     var e = document.createElement(tag), k;
     for (k in (attrs || {})) {
@@ -323,59 +342,48 @@
     (kids || []).forEach(function (c) { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
-  function set(k, v) { S[k] = v; save(); apply(); if (panel && panel.classList.contains('open')) refresh(); }
+  function set(k, v) { S[k] = v; save(); apply(); refresh(); }
 
-  var PANEL_CSS = [
-    '.qm-fab{position:fixed;z-index:60;right:14px;bottom:calc(var(--tab-h,64px) + env(safe-area-inset-bottom,0px) + 14px);width:48px;height:48px;border-radius:50%;border:1px solid var(--gold);background:rgba(var(--bg-rgb,11,11,11),.88);color:var(--gold);display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(10px);box-shadow:0 6px 24px rgba(0,0,0,.45),0 0 18px rgba(var(--glow-rgb,179,32,47),.25);}',
-    '@media(min-width:820px){.qm-fab{bottom:22px;right:22px;}}',
-    '.qm-fab svg{width:22px;height:22px;}',
-    '.qm-scrim{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .25s;}',
-    '.qm-scrim.open{opacity:1;pointer-events:auto;}',
-    '.qm-panel{position:fixed;z-index:9001;background:var(--bg-soft,#121010);border:1px solid var(--line);color:var(--ink);display:flex;flex-direction:column;transition:transform .32s cubic-bezier(.22,.68,.18,1);',
-    'right:0;top:0;bottom:0;width:min(400px,100vw);border-radius:22px 0 0 22px;transform:translateX(105%);box-shadow:-20px 0 60px rgba(0,0,0,.5);}',
-    '.qm-panel.open{transform:none;}',
-    '@media(max-width:700px){.qm-panel{left:0;right:0;top:auto;bottom:0;width:auto;max-height:88vh;border-radius:22px 22px 0 0;transform:translateY(105%);}.qm-panel.open{transform:none;}}',
-    '.qm-ph{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;border-bottom:1px solid var(--line-soft);}',
-    '.qm-ph h2{margin:0;font-family:"Instrument Serif",serif;font-weight:400;font-size:26px;}',
-    '.qm-x{background:var(--card);border:1px solid var(--line);color:var(--ink);width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:18px;line-height:1;}',
-    '.qm-pb{overflow:auto;padding:6px 20px 24px;-webkit-overflow-scrolling:touch;}',
-    '.qm-sec{margin-top:20px;}',
-    '.qm-sec>h3{margin:0 0 10px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:700;}',
-    '.qm-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line-soft);font-size:14px;}',
-    '.qm-row small{display:block;color:var(--muted);font-size:12px;margin-top:2px;line-height:1.45;}',
-    '.qm-sw{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}',
-    '.qm-dot{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;outline-offset:3px;}',
-    '.qm-dot.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--bg-soft,#121010) inset;}',
-    '.qm-seg{display:flex;flex-wrap:wrap;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:3px;}',
-    '.qm-row.col{flex-direction:column;align-items:stretch;gap:8px;}',
-    '.qm-seg button{flex:1 1 auto;}',
-    '.qm-seg button{background:none;border:none;color:var(--muted);font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:999px;cursor:pointer;}',
+  var PAGE_CSS = [
+    '.qm-settings-host{max-width:720px;margin:0 auto;padding-bottom:40px;}',
+    '@media(max-width:819px){.qm-settings-host{padding-bottom:96px;}}',
+    '.qm-card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:8px 18px 14px;margin-bottom:16px;}',
+    '.qm-card>h3{margin:12px 0 4px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:700;}',
+    '.qm-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--line-soft);font-size:15px;min-height:56px;}',
+    '.qm-row:last-child{border-bottom:none;}',
+    '.qm-row.col{flex-direction:column;align-items:stretch;gap:10px;}',
+    '.qm-row small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.5;}',
+    '.qm-sw{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 0 6px;}',
+    '.qm-dot{width:40px;height:40px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;outline-offset:3px;flex:none;}',
+    '.qm-dot.on{border-color:var(--ink);box-shadow:inset 0 0 0 3px var(--bg-soft,#121010);}',
+    '.qm-seg{display:flex;flex-wrap:wrap;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:3px;}',
+    '.qm-seg button{flex:1 1 auto;background:none;border:none;color:var(--muted);font-size:13.5px;font-weight:600;padding:11px 12px;border-radius:14px;cursor:pointer;}',
     '.qm-seg button.on{background:var(--gold);color:#f5f2ed;}',
-    '.qm-tg{position:relative;width:46px;height:26px;flex:none;border-radius:999px;border:1px solid var(--line);background:var(--card-hi);cursor:pointer;padding:0;transition:background .2s;}',
-    '.qm-tg::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--ink);transition:transform .2s;}',
+    '.qm-tg{position:relative;width:52px;height:30px;flex:none;border-radius:999px;border:1px solid var(--line);background:var(--card-hi);cursor:pointer;padding:0;transition:background .2s;}',
+    '.qm-tg::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--ink);transition:transform .2s;}',
     '.qm-tg[aria-checked="true"]{background:var(--gold);border-color:var(--gold);}',
-    '.qm-tg[aria-checked="true"]::after{transform:translateX(20px);}',
-    '.qm-range{width:100%;accent-color:var(--gold);}',
-    '.qm-color{display:flex;align-items:center;gap:8px;}',
-    '.qm-color input[type=color]{width:38px;height:32px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px;cursor:pointer;}',
-    '.qm-link{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12.5px;padding:4px;}',
-    '.qm-reset{margin-top:22px;width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:13px;font-weight:700;font-size:14px;cursor:pointer;}',
+    '.qm-tg[aria-checked="true"]::after{transform:translateX(22px);}',
+    '.qm-range{width:100%;height:32px;accent-color:var(--gold);}',
+    '.qm-color{display:flex;align-items:center;gap:10px;flex:none;}',
+    '.qm-color input[type=color]{width:46px;height:40px;border:1px solid var(--line);border-radius:10px;background:none;padding:3px;cursor:pointer;}',
+    '.qm-link{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px;padding:8px;}',
+    '.qm-reset{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:16px;padding:15px;font-weight:700;font-size:15px;cursor:pointer;}',
     '.qm-reset:hover{border-color:var(--gold);}',
-    '.qm-confirm{margin-top:22px;padding:16px;border:1px solid var(--gold);border-radius:16px;background:rgba(var(--accent-rgb,179,32,47),.10);}',
-    '.qm-confirm b{font-size:15px;}.qm-confirm p{margin:6px 0 14px;font-size:13px;line-height:1.55;color:var(--muted);}',
-    '.qm-confirm-btns{display:flex;gap:10px;}.qm-confirm-btns button{flex:1;border-radius:12px;padding:12px;font-weight:700;font-size:14px;cursor:pointer;}',
+    '.qm-confirm{padding:16px;border:1px solid var(--gold);border-radius:18px;background:rgba(var(--accent-rgb,179,32,47),.10);}',
+    '.qm-confirm b{font-size:16px;}.qm-confirm p{margin:6px 0 14px;font-size:13.5px;line-height:1.55;color:var(--muted);}',
+    '.qm-confirm-btns{display:flex;gap:10px;}.qm-confirm-btns button{flex:1;border-radius:14px;padding:14px 10px;font-weight:700;font-size:14.5px;cursor:pointer;}',
     '.qm-yes{background:var(--gold);color:#f5f2ed;border:1px solid var(--gold);}.qm-no{background:var(--card);color:var(--ink);border:1px solid var(--line);}',
-    '.qm-prev{margin-top:10px;font-family:var(--arabic-font);font-size:26px;direction:rtl;text-align:right;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--card);line-height:1.9;}'
+    '.qm-prev{margin:6px 0 4px;font-family:var(--arabic-font);font-size:28px;direction:rtl;text-align:center;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--card);line-height:1.9;color:var(--gold-hi);}',
+    '.qm-now{margin:12px 0 4px;padding:12px 14px;border-radius:14px;border:1px solid var(--gold-dim);background:rgba(var(--accent-rgb,179,32,47),.10);font-size:13.5px;line-height:1.5;}',
+    '.qm-now b{color:var(--gold);}',
+    '@media(max-width:520px){.qm-card{padding:6px 14px 12px;border-radius:20px;}.qm-row{font-size:14.5px;}}'
   ].join('\n');
 
-  var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H17a4 4 0 0 0 4-4c0-4.4-4-8.2-9-8.2z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7.2" r="1"/><circle cx="15" cy="7.2" r="1"/></svg>';
-
   function row(label, hint, control) {
-    return h('div', { class: 'qm-row' }, [h('div', {}, [label, hint ? h('small', { text: hint }) : null]), control]);
+    return h('div', { class: 'qm-row' }, [h('div', { style: 'min-width:0;' }, [label, hint ? h('small', { text: hint }) : null]), control]);
   }
   function toggle(key, label, hint) {
-    var b = h('button', { type: 'button', class: 'qm-tg', role: 'switch', 'aria-checked': String(!!S[key]), 'aria-label': label,
-      onclick: function () { set(key, !S[key]); } });
+    var b = h('button', { type: 'button', class: 'qm-tg', role: 'switch', 'aria-checked': String(!!S[key]), 'aria-label': label, onclick: function () { set(key, !S[key]); } });
     return row(label, hint, b);
   }
   function seg(key, label, opts, hint) {
@@ -388,67 +396,55 @@
   function colorRow(key, label, hint, fallback) {
     var inp = h('input', { type: 'color', value: S[key] || fallback, 'aria-label': label, oninput: function (e) { S[key] = e.target.value; save(); apply(); } });
     var rst = h('button', { type: 'button', class: 'qm-link', text: 'Auto', 'aria-label': label + ': back to automatic', onclick: function () { set(key, ''); } });
-    return row(label, hint, h('div', { class: 'qm-color' }, [inp, S[key] ? rst : null]));
+    return row(label, hint, h('div', { class: 'qm-color' }, [S[key] ? rst : null, inp]));
   }
   function slider(key, label, min, max, step, hint) {
     var out = h('b', { text: S[key] + '%' });
     var inp = h('input', { type: 'range', class: 'qm-range', min: min, max: max, step: step, value: S[key], 'aria-label': label,
       oninput: function (e) { S[key] = +e.target.value; out.textContent = S[key] + '%'; save(); apply(); } });
-    return h('div', { class: 'qm-row', style: 'flex-direction:column;align-items:stretch;' }, [
+    return h('div', { class: 'qm-row col' }, [
       h('div', { style: 'display:flex;justify-content:space-between;' }, [h('span', { text: label }), out]), inp, hint ? h('small', { text: hint }) : null]);
   }
 
-  function build() {
-    var st = h('style', { text: PANEL_CSS }); document.head.appendChild(st);
-    fab = h('button', { type: 'button', class: 'qm-fab', 'aria-label': 'Customise colours, animations and accessibility', 'aria-haspopup': 'dialog', onclick: open });
-    fab.innerHTML = ICON;
-    var scrim = h('div', { class: 'qm-scrim', onclick: close });
-    panel = h('div', { class: 'qm-panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'qm-ptitle', tabindex: '-1' });
-    document.body.appendChild(scrim); document.body.appendChild(panel); document.body.appendChild(fab);
-    panel._scrim = scrim;
-    document.addEventListener('keydown', function (e) {
-      if (!panel.classList.contains('open')) return;
-      if (e.key === 'Escape') { close(); return; }
-      if (e.key === 'Tab') {
-        var f = panel.querySelectorAll('button,input,select,[tabindex]:not([tabindex="-1"])');
-        if (!f.length) return;
-        var a = f[0], z = f[f.length - 1];
-        if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
-        else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
-      }
-    });
-    refresh();
-  }
-
   function refresh() {
-    var top = panel.querySelector('.qm-pb'); var st = top ? top.scrollTop : 0;
-    panel.innerHTML = '';
-    panel.appendChild(h('div', { class: 'qm-ph' }, [h('h2', { id: 'qm-ptitle', text: 'Customise' }),
-      h('button', { type: 'button', class: 'qm-x', 'aria-label': 'Close customise panel', text: '\u00d7', onclick: close })]));
-    var body = h('div', { class: 'qm-pb' });
+    if (!host) return;
+    var keepY = window.scrollY;
+    host.innerHTML = '';
+    if (!document.getElementById('qm-page-css')) { var st = h('style', { id: 'qm-page-css', text: PAGE_CSS }); document.head.appendChild(st); }
 
     /* colours */
     var sw = h('div', { class: 'qm-sw', role: 'group', 'aria-label': 'Accent colour' });
+    var autoOn = S.accent === 'auto';
+    sw.appendChild(h('button', { type: 'button', class: 'qm-dot' + (autoOn ? ' on' : ''), style: 'background:conic-gradient(#c26a9a,#f0a24a,#ff8f6e,#e8a050,#ff6a5a,#a03a60,#c26a9a)',
+      'aria-label': 'Auto: follows the prayer times', 'aria-pressed': String(autoOn), onclick: function () { set('accent', 'auto'); } }));
     ACCENTS.forEach(function (a) {
-      var on = S.accent.toLowerCase() === a[1];
+      var on = !autoOn && S.accent.toLowerCase() === a[1];
       sw.appendChild(h('button', { type: 'button', class: 'qm-dot' + (on ? ' on' : ''), style: 'background:' + a[1], 'aria-label': a[0], 'aria-pressed': String(on), onclick: function () { set('accent', a[1]); } }));
     });
-    sw.appendChild(h('input', { type: 'color', class: 'qm-dot', value: S.accent, 'aria-label': 'Pick any accent colour', style: 'padding:0;border:2px solid var(--line);background:none;', oninput: function (e) { S.accent = e.target.value; save(); apply(); } }));
-    body.appendChild(h('div', { class: 'qm-sec' }, [h('h3', { text: 'Colours' }), sw,
+    sw.appendChild(h('input', { type: 'color', class: 'qm-dot', value: autoOn ? ORIGINAL : S.accent, 'aria-label': 'Pick any accent colour',
+      style: 'padding:0;border:2px solid var(--line);background:none;', oninput: function (e) { S.accent = e.target.value; save(); apply(); } }));
+
+    host.appendChild(h('div', { class: 'qm-card' }, [h('h3', { text: 'Colours' }),
       h('div', { class: 'qm-prev', text: '\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650' }),
-      colorRow('glow', 'Animation glow', 'Background glow and the moving light', '#b3202f'),
+      h('div', { class: 'qm-row col', style: 'border:none;padding-bottom:0;' }, [h('span', { text: 'Accent colour' }),
+        h('small', { text: autoOn ? 'Auto: the colour changes with each prayer time. Pick a colour to keep it fixed.' : 'Fixed colour. Choose the rainbow circle to follow the prayer times again.' })]),
+      sw,
+      colorRow('glow', 'Animation glow', 'Colour of the background glow', '#b3202f'),
       colorRow('introColor', 'Opening Bismillah colour', 'The colour the calligraphy is drawn in', '#cf3342'),
       seg('back', 'Background', Object.keys(BACKS).map(function (k) { return [k, BACKS[k].label]; }))
     ]));
-    /* animation */
-    body.appendChild(h('div', { class: 'qm-sec' }, [h('h3', { text: 'Animation' }),
+
+    /* prayer colours + animation */
+    host.appendChild(h('div', { class: 'qm-card' }, [h('h3', { text: 'Prayer-time colours' }),
+      toggle('atmos', 'Colours follow the prayer times', 'The glow (and the accent, when set to Auto) shifts at Fajr, Sunrise, Dhuhr, Asr, Maghrib and Isha.'),
+      h('div', { class: 'qm-now' }, [h('b', { text: 'Now: ' }), h('span', { id: 'qm-phase', text: '' })]),
+      h('h3', { text: 'Animation' }),
       seg('motion', 'Animation level', [['auto', 'Device'], ['full', 'Full'], ['reduced', 'Calm'], ['off', 'Off']], 'Device follows your phone or computer\u2019s reduce-motion setting.'),
-      toggle('intro', 'Opening Bismillah', 'Plays once per visit'),
-      toggle('atmos', 'Time-of-day glow', 'The sky tint follows the sun where you are'),
-      h('div', { class: 'qm-row', style: 'border:none;' }, [h('small', { style: 'margin:0;' }, ['Right now: ', h('b', { id: 'qm-phase', text: atmosEl ? (atmosEl.getAttribute('data-phase') || '\u2014') : '\u2014' })])])
+      toggle('intro', 'Opening Bismillah', 'Plays once per visit')
     ]));
+
     /* access */
-    body.appendChild(h('div', { class: 'qm-sec' }, [h('h3', { text: 'Ease of access' }),
+    host.appendChild(h('div', { class: 'qm-card' }, [h('h3', { text: 'Ease of access' }),
       slider('uiScale', 'Text & layout size', 90, 140, 5, 'Makes the whole site larger, like zooming.'),
       slider('arScale', 'Arabic text size', 80, 160, 5, 'Applied on top of the size above.'),
       toggle('spacing', 'Extra line spacing', 'More room between lines of Arabic and translation'),
@@ -458,8 +454,11 @@
       toggle('bigTargets', 'Larger buttons', 'Bigger tap targets, easier on small screens'),
       toggle('focus', 'Strong keyboard focus', 'A thick outline shows where you are when using Tab')
     ]));
+
+    /* reset with confirmation */
+    var resetBox;
     if (confirming) {
-      var box = h('div', { class: 'qm-confirm', role: 'alertdialog', 'aria-labelledby': 'qm-ctitle', 'aria-describedby': 'qm-cdesc' }, [
+      resetBox = h('div', { class: 'qm-confirm', role: 'alertdialog', 'aria-labelledby': 'qm-ctitle', 'aria-describedby': 'qm-cdesc' }, [
         h('b', { id: 'qm-ctitle', text: 'Are you sure?' }),
         h('p', { id: 'qm-cdesc', text: 'This puts every colour, animation and accessibility setting back to the original Quran Maar look.' }),
         h('div', { class: 'qm-confirm-btns' }, [
@@ -467,33 +466,24 @@
           h('button', { type: 'button', class: 'qm-no', id: 'qm-cancel', text: 'Cancel', onclick: function () { confirming = false; refresh(); } })
         ])
       ]);
-      body.appendChild(box);
     } else {
-      body.appendChild(h('button', { type: 'button', class: 'qm-reset', text: 'Reset to original look', onclick: function () { confirming = true; refresh(); } }));
+      resetBox = h('button', { type: 'button', class: 'qm-reset', text: 'Reset to original look', onclick: function () { confirming = true; refresh(); } });
     }
-    body.appendChild(h('p', { class: 'qm-note', style: 'font-size:12px;color:var(--muted-2);line-height:1.6;margin:12px 0 0;', text: 'Saved on this device only. Colours you pick are kept readable on the dark background automatically.' }));
-    panel.appendChild(body);
-    if (confirming) { var c = panel.querySelector('#qm-cancel'); if (c) { c.focus(); c.scrollIntoView({ block: 'nearest' }); } } else { body.scrollTop = st; }
+    host.appendChild(resetBox);
+    phaseLabel();
+    if (confirming) { var c = document.getElementById('qm-cancel'); if (c) c.focus({ preventScroll: false }); }
+    else window.scrollTo(0, keepY);
   }
 
-  function open() {
-    lastFocus = document.activeElement;
-    refresh(); panel.classList.add('open'); panel._scrim.classList.add('open');
-    setTimeout(function () { var x = panel.querySelector('.qm-x'); if (x) x.focus(); }, 60);
-  }
-  function close() {
-    confirming = false;
-    panel.classList.remove('open'); panel._scrim.classList.remove('open');
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
-  }
-  function reset() {
-    S = JSON.parse(JSON.stringify(DEFAULTS)); save(); apply(); refresh();
-  }
+  function reset() { S = JSON.parse(JSON.stringify(DEFAULTS)); save(); apply(); refresh(); }
+  function mount(el) { host = el; confirming = false; refresh(); }
+  function unmount() { host = null; confirming = false; }
 
-  window.QMCustomise = { get: function () { return JSON.parse(JSON.stringify(S)); }, set: set, reset: reset, open: function () { if (panel) open(); } };
+  window.QMCustomise = { get: function () { return JSON.parse(JSON.stringify(S)); }, set: set, reset: reset, mount: mount, unmount: unmount };
 
-  /* apply immediately (before first paint), build the UI once the DOM exists */
+  /* apply immediately (before first paint) using the cached prayer times */
+  phaseInfo = currentPhase(Date.now());
   apply();
-  function ready() { build(); apply(); runIntro(); }
+  function ready() { startAtmos(); runIntro(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
 })();
