@@ -155,14 +155,48 @@
   function hideBlocked() { if (banner && banner.parentNode) banner.parentNode.removeChild(banner); banner = null; }
 
   /* ---------- notification ---------- */
-  function notify(name) {
-    if (!S.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
-    var title = name + ' \u2014 time to pray', opts = { body: 'It\u2019s time for ' + name + ' prayer.', icon: 'icon-192.png', badge: 'favicon-48.png', tag: 'qm-adhan-' + name, vibrate: [300, 120, 300] };
+  function supported() { return 'Notification' in window; }
+  function perm() { return supported() ? Notification.permission : 'unsupported'; }
+  function showNote(title, opts) {
+    var viaSW;
     try {
-      if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then(function (r) { r.showNotification(title, opts); }).catch(function () { try { new Notification(title, opts); } catch (e) {} });
-      else new Notification(title, opts);
-    } catch (e) {}
+      viaSW = (navigator.serviceWorker && navigator.serviceWorker.ready)
+        ? Promise.race([navigator.serviceWorker.ready, new Promise(function (_, rej) { setTimeout(rej, 1500); })])
+        : Promise.reject();
+    } catch (e) { viaSW = Promise.reject(); }
+    viaSW.then(function (r) { return r.showNotification(title, opts); })
+      .catch(function () { try { new Notification(title, opts); } catch (e) {} });
   }
+  function notify(name) {
+    if (!S.notify || perm() !== 'granted') return;
+    showNote(name + ' \u2014 time to pray', { body: 'It\u2019s time for ' + name + ' prayer.', icon: 'icon-192.png', badge: 'favicon-48.png', tag: 'qm-adhan-' + name, vibrate: [300, 120, 300] });
+  }
+  function welcome() {
+    if (perm() !== 'granted') return;
+    showNote('Prayer reminders are on', { body: 'You\u2019ll be notified at each prayer time while Quran Maar is open.', icon: 'icon-192.png', badge: 'favicon-48.png', tag: 'qm-adhan-welcome' });
+  }
+  function requestPerm() {
+    return new Promise(function (res) {
+      try {
+        var r = Notification.requestPermission(function (p) { res(p); });   /* older Safari uses a callback */
+        if (r && r.then) r.then(res, function () { res('denied'); });
+      } catch (e) { res('denied'); }
+    });
+  }
+  /* One tap: ask the phone for permission and, if allowed, switch everything on. */
+  function enableAll(done) {
+    unlock();
+    if (!supported()) { S.on = true; S.notify = false; save(); start(); refreshCard(); if (done) done('unsupported'); return; }
+    requestPerm().then(function (p) {
+      if (p === 'granted') { S.on = true; S.notify = true; save(); start(); welcome(); }
+      refreshCard();
+      if (done) done(p);
+    });
+  }
+  function soundOnly(done) { unlock(); S.on = true; S.notify = false; save(); start(); refreshCard(); if (done) done('sound'); }
+  try {
+    if (navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'notifications' }).then(function (st) { st.onchange = function () { refreshCard(); }; }, function () {});
+  } catch (e) {}
 
   /* ---------- scheduler ---------- */
   var timer = 0, tickIv = 0;
@@ -239,7 +273,14 @@
       '.qm-ad-btn.primary{border:none;color:#f5f2ed;background:linear-gradient(135deg,var(--gold),rgba(var(--accent-rgb,179,32,47),1));box-shadow:0 10px 24px -12px rgba(var(--gold-rgb,207,51,66),.8);}',
       '.qm-ad-next{margin:4px 0 2px;padding:13px 14px;border-radius:16px;border:1px solid var(--gold-dim,rgba(207,51,66,.4));background:rgba(var(--accent-rgb,179,32,47),.10);font-size:14px;line-height:1.5;}',
       '.qm-ad-next b{color:var(--gold);}',
-      '.qm-ad-note{margin:8px 2px 4px;font-size:12.5px;color:var(--muted);line-height:1.55;}'
+      '.qm-ad-note{margin:8px 2px 4px;font-size:12.5px;color:var(--muted);line-height:1.55;}',
+      '.qm-ad-permt{font-size:16px;font-weight:700;margin-bottom:2px;}',
+      '.qm-ad-ask{position:fixed;left:12px;right:12px;margin:0 auto;max-width:460px;bottom:calc(var(--tab-h,64px) + env(safe-area-inset-bottom,0px) + 12px);z-index:9000;padding:18px;border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02)),var(--bg-soft,#121010);border:1px solid var(--gold);color:var(--ink);box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 30px -6px rgba(var(--gold-rgb,207,51,66),.4);animation:qmAskIn .45s cubic-bezier(.22,.9,.3,1);}',
+      '@keyframes qmAskIn{from{opacity:0;transform:translateY(24px);}}',
+      '@media(min-width:820px){.qm-ad-ask{left:auto;right:24px;bottom:24px;margin:0;}}',
+      '.qm-ad-ask b{display:block;font-size:16.5px;margin-bottom:4px;}',
+      '.qm-ad-ask p{margin:0 0 14px;font-size:13.5px;line-height:1.5;color:var(--muted);}',
+      '.qm-ad-ask .qm-ad-btns{flex-wrap:nowrap;}.qm-ad-ask .qm-ad-btn{flex:1;justify-content:center;}'
     ].join('\n');
     document.head.appendChild(st);
   }
@@ -270,10 +311,33 @@
         nx.innerHTML = n ? 'Next adhan: <b>' + n.name + '</b> at <b>' + hhmm(n.at) + '</b> \u00b7 in ' + fmtIn(n.at - now) : 'No prayers are selected below.';
       }
     }
+    var pb = q('[data-ad="perm"]');
+    if (pb) {
+      var pm = perm(), t = q('[data-ad="permtitle"]'), m = q('[data-ad="permmsg"]'), al = q('[data-ad="allow"]'), so = q('[data-ad="soundonly"]'), rc = q('[data-ad="recheck"]');
+      var title = '', msg = '', showAllow = true, allowText = 'Allow notifications & turn on', showSo = false, showRc = false;
+      if (pm === 'unsupported') {
+        title = 'Notifications aren\u2019t available here';
+        msg = 'On iPhone, add Quran Maar to your Home Screen first (Share, then Add to Home Screen) and open it from there. The adhan can still sound while the app is open.';
+        allowText = S.on ? '' : 'Turn on the adhan (sound only)'; showAllow = !S.on;
+      } else if (pm === 'granted') {
+        if (S.on && S.notify) { title = '\u2713 Notifications are on'; msg = 'You\u2019ll get a notification and the adhan at each prayer you leave selected below.'; showAllow = false; }
+        else { title = 'Notifications are allowed'; msg = 'Turn on the adhan to start your prayer reminders.'; allowText = 'Turn on prayer reminders'; }
+      } else if (pm === 'denied') {
+        title = 'Notifications are blocked';
+        msg = 'Allow them for this site in your browser or phone settings (tap the lock icon next to the address bar, then Notifications, then Allow). Then tap the button below.';
+        showAllow = false; showRc = true; showSo = !S.on;
+      } else {
+        title = 'Get a reminder at every prayer time';
+        msg = 'Tap the button, then choose Allow when your phone asks. After that the adhan is on.';
+      }
+      if (t) t.textContent = title; if (m) m.textContent = msg;
+      if (al) { al.hidden = !showAllow; var sp = al.querySelector('span'); if (sp) sp.textContent = allowText; }
+      if (so) so.hidden = !showSo; if (rc) rc.hidden = !showRc;
+    }
     var warn = q('[data-ad="warn"]');
     if (warn) {
-      var perm = ('Notification' in window) ? Notification.permission : 'unsupported';
-      warn.textContent = (S.notify && perm === 'denied') ? 'Notifications are blocked for this site in your browser settings, so only the sound will play.' : '';
+      var permState = perm();
+      warn.textContent = (S.notify && permState === 'denied') ? 'Notifications are blocked for this site in your browser settings, so only the sound will play.' : '';
       warn.hidden = !warn.textContent;
     }
   }
@@ -290,14 +354,21 @@
 
     /* master switch */
     var master = row('bell', 'Play the adhan at prayer time', 'Turn it off any time.', sw('on', 'Play the adhan at prayer time'), function () {
-      S.on = !S.on; save();
-      if (S.on) {
-        unlock();
-        if (S.notify && 'Notification' in window && Notification.permission === 'default') { try { Notification.requestPermission().then(refreshCard); } catch (e) {} }
-        start(); api.toast('Adhan is on');
-      } else { clearTimeout(timer); clearInterval(tickIv); stop(); syncNative(); api.toast('Adhan is off'); }
-      refreshCard();
+      if (S.on) { S.on = false; save(); clearTimeout(timer); clearInterval(tickIv); stop(); syncNative(); api.toast('Adhan is off'); refreshCard(); return; }
+      if (supported() && perm() === 'default' && S.notify) { enableAll(function (p) { api.toast(p === 'granted' ? 'Notifications are on' : 'Notifications were not allowed'); }); return; }
+      S.on = true; save(); unlock(); start(); api.toast('Adhan is on'); refreshCard();
     });
+
+    var permBox = h('div', { class: 'qm-block', 'data-ad': 'perm' }, [
+      h('div', { class: 'qm-ad-permt', 'data-ad': 'permtitle' }),
+      h('p', { class: 'qm-ad-note', 'data-ad': 'permmsg' }),
+      h('div', { class: 'qm-ad-btns' }, [
+        h('button', { type: 'button', class: 'qm-ad-btn primary', 'data-ad': 'allow', html: api.icn('bell', 18) + '<span></span>', onclick: function () {
+          enableAll(function (p) { api.toast(p === 'granted' ? 'Notifications are on' : p === 'denied' ? 'Notifications were not allowed' : 'Adhan is on'); }); } }),
+        h('button', { type: 'button', class: 'qm-ad-btn', 'data-ad': 'soundonly', hidden: '', text: 'Turn on without notifications', onclick: function () { soundOnly(function () { api.toast('Adhan is on'); }); } }),
+        h('button', { type: 'button', class: 'qm-ad-btn', 'data-ad': 'recheck', hidden: '', text: 'I\u2019ve allowed it \u2014 check again', onclick: function () {
+          if (perm() === 'granted') enableAll(function () { api.toast('Notifications are on'); }); else { refreshCard(); api.toast('Still blocked'); } } })
+      ])]);
 
     var next = h('div', { class: 'qm-block' }, [h('div', { class: 'qm-ad-next', 'data-ad': 'next' })]);
 
@@ -332,7 +403,7 @@
     /* notification */
     var notifRow = row('bell', 'Show a notification', 'A pop-up at prayer time, along with the sound.', sw('notify', 'Show a notification'), function () {
       S.notify = !S.notify; save();
-      if (S.notify && 'Notification' in window && Notification.permission === 'default') { try { Notification.requestPermission().then(refreshCard); } catch (e) {} }
+      if (S.notify && supported() && perm() === 'default') requestPerm().then(refreshCard);
       refreshCard();
     });
     var warn = h('p', { class: 'qm-ad-note', 'data-ad': 'warn', hidden: '' });
@@ -343,17 +414,45 @@
       h('button', { type: 'button', class: 'qm-ad-btn', 'data-ad': 'stop', hidden: '', html: api.icn('stop', 18) + '<span>Stop</span>', onclick: stop })]),
       h('p', { class: 'qm-ad-note', text: 'Phones pause websites in the background, so the adhan sounds while Quran Maar is open (screen on). Keep the app open, or leave it on the lock screen with the phone charging.' })]);
 
-    cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [master, next, which, volume, sound, notifRow, warn, test]);
+    cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [permBox, master, next, which, volume, sound, notifRow, warn, test]);
     setTimeout(refreshCard, 0);   /* the card is not in the page yet at this moment */
     var iv = setInterval(function () { if (!document.body.contains(cardEl)) { clearInterval(iv); return; } refreshCard(); }, 30000);
     return cardEl;
+  }
+
+  /* ---------- one-time friendly prompt ---------- */
+  var ASK = 'qm_adhan_ask', askEl = null;
+  function canAsk() {
+    if (!supported() || S.on || perm() !== 'default') return false;
+    try { if (Date.now() - (+localStorage.getItem(ASK) || 0) < 14 * 864e5) return false; } catch (e) {}
+    return true;
+  }
+  function closeAsk() { if (askEl && askEl.parentNode) askEl.parentNode.removeChild(askEl); askEl = null; }
+  function maybeAsk(tries) {
+    if (!canAsk() || askEl) return;
+    if (document.querySelector('.qm-intro') && tries < 30) { setTimeout(function () { maybeAsk(tries + 1); }, 1000); return; }
+    css();
+    askEl = document.createElement('div'); askEl.className = 'qm-ad-ask'; askEl.id = 'qm-ad-ask'; askEl.setAttribute('role', 'region'); askEl.setAttribute('aria-label', 'Prayer reminders');
+    askEl.innerHTML = '<b>Get a reminder at every prayer time?</b><p>Allow notifications and Quran Maar will sound the adhan when it\u2019s time. You can turn it off any time in Settings.</p>' +
+      '<div class="qm-ad-btns"><button type="button" class="qm-ad-btn" data-a="no">Not now</button><button type="button" class="qm-ad-btn primary" data-a="yes">Turn on</button></div>';
+    askEl.querySelector('[data-a="no"]').addEventListener('click', function () { try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {} closeAsk(); });
+    askEl.querySelector('[data-a="yes"]').addEventListener('click', function () {
+      var box = askEl;
+      enableAll(function (p) {
+        if (!box) return;
+        box.innerHTML = '<b>' + (p === 'granted' ? '\u2713 Prayer reminders are on' : 'Notifications weren\u2019t allowed') + '</b><p>' + (p === 'granted' ? 'The adhan will sound at each prayer time while Quran Maar is open.' : 'You can turn them on later in Settings, then Adhan.') + '</p>';
+        if (p !== 'granted') { try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {} }
+        setTimeout(closeAsk, 3200);
+      });
+    });
+    document.body.appendChild(askEl);
   }
 
   /* hook into the Settings page */
   if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(buildCard);
 
   /* run the scheduler whenever the adhan is on */
-  function boot() { if (S.on) start(); }
+  function boot() { if (S.on) start(); setTimeout(function () { maybeAsk(0); }, 6000); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
   window.QMAdhan = { play: function (l) { unlock(); return play(l || 'Test'); }, stop: stop, get: function () { return JSON.parse(JSON.stringify(S)); }, next: function () { return nextEvent(Date.now()); } };
