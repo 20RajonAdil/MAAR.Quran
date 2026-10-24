@@ -39,7 +39,7 @@
     accent: 'auto', glow: '', introColor: '', back: 'black',
     motion: 'auto', intro: true, atmos: true,
     uiScale: 100, arScale: 100, spacing: false,
-    contrast: false, cvd: false, dyslexia: false, bigTargets: false, focus: true
+    contrast: false, cvd: false, dyslexia: false, focus: true
   };
 
   var S = load();
@@ -146,7 +146,7 @@
     /* classes */
     var cl = root.classList;
     cl.toggle('qm-spacing', !!S.spacing); cl.toggle('qm-contrast', !!S.contrast);
-    cl.toggle('qm-big', !!S.bigTargets); cl.toggle('qm-focus', !!S.focus);
+    cl.toggle('qm-focus', !!S.focus);
     cl.toggle('qm-dys', !!S.dyslexia); cl.toggle('qm-nobgstyle', S.back === 'black');
     var mo = motionLevel();
     cl.toggle('qm-motion-reduced', mo === 'reduced'); cl.toggle('qm-motion-off', mo === 'off');
@@ -189,9 +189,6 @@
     /* dyslexia-friendly (English/Bangla UI text only; Arabic untouched) */
     'html.qm-dys body{font-family:"Lexend","Plus Jakarta Sans",system-ui,sans-serif;letter-spacing:.02em;word-spacing:.09em;}',
     'html.qm-dys .display,html.qm-dys .brand-text{font-family:"Lexend",sans-serif;font-style:normal;}',
-    /* larger tap targets */
-    'html.qm-big button,html.qm-big [role="button"],html.qm-big .nav-pill,html.qm-big select,html.qm-big input{min-height:48px;}',
-    'html.qm-big button,html.qm-big .nav-pill{min-width:48px;}',
     /* motion */
     'html.qm-motion-reduced #bg-canvas,html.qm-motion-off #bg-canvas{display:none;}',
     'html.qm-motion-reduced *,html.qm-motion-reduced *::before,html.qm-motion-reduced *::after{animation-iteration-count:1 !important;scroll-behavior:auto !important;}',
@@ -287,53 +284,208 @@
   }
 
   /* ============================================================
-     Bismillah draw-on intro (once per browser session)
+     Bismillah intro — written in one flowing pass with a moving
+     colour gradient, like the iPhone "hello" screen. Plays on every
+     load (turn it off in Settings). Tap anywhere or press Esc to skip.
      ============================================================ */
+  function introStops() {
+    if (!S.introColor) return ['#ff9d3c', '#ff5a8a', '#c05cff', '#5a8bff', '#37d4c8'];
+    var hsl = rgbToHsl.apply(null, hexToRgb(S.introColor));
+    return [[-10, .72], [0, .62], [12, .54], [-5, .66], [8, .76]].map(function (d) {
+      return toHex(hslToRgb(((hsl[0] + d[0] / 360) % 1 + 1) % 1, Math.max(.45, hsl[1]), d[1]));
+    });
+  }
   function runIntro() {
     if (!S.intro || motionLevel() !== 'full') return;
-    try { if (sessionStorage.getItem('qm_intro_seen')) return; } catch (e) {}
-    if (location.hash && location.hash.length > 1) return;   /* deep links go straight to content */
-
+    var st = introStops(), glow = hexToRgb(st[1]).join(',');
     var ov = document.createElement('div');
     ov.className = 'qm-intro'; ov.setAttribute('role', 'presentation');
-    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;' +
-      'background:radial-gradient(ellipse 70% 50% at 50% 40%,rgba(var(--intro-rgb,var(--glow-rgb)),.16),transparent 70%),var(--bg);transition:opacity .7s ease;';
+    var PEN = 'M905 135 L825 70 L745 152 L665 70 L585 152 L505 70 L425 152 L345 70 L265 152 L185 70 L105 152 L20 100';
+    var TEXT = '\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650';
     ov.innerHTML =
       '<style>' +
-      '.qm-intro svg{width:min(88vw,760px);height:auto;overflow:visible;}' +
-      '.qm-intro text{font-family:"Amiri","Noto Naskh Arabic",serif;font-size:92px;stroke:rgb(var(--intro-rgb,var(--glow-rgb)));stroke-width:1.4;stroke-linejoin:round;' +
-      'fill:var(--ink);fill-opacity:0;stroke-dasharray:1400;stroke-dashoffset:1400;' +
-      'filter:drop-shadow(0 0 14px rgba(var(--intro-rgb,var(--glow-rgb)),.55));' +
-      'animation:qmDraw 2.3s cubic-bezier(.4,.1,.2,1) .2s forwards,qmFill 1s ease 1.9s forwards;}' +
-      '.qm-intro .qm-in-sub{font-family:"Instrument Serif",serif;font-style:italic;font-size:19px;color:var(--muted);opacity:0;animation:qmSub 1s ease 2.4s forwards;text-align:center;padding:0 20px;}' +
-      '.qm-intro .qm-in-skip{position:absolute;right:16px;top:calc(env(safe-area-inset-top,0px) + 14px);background:var(--card);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:8px 16px;font-size:12.5px;font-weight:600;cursor:pointer;}' +
-      '.qm-intro .qm-in-brand{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 34px);font-family:"Instrument Serif",serif;font-size:22px;letter-spacing:.02em;color:var(--ink);opacity:0;animation:qmSub 1s ease 2.8s forwards;}' +
-      '.qm-intro .qm-in-brand b{color:rgb(var(--intro-rgb,var(--glow-rgb)));font-weight:400;}' +
-      '.qm-intro .qm-in-bar{position:absolute;left:0;bottom:0;height:3px;width:100%;transform-origin:left;transform:scaleX(0);background:linear-gradient(90deg,transparent,rgb(var(--intro-rgb,var(--glow-rgb))));animation:qmBar 4.2s linear forwards;}' +
-      '@keyframes qmBar{to{transform:scaleX(1);}}' +
-      '@keyframes qmDraw{to{stroke-dashoffset:0;}}@keyframes qmFill{to{fill-opacity:1;stroke-opacity:.35;}}@keyframes qmSub{to{opacity:1;}}' +
+      '.qm-intro{position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;opacity:1;transition:opacity .9s ease;cursor:default;}' +
+      '.qm-intro.out{opacity:0;}' +
+      '.qm-intro:not(.go) *{animation-play-state:paused !important;}' +
+      '.qm-in-aura i{position:absolute;display:block;border-radius:50%;filter:blur(70px);opacity:0;animation:qmAura 3.8s ease .4s forwards;}' +
+      '.qm-in-aura i:nth-child(1){width:46vmin;height:46vmin;left:6%;top:30%;background:' + st[0] + ';}' +
+      '.qm-in-aura i:nth-child(2){width:50vmin;height:50vmin;right:2%;top:24%;background:' + st[2] + ';animation-delay:.9s;}' +
+      '.qm-in-aura i:nth-child(3){width:44vmin;height:44vmin;left:30%;bottom:8%;background:' + st[4] + ';animation-delay:1.4s;}' +
+      '@keyframes qmAura{0%{opacity:0;transform:scale(.7);}55%{opacity:.34;}100%{opacity:.24;transform:scale(1.08);}}' +
+      '.qm-hello{position:relative;width:min(90vw,820px);height:auto;overflow:visible;transform:scale(.97);transition:transform 1s ease,filter 1s ease;' +
+      'filter:drop-shadow(0 0 26px rgba(' + glow + ',.5)) drop-shadow(0 0 60px rgba(' + glow + ',.25));}' +
+      '.qm-intro.go .qm-hello{transform:scale(1);}' +
+      '.qm-intro.out .qm-hello{transform:scale(1.1);filter:blur(7px) drop-shadow(0 0 40px rgba(' + glow + ',.5));}' +
+      '.qm-hello text{font-family:"Aref Ruqaa","Amiri","Noto Naskh Arabic",serif;font-weight:700;font-size:112px;}' +
+      '.qm-pen{stroke-dasharray:1;stroke-dashoffset:1;animation:qmWrite 2.5s cubic-bezier(.55,.08,.3,1) .45s forwards;}' +
+      '@keyframes qmWrite{to{stroke-dashoffset:0;}}' +
       '</style>' +
-      '<button class="qm-in-skip" type="button" aria-label="Skip the opening animation">Skip</button>' +
-      '<svg viewBox="0 0 900 190" role="img" aria-label="Bismillah ir-Rahman ir-Rahim"><text x="450" y="130" text-anchor="middle" direction="rtl">\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650</text></svg>' +
-      '<div class="qm-in-sub">In the name of Allah, the Most Gracious, the Most Merciful</div>' +
-      '<div class="qm-in-brand">Quran <b>Maar</b></div><i class="qm-in-bar"></i>';
+      '<div class="qm-in-aura" aria-hidden="true"><i></i><i></i><i></i></div>' +
+      '<svg class="qm-hello" viewBox="0 0 900 260" role="img" aria-label="Bismillah ir-Rahman ir-Rahim">' +
+      '<defs>' +
+      '<linearGradient id="qmG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="900" y2="0" spreadMethod="repeat">' +
+      st.concat([st[0]]).map(function (c, i) { return '<stop offset="' + (i / 5) + '" stop-color="' + c + '"/>'; }).join('') +
+      '<animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="900 0" dur="4.5s" repeatCount="indefinite"/>' +
+      '</linearGradient>' +
+      '<mask id="qmM" maskUnits="userSpaceOnUse" x="-30" y="-30" width="960" height="320">' +
+      '<path class="qm-pen" pathLength="1" d="' + PEN + '" fill="none" stroke="#fff" stroke-width="140" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</mask></defs>' +
+      '<g mask="url(#qmM)"><text id="qmT" x="450" y="156" text-anchor="middle" direction="rtl" fill="url(#qmG)">' + TEXT + '</text></g>' +
+      '</svg>';
+
+    /* cover the page from the very first paint */
+    document.documentElement.appendChild(ov);
 
     var done = false;
     function end() {
       if (done) return; done = true;
-      try { sessionStorage.setItem('qm_intro_seen', '1'); } catch (e) {}
-      ov.style.opacity = '0';
-      setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 750);
+      ov.classList.add('out');
+      setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 1000);
     }
-    function start() {
-      document.body.appendChild(ov);
-      ov.querySelector('.qm-in-skip').addEventListener('click', end);
-      ov.addEventListener('click', end);
-      document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { end(); document.removeEventListener('keydown', esc); } });
-      setTimeout(end, 4300);
+    function go() {
+      if (done) return;
+      try {
+        var t = ov.querySelector('#qmT'), bb = t.getBBox();
+        if (bb.width > 720) t.setAttribute('font-size', Math.floor(112 * 720 / bb.width));
+      } catch (e) {}
+      ov.classList.add('go');
+      setTimeout(end, 4000);
     }
-    var ready = (document.fonts && document.fonts.load) ? Promise.race([document.fonts.load('80px Amiri', '\u0628'), new Promise(function (r) { setTimeout(r, 1400); })]) : Promise.resolve();
-    ready.then(start, start);
+    ov.addEventListener('click', end);
+    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { end(); document.removeEventListener('keydown', esc); } });
+    setTimeout(end, 8000);   /* safety net */
+    var fontReady = (document.fonts && document.fonts.load)
+      ? Promise.race([document.fonts.load('700 100px "Aref Ruqaa"', '\u0628'), new Promise(function (r) { setTimeout(r, 1300); })])
+      : Promise.resolve();
+    fontReady.then(go, go);
+  }
+
+  /* ============================================================
+     In-page colour picker (replaces the browser's own dialog, which
+     looks dated on Android). Saturation/brightness pad, hue slider,
+     hex field and quick colours. Changes apply live; Cancel reverts.
+     ============================================================ */
+  var PK_QUICK = ['#cf3342', '#e8663a', '#c9871c', '#d4b020', '#7bb534', '#1f9d6b', '#1aa5a5', '#2b8fd6', '#4a63e0', '#7c5cf0', '#a74bd8', '#d6457f'];
+  function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+  function hsvToHex(hh, ss, vv) {
+    var f = function (n) { var k = (n + hh / 60) % 6; return vv - vv * ss * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return toHex([f(5), f(3), f(1)].map(function (x) { return Math.round(x * 255); }));
+  }
+  function hexToHsv(hex, keepHue) {
+    var c = hexToRgb(hex), r = c[0] / 255, g = c[1] / 255, b = c[2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, hh = 0;
+    if (d) { if (mx === r) hh = ((g - b) / d) % 6; else if (mx === g) hh = (b - r) / d + 2; else hh = (r - g) / d + 4; hh *= 60; if (hh < 0) hh += 360; }
+    else if (keepHue != null) hh = keepHue;
+    return [hh, mx ? d / mx : 0, mx];
+  }
+
+  var PICKER_CSS = [
+    '.qm-pk-back{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;animation:qmFade .25s ease;}',
+    '@keyframes qmFade{from{opacity:0;}}',
+    '@keyframes qmUp{from{transform:translateY(40px);opacity:0;}}',
+    '.qm-pk{width:min(460px,100%);box-sizing:border-box;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02)),var(--bg-soft,#121010);border:1px solid var(--line);border-bottom:none;border-radius:30px 30px 0 0;padding:14px 18px calc(18px + env(safe-area-inset-bottom,0px));color:var(--ink);box-shadow:0 -30px 80px rgba(0,0,0,.6);animation:qmUp .35s cubic-bezier(.22,.9,.3,1);outline:none;}',
+    '@media(min-width:700px){.qm-pk-back{align-items:center;}.qm-pk{border-radius:30px;border-bottom:1px solid var(--line);padding-bottom:18px;}}',
+    '.qm-pk-grab{width:42px;height:5px;border-radius:9px;background:var(--line);margin:0 auto 12px;}',
+    '.qm-pk-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}',
+    '.qm-pk-head h4{margin:0;font-size:18px;font-weight:700;}',
+    '.qm-pk-x{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:18px;cursor:pointer;line-height:1;}',
+    '.qm-pk-sv{position:relative;height:min(200px,30vh);min-height:150px;border-radius:20px;touch-action:none;cursor:crosshair;border:1px solid rgba(255,255,255,.12);outline:none;}',
+    '.qm-pk-sv:focus-visible{box-shadow:0 0 0 3px var(--gold);}',
+    '.qm-pk-thumb{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.6);pointer-events:none;}',
+    '.qm-pk-hue{-webkit-appearance:none;appearance:none;width:100%;height:30px;margin:16px 0 4px;background:transparent;cursor:pointer;}',
+    '.qm-pk-hue::-webkit-slider-runnable-track{height:14px;border-radius:99px;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);}',
+    '.qm-pk-hue::-moz-range-track{height:14px;border-radius:99px;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);}',
+    '.qm-pk-hue::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;margin-top:-7px;border-radius:50%;background:#fff;border:none;box-shadow:0 2px 10px rgba(0,0,0,.6);}',
+    '.qm-pk-hue::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#fff;border:none;box-shadow:0 2px 10px rgba(0,0,0,.6);}',
+    '.qm-pk-row{display:flex;align-items:center;gap:12px;margin:12px 0 4px;}',
+    '.qm-pk-sw{width:48px;height:48px;border-radius:16px;flex:none;border:1px solid rgba(255,255,255,.2);}',
+    '.qm-pk-hex{flex:1;min-width:0;height:48px;border-radius:16px;border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--ink);font:600 17px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;padding:0 14px;letter-spacing:.04em;}',
+    '.qm-pk-hex:focus{outline:2px solid var(--gold);border-color:transparent;}',
+    '.qm-pk-quick{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:14px 0 6px;}',
+    '.qm-pk-quick button{aspect-ratio:1;border-radius:14px;border:2px solid transparent;cursor:pointer;padding:0;transition:transform .15s;}',
+    '.qm-pk-quick button:active{transform:scale(.9);}',
+    '.qm-pk-quick button.on{border-color:#fff;}',
+    '.qm-pk-note{margin:8px 2px 14px;font-size:12px;color:var(--muted);line-height:1.5;}',
+    '.qm-pk-btns{display:flex;gap:10px;}',
+    '.qm-pk-btns button{flex:1;height:52px;border-radius:18px;font-weight:700;font-size:15px;cursor:pointer;}',
+    '.qm-pk-cancel{background:var(--card);color:var(--ink);border:1px solid var(--line);}',
+    '.qm-pk-apply{border:none;color:#f5f2ed;background:linear-gradient(135deg,var(--gold),rgba(var(--accent-rgb),1));box-shadow:0 10px 24px -10px rgba(var(--gold-rgb),.8);}'
+  ].join('\n');
+
+  function openPicker(opt) {
+    if (!document.getElementById('qm-picker-css')) { var st = document.createElement('style'); st.id = 'qm-picker-css'; st.textContent = PICKER_CSS; document.head.appendChild(st); }
+    var start = (opt.value || '#cf3342').toLowerCase(), hsv = hexToHsv(start), last = document.activeElement, closed = false;
+    var back = h('div', { class: 'qm-pk-back' });
+    var sheet = h('div', { class: 'qm-pk', role: 'dialog', 'aria-modal': 'true', 'aria-label': opt.title, tabindex: '-1' });
+    var sv = h('div', { class: 'qm-pk-sv', tabindex: '0', role: 'application', 'aria-label': 'Colour pad. Arrow keys change saturation and brightness.' });
+    var thumb = h('i', { class: 'qm-pk-thumb' }); sv.appendChild(thumb);
+    var hue = h('input', { type: 'range', class: 'qm-pk-hue', min: 0, max: 360, step: 1, 'aria-label': 'Hue' });
+    var swatch = h('span', { class: 'qm-pk-sw' });
+    var hex = h('input', { type: 'text', class: 'qm-pk-hex', maxlength: 7, spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', 'aria-label': 'Hex colour code' });
+    var quick = h('div', { class: 'qm-pk-quick', role: 'group', 'aria-label': 'Quick colours' });
+
+    function cur() { return hsvToHex(hsv[0], hsv[1], hsv[2]); }
+    function paint(skipHex) {
+      var c = cur();
+      sv.style.background = 'linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,hsl(' + hsv[0] + ',100%,50%))';
+      thumb.style.left = (hsv[1] * 100) + '%'; thumb.style.top = ((1 - hsv[2]) * 100) + '%'; thumb.style.background = c;
+      hue.value = Math.round(hsv[0]); swatch.style.background = c;
+      if (!skipHex) hex.value = c;
+      Array.prototype.forEach.call(quick.children, function (b) { b.classList.toggle('on', b.getAttribute('data-c') === c); });
+    }
+    function live() { paint(); opt.onLive(cur()); }
+
+    function pos(e) { var r = sv.getBoundingClientRect(); hsv[1] = clamp01((e.clientX - r.left) / r.width); hsv[2] = 1 - clamp01((e.clientY - r.top) / r.height); live(); }
+    var drag = false;
+    sv.addEventListener('pointerdown', function (e) { drag = true; try { sv.setPointerCapture(e.pointerId); } catch (x) {} pos(e); e.preventDefault(); });
+    sv.addEventListener('pointermove', function (e) { if (drag) pos(e); });
+    sv.addEventListener('pointerup', function () { drag = false; });
+    sv.addEventListener('pointercancel', function () { drag = false; });
+    sv.addEventListener('keydown', function (e) {
+      var d = e.shiftKey ? .1 : .02, used = true;
+      if (e.key === 'ArrowLeft') hsv[1] = clamp01(hsv[1] - d); else if (e.key === 'ArrowRight') hsv[1] = clamp01(hsv[1] + d);
+      else if (e.key === 'ArrowUp') hsv[2] = clamp01(hsv[2] + d); else if (e.key === 'ArrowDown') hsv[2] = clamp01(hsv[2] - d); else used = false;
+      if (used) { e.preventDefault(); live(); }
+    });
+    hue.addEventListener('input', function () { hsv[0] = +hue.value; if (hsv[1] === 0) hsv[1] = .6; if (hsv[2] === 0) hsv[2] = .6; live(); });
+    hex.addEventListener('input', function () {
+      var v = hex.value.trim(); if (v[0] !== '#') v = '#' + v;
+      if (/^#[0-9a-f]{6}$/i.test(v)) { hsv = hexToHsv(v, hsv[0]); paint(true); opt.onLive(cur()); }
+    });
+    PK_QUICK.forEach(function (c) {
+      quick.appendChild(h('button', { type: 'button', style: 'background:' + c, 'data-c': c, 'aria-label': c, onclick: function () { hsv = hexToHsv(c, hsv[0]); live(); } }));
+    });
+
+    function close(apply) {
+      if (closed) return; closed = true;
+      document.removeEventListener('keydown', onKey, true);
+      if (!apply) opt.onCancel && opt.onCancel();
+      else opt.onApply && opt.onApply(cur());
+      if (back.parentNode) back.parentNode.removeChild(back);
+      if (last && last.focus) { try { last.focus(); } catch (e) {} }
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(false); return; }
+      if (e.key === 'Tab') {
+        var f = sheet.querySelectorAll('button,input,[tabindex="0"]'); if (!f.length) return;
+        var a = f[0], z = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+        else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+      }
+    }
+    document.addEventListener('keydown', onKey, true);
+    back.addEventListener('pointerdown', function (e) { if (e.target === back) close(false); });
+
+    sheet.appendChild(h('div', { class: 'qm-pk-grab' }));
+    sheet.appendChild(h('div', { class: 'qm-pk-head' }, [h('h4', { text: opt.title }), h('button', { type: 'button', class: 'qm-pk-x', 'aria-label': 'Close', text: '\u00d7', onclick: function () { close(false); } })]));
+    sheet.appendChild(sv); sheet.appendChild(hue);
+    sheet.appendChild(h('div', { class: 'qm-pk-row' }, [swatch, hex]));
+    sheet.appendChild(quick);
+    if (opt.note) sheet.appendChild(h('p', { class: 'qm-pk-note', text: opt.note }));
+    sheet.appendChild(h('div', { class: 'qm-pk-btns' }, [
+      h('button', { type: 'button', class: 'qm-pk-cancel', text: 'Cancel', onclick: function () { close(false); } }),
+      h('button', { type: 'button', class: 'qm-pk-apply', text: 'Apply', onclick: function () { close(true); } })]));
+    back.appendChild(sheet); document.body.appendChild(back);
+    paint(); sheet.focus();
   }
 
   /* ============================================================
@@ -447,15 +599,16 @@
     '.qm-dot.on{box-shadow:0 0 0 2px var(--bg-soft,#121010),0 0 0 4px var(--ink);transform:scale(1.04);}',
     '.qm-dot.on svg{opacity:1;transform:none;}',
     '.qm-dot.auto{background:conic-gradient(#c26a9a,#f0a24a,#ff8f6e,#e8a050,#ff6a5a,#a03a60,#c26a9a);}',
-    '.qm-dot.custom{overflow:hidden;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);}',
-    '.qm-dot.custom input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;}',
+    '.qm-dot.custom{overflow:hidden;background:conic-gradient(#ff3b3b,#ffd23b,#3bff7a,#3bd8ff,#6a3bff,#ff3bd8,#ff3b3b);}',
+    '.qm-dot svg.pl{position:absolute;opacity:1;transform:none;}',
+    '.qm-dot.on svg.pl{opacity:0;}',
     '.qm-sub{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.5;}',
     '.qm-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;}',
     '.qm-pick{position:relative;display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:18px;border:1px solid var(--line-soft);background:rgba(0,0,0,.22);}',
     '.qm-pick .sw{width:34px;height:34px;border-radius:11px;flex:none;border:1px solid rgba(255,255,255,.18);}',
     '.qm-pick span.t{font-size:13px;font-weight:600;line-height:1.25;min-width:0;}',
     '.qm-pick span.t em{display:block;font-style:normal;font-weight:400;color:var(--muted);font-size:11.5px;}',
-    '.qm-pick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;}',
+    '.qm-pick{cursor:pointer;}',
     '.qm-pick .qm-auto{position:relative;z-index:2;margin-left:auto;background:none;border:none;color:var(--gold);font-size:12px;font-weight:700;cursor:pointer;padding:6px;}',
 
     /* background tiles */
@@ -533,13 +686,25 @@
       hint ? h('small', { text: hint, style: 'margin-top:6px;' }) : null]);
   }
   function paintRange(el) { el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%'); }
-  function pickBlock(key, label, hint, fallback) {
+  function colorOf(key) {
+    if (S[key]) return S[key];
+    if (key === 'glow') { var g = (getComputedStyle(root).getPropertyValue('--glow-rgb').trim() || '179,32,47').split(',').map(Number); return toHex(g); }
+    return introStops()[1];
+  }
+  function openFor(key, label, note) {
+    var prev = S[key];
+    openPicker({ title: label, value: colorOf(key), note: note,
+      onLive: function (hex) { S[key] = hex; save(); apply(); syncSel(); },
+      onApply: function () { toast(); },
+      onCancel: function () { S[key] = prev; save(); apply(); syncSel(); } });
+  }
+  function pickBlock(key, label, hint) {
     var sw = h('span', { class: 'sw', 'data-sw': key });
-    var inp = h('input', { type: 'color', 'data-color': key, 'aria-label': label, oninput: function (e) { S[key] = e.target.value; save(); apply(); syncSel(); toast(); } });
     var auto = h('button', { type: 'button', class: 'qm-auto', 'data-auto': key, text: 'Auto', 'aria-label': label + ': back to automatic', onclick: function (e) { e.stopPropagation(); S[key] = ''; persist(); } });
-    var d = h('div', { class: 'qm-pick' }, [sw, h('span', { class: 't' }, [label, h('em', { text: hint })]), auto, inp]);
-    d._fallback = fallback; sw._fallback = fallback;
-    return d;
+    var go = function () { openFor(key, label + ' colour'); };
+    return h('div', { class: 'qm-pick', role: 'button', tabindex: '0', 'aria-label': label + ' colour: change',
+      onclick: go, onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } } },
+      [sw, h('span', { class: 't' }, [label, h('em', { text: hint })]), auto]);
   }
 
   function syncSel() {
@@ -567,8 +732,10 @@
     });
     var ci = host.querySelector('[data-customtile]'); if (ci) {
       var preset = ACCENTS.some(function (a) { return a[1] === S.accent.toLowerCase(); });
-      ci.classList.toggle('on', !autoOn && !preset);
-      ci.setAttribute('aria-pressed', String(!autoOn && !preset));
+      var customOn = !autoOn && !preset;
+      ci.classList.toggle('on', customOn);
+      ci.setAttribute('aria-pressed', String(customOn));
+      ci.style.background = customOn ? S.accent : 'conic-gradient(#ff3b3b,#ffd23b,#3bff7a,#3bd8ff,#6a3bff,#ff3bd8,#ff3b3b)';
     }
     var hint = host.querySelector('#qm-acc-hint');
     if (hint) hint.textContent = autoOn ? 'Auto: the colour changes with each prayer time. Pick a colour to keep it fixed.' : 'Fixed colour. Choose the rainbow tile to follow the prayer times again.';
@@ -607,9 +774,16 @@
     ACCENTS.forEach(function (a) {
       sw.appendChild(h('button', { type: 'button', class: 'qm-dot', style: 'background:' + a[1], 'data-acc': a[1], 'aria-label': a[0], html: ico(I.check, 22), onclick: function () { S.accent = a[1]; persist(); } }));
     });
-    var ctile = h('div', { class: 'qm-dot custom', 'data-customtile': '1', role: 'group' }, [
-      h('input', { type: 'color', 'aria-label': 'Pick any accent colour', value: '#cf3342', oninput: function (e) { S.accent = e.target.value; save(); apply(); syncSel(); toast(); } })]);
-    ctile.style.background = 'conic-gradient(#ff3b3b,#ffd23b,#3bff7a,#3bd8ff,#6a3bff,#ff3bd8,#ff3b3b)';
+    var ctile = h('button', { type: 'button', class: 'qm-dot custom', 'data-customtile': '1', 'aria-label': 'Choose any colour',
+      html: '<svg class="pl" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' + ico(I.check, 22),
+      onclick: function () {
+        var prev = S.accent;
+        openPicker({ title: 'Accent colour', value: prev === 'auto' ? (phaseInfo ? PHASES[phaseInfo.name].hex : ORIGINAL) : prev,
+          note: 'Very dark or very light colours are adjusted a little so text stays easy to read.',
+          onLive: function (hex) { S.accent = hex; save(); apply(); syncSel(); },
+          onApply: function () { toast(); },
+          onCancel: function () { S.accent = prev; save(); apply(); syncSel(); } });
+      } });
     sw.appendChild(ctile);
 
     var bgs = h('div', { class: 'qm-bgs', role: 'group', 'aria-label': 'Background' });
@@ -621,7 +795,7 @@
 
     host.appendChild(card('palette', 'Colours', 'Pick the look. Your choices are saved on this device.', 'qm-s-colours', [
       h('div', { class: 'qm-block' }, [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-t', text: 'Accent colour' })]), h('p', { class: 'qm-sub', id: 'qm-acc-hint' }), sw]),
-      h('div', { class: 'qm-block' }, [h('div', { class: 'qm-pair' }, [pickBlock('glow', 'Glow', 'Background light', '#b3202f'), pickBlock('introColor', 'Bismillah', 'Opening colour', '#cf3342')])]),
+      h('div', { class: 'qm-block' }, [h('div', { class: 'qm-pair' }, [pickBlock('glow', 'Glow', 'Background light'), pickBlock('introColor', 'Bismillah', 'Opening colour')])]),
       h('div', { class: 'qm-block' }, [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-t', text: 'Background' })]), bgs])
     ]));
 
@@ -632,7 +806,7 @@
 
     host.appendChild(card('wave', 'Motion', 'Animations and the opening screen.', 'qm-s-motion', [
       segBlock('motion', 'wave', 'Animation level', [['auto', 'Device'], ['full', 'Full'], ['reduced', 'Calm'], ['off', 'Off']], 'Device follows your phone or computer\u2019s reduce-motion setting.'),
-      toggleRow('intro', 'play', 'Opening Bismillah', 'Plays once per visit')
+      toggleRow('intro', 'play', 'Opening Bismillah', 'Plays every time the site opens')
     ]));
 
     host.appendChild(card('eye', 'Reading & access', 'Make the site comfortable for you.', 'qm-s-access', [
@@ -642,7 +816,6 @@
       toggleRow('contrast', 'contrast', 'High contrast', 'Brighter text, stronger borders, underlined links'),
       toggleRow('cvd', 'eye', 'Colour-blind friendly colours', 'Blue accent and orange warnings'),
       toggleRow('dyslexia', 'book', 'Dyslexia-friendly font', 'Lexend for English and Bangla text'),
-      toggleRow('bigTargets', 'tap', 'Larger buttons', 'Bigger tap targets on small screens'),
       toggleRow('focus', 'focus', 'Strong keyboard focus', 'A thick outline shows where you are when using Tab')
     ]));
 
@@ -675,6 +848,7 @@
   /* apply immediately (before first paint) using the cached prayer times */
   phaseInfo = currentPhase(Date.now());
   apply();
-  function ready() { startAtmos(); runIntro(); }
+  runIntro();
+  function ready() { startAtmos(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
 })();
