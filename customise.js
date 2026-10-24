@@ -304,7 +304,7 @@
     var TEXT = '\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650';
     ov.innerHTML =
       '<style>' +
-      '.qm-intro{position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;opacity:1;transition:opacity .9s ease;cursor:default;}' +
+      '.qm-intro{position:fixed;inset:0;z-index:99999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:hidden;opacity:1;transition:opacity .9s ease;cursor:default;}' +
       '.qm-intro.out{opacity:0;}' +
       '.qm-intro:not(.go) *{animation-play-state:paused !important;}' +
       '.qm-in-aura i{position:absolute;display:block;border-radius:50%;filter:blur(70px);opacity:0;animation:qmAura 3.8s ease .4s forwards;}' +
@@ -319,6 +319,8 @@
       '.qm-hello text{font-family:"Aref Ruqaa","Amiri","Noto Naskh Arabic",serif;font-weight:700;font-size:112px;}' +
       '.qm-pen{stroke-dasharray:1;stroke-dashoffset:1;animation:qmWrite 2.5s cubic-bezier(.55,.08,.3,1) .45s forwards;}' +
       '@keyframes qmWrite{to{stroke-dashoffset:0;}}' +
+      '.qm-in-sub{position:relative;max-width:560px;padding:0 24px;text-align:center;font-family:"Instrument Serif",serif;font-style:italic;font-size:clamp(17px,4.6vw,22px);line-height:1.4;color:rgba(245,242,237,.74);opacity:0;transform:translateY(8px);animation:qmSub 1.2s ease 2.7s forwards;}' +
+      '@keyframes qmSub{to{opacity:1;transform:none;}}' +
       '</style>' +
       '<div class="qm-in-aura" aria-hidden="true"><i></i><i></i><i></i></div>' +
       '<svg class="qm-hello" viewBox="0 0 900 260" role="img" aria-label="Bismillah ir-Rahman ir-Rahim">' +
@@ -331,7 +333,8 @@
       '<path class="qm-pen" pathLength="1" d="' + PEN + '" fill="none" stroke="#fff" stroke-width="140" stroke-linecap="round" stroke-linejoin="round"/>' +
       '</mask></defs>' +
       '<g mask="url(#qmM)"><text id="qmT" x="450" y="156" text-anchor="middle" direction="rtl" fill="url(#qmG)">' + TEXT + '</text></g>' +
-      '</svg>';
+      '</svg>' +
+      '<div class="qm-in-sub">In the name of Allah, the Most Gracious, the Most Merciful</div>';
 
     /* cover the page from the very first paint */
     document.documentElement.appendChild(ov);
