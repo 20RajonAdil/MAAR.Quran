@@ -297,43 +297,46 @@
   }
   function runIntro() {
     if (!S.intro || motionLevel() !== 'full') return;
-    var st = introStops(), glow = hexToRgb(st[1]).join(',');
+    var st = introStops();
     var ov = document.createElement('div');
     ov.className = 'qm-intro'; ov.setAttribute('role', 'presentation');
-    var PEN = 'M905 135 L825 70 L745 152 L665 70 L585 152 L505 70 L425 152 L345 70 L265 152 L185 70 L105 152 L20 100';
+    var PEN = 'M905 100 L825 62 L745 138 L665 62 L585 138 L505 62 L425 138 L345 62 L265 138 L185 62 L105 138 L20 100';
     var TEXT = '\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650';
+    var COL = 'rgb(var(--intro-rgb,var(--glow-rgb)))', COLA = 'rgba(var(--intro-rgb,var(--glow-rgb)),';
     ov.innerHTML =
       '<style>' +
-      '.qm-intro{position:fixed;inset:0;z-index:99999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:hidden;opacity:1;transition:opacity .9s ease;cursor:default;}' +
+      /* original look: dark ground with a soft glow, cream calligraphy, italic translation */
+      '.qm-intro{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;overflow:hidden;opacity:1;transition:opacity .9s ease;' +
+      'background:radial-gradient(ellipse 70% 50% at 50% 40%,' + COLA + '.16),transparent 70%),var(--bg);}' +
       '.qm-intro.out{opacity:0;}' +
       '.qm-intro:not(.go) *{animation-play-state:paused !important;}' +
-      '.qm-in-aura i{position:absolute;display:block;border-radius:50%;filter:blur(70px);opacity:0;animation:qmAura 3.8s ease .4s forwards;}' +
-      '.qm-in-aura i:nth-child(1){width:46vmin;height:46vmin;left:6%;top:30%;background:' + st[0] + ';}' +
-      '.qm-in-aura i:nth-child(2){width:50vmin;height:50vmin;right:2%;top:24%;background:' + st[2] + ';animation-delay:.9s;}' +
-      '.qm-in-aura i:nth-child(3){width:44vmin;height:44vmin;left:30%;bottom:8%;background:' + st[4] + ';animation-delay:1.4s;}' +
-      '@keyframes qmAura{0%{opacity:0;transform:scale(.7);}55%{opacity:.34;}100%{opacity:.24;transform:scale(1.08);}}' +
-      '.qm-hello{position:relative;width:min(90vw,820px);height:auto;overflow:visible;transform:scale(.97);transition:transform 1s ease,filter 1s ease;' +
-      'filter:drop-shadow(0 0 26px rgba(' + glow + ',.5)) drop-shadow(0 0 60px rgba(' + glow + ',.25));}' +
+      '.qm-hello{width:min(88vw,760px);height:auto;overflow:visible;transform:scale(.98);transition:transform 1s ease,filter 1s ease;filter:drop-shadow(0 0 14px ' + COLA + '.55));}' +
       '.qm-intro.go .qm-hello{transform:scale(1);}' +
-      '.qm-intro.out .qm-hello{transform:scale(1.1);filter:blur(7px) drop-shadow(0 0 40px rgba(' + glow + ',.5));}' +
-      '.qm-hello text{font-family:"Aref Ruqaa","Amiri","Noto Naskh Arabic",serif;font-weight:700;font-size:112px;}' +
+      '.qm-intro.out .qm-hello{transform:scale(1.06);}' +
+      '.qm-hello text{font-family:"Amiri","Noto Naskh Arabic",serif;font-size:92px;}' +
+      /* the new part: one flowing writing pass */
       '.qm-pen{stroke-dasharray:1;stroke-dashoffset:1;animation:qmWrite 2.5s cubic-bezier(.55,.08,.3,1) .45s forwards;}' +
       '@keyframes qmWrite{to{stroke-dashoffset:0;}}' +
-      '.qm-in-sub{position:relative;max-width:560px;padding:0 24px;text-align:center;font-family:"Instrument Serif",serif;font-style:italic;font-size:clamp(17px,4.6vw,22px);line-height:1.4;color:rgba(245,242,237,.74);opacity:0;transform:translateY(8px);animation:qmSub 1.2s ease 2.7s forwards;}' +
-      '@keyframes qmSub{to{opacity:1;transform:none;}}' +
+      /* while writing, colour flows through the letters; they then settle into the original cream */
+      '.qm-t-grad{animation:qmGradOut .9s ease 3s forwards;}' +
+      '.qm-t-cream{fill:var(--ink);fill-opacity:0;stroke:' + COL + ';stroke-width:1.4;stroke-opacity:.35;stroke-linejoin:round;animation:qmCreamIn .9s ease 3s forwards;}' +
+      '@keyframes qmGradOut{to{opacity:0;}}@keyframes qmCreamIn{to{fill-opacity:1;}}' +
+      '.qm-in-sub{font-family:"Instrument Serif",serif;font-style:italic;font-size:19px;color:var(--muted);text-align:center;padding:0 20px;opacity:0;animation:qmSub 1s ease 3.1s forwards;}' +
+      '@keyframes qmSub{to{opacity:1;}}' +
       '</style>' +
-      '<div class="qm-in-aura" aria-hidden="true"><i></i><i></i><i></i></div>' +
-      '<svg class="qm-hello" viewBox="0 0 900 260" role="img" aria-label="Bismillah ir-Rahman ir-Rahim">' +
+      '<svg class="qm-hello" viewBox="0 0 900 190" role="img" aria-label="Bismillah ir-Rahman ir-Rahim">' +
       '<defs>' +
       '<linearGradient id="qmG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="900" y2="0" spreadMethod="repeat">' +
       st.concat([st[0]]).map(function (c, i) { return '<stop offset="' + (i / 5) + '" stop-color="' + c + '"/>'; }).join('') +
       '<animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="900 0" dur="4.5s" repeatCount="indefinite"/>' +
       '</linearGradient>' +
-      '<mask id="qmM" maskUnits="userSpaceOnUse" x="-30" y="-30" width="960" height="320">' +
-      '<path class="qm-pen" pathLength="1" d="' + PEN + '" fill="none" stroke="#fff" stroke-width="140" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<mask id="qmM" maskUnits="userSpaceOnUse" x="-30" y="-40" width="960" height="270">' +
+      '<path class="qm-pen" pathLength="1" d="' + PEN + '" fill="none" stroke="#fff" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"/>' +
       '</mask></defs>' +
-      '<g mask="url(#qmM)"><text id="qmT" x="450" y="156" text-anchor="middle" direction="rtl" fill="url(#qmG)">' + TEXT + '</text></g>' +
-      '</svg>' +
+      '<g mask="url(#qmM)">' +
+      '<text class="qm-t-cream" x="450" y="130" text-anchor="middle" direction="rtl">' + TEXT + '</text>' +
+      '<text id="qmT" class="qm-t-grad" x="450" y="130" text-anchor="middle" direction="rtl" fill="url(#qmG)">' + TEXT + '</text>' +
+      '</g></svg>' +
       '<div class="qm-in-sub">In the name of Allah, the Most Gracious, the Most Merciful</div>';
 
     /* cover the page from the very first paint */
@@ -349,16 +352,19 @@
       if (done) return;
       try {
         var t = ov.querySelector('#qmT'), bb = t.getBBox();
-        if (bb.width > 720) t.setAttribute('font-size', Math.floor(112 * 720 / bb.width));
+        if (bb.width > 780) {
+          var fs = Math.floor(92 * 780 / bb.width);
+          Array.prototype.forEach.call(ov.querySelectorAll('.qm-hello text'), function (x) { x.setAttribute('font-size', fs); });
+        }
       } catch (e) {}
       ov.classList.add('go');
-      setTimeout(end, 4000);
+      setTimeout(end, 4600);
     }
     ov.addEventListener('click', end);
     document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { end(); document.removeEventListener('keydown', esc); } });
-    setTimeout(end, 8000);   /* safety net */
+    setTimeout(end, 9000);   /* safety net */
     var fontReady = (document.fonts && document.fonts.load)
-      ? Promise.race([document.fonts.load('700 100px "Aref Ruqaa"', '\u0628'), new Promise(function (r) { setTimeout(r, 1300); })])
+      ? Promise.race([document.fonts.load('92px Amiri', '\u0628'), new Promise(function (r) { setTimeout(r, 1300); })])
       : Promise.resolve();
     fontReady.then(go, go);
   }
