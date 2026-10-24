@@ -534,7 +534,11 @@
     focus: 'M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3',
     spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',
     reset: 'M4 12a8 8 0 1 0 2.5-5.8M4 4v4.5h4.5',
-    check: 'M5 12.5 10 17.5 19 7'
+    check: 'M5 12.5 10 17.5 19 7',
+    bell: 'M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10.3 21a1.9 1.9 0 0 0 3.4 0',
+    volume: 'M11 5 6 9H3v6h3l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M18.5 6a9 9 0 0 1 0 12',
+    stop: 'M7 7h10v10H7z',
+    upload: 'M12 16V4M7 9l5-5 5 5M5 20h14'
   };
 
   var PAGE_CSS = [
@@ -655,6 +659,7 @@
     '@media(min-width:820px){.qm-toast{bottom:28px;}}'
   ].join('\n');
 
+  var sectionBuilders = [];
   function persist() { save(); apply(); syncSel(); toast(); }
   function set(k, v) { S[k] = v; persist(); }
 
@@ -775,7 +780,7 @@
         var t = document.getElementById(id); if (t) t.scrollIntoView({ behavior: motionLevel() === 'off' ? 'auto' : 'smooth', block: 'start' }); } });
     }
     host.appendChild(h('div', { class: 'qm-chips', role: 'navigation', 'aria-label': 'Jump to a settings group' }, [
-      chip('palette', 'Colours', 'qm-s-colours'), chip('sun', 'Prayer colours', 'qm-s-prayer'), chip('wave', 'Motion', 'qm-s-motion'), chip('eye', 'Access', 'qm-s-access')]));
+      chip('palette', 'Colours', 'qm-s-colours'), chip('sun', 'Prayer colours', 'qm-s-prayer')].concat(sectionBuilders.length ? [chip('bell', 'Adhan', 'qm-s-adhan')] : [], [chip('wave', 'Motion', 'qm-s-motion'), chip('eye', 'Access', 'qm-s-access')])));
 
     /* colours */
     var sw = h('div', { class: 'qm-sw', role: 'group', 'aria-label': 'Accent colour' });
@@ -812,6 +817,10 @@
       toggleRow('atmos', 'spark', 'Colours follow the prayer times', 'Glow and Auto accent shift at Fajr, Sunrise, Dhuhr, Asr, Maghrib and Isha.'),
       h('div', { class: 'qm-block' }, [h('small', { style: 'margin:0;' }, [h('b', { style: 'color:var(--gold);', text: 'Now: ' }), h('span', { id: 'qm-phase', text: '' })])])
     ]));
+
+    sectionBuilders.forEach(function (fn) {
+      try { var el = fn({ h: h, icn: icn, card: card, toast: toast }); if (el) host.appendChild(el); } catch (e) {}
+    });
 
     host.appendChild(card('wave', 'Motion', 'Animations and the opening screen.', 'qm-s-motion', [
       segBlock('motion', 'wave', 'Animation level', [['auto', 'Device'], ['full', 'Full'], ['reduced', 'Calm'], ['off', 'Off']], 'Device follows your phone or computer\u2019s reduce-motion setting.'),
@@ -852,7 +861,7 @@
   function mount(el) { host = el; build(); }
   function unmount() { host = null; if (toastEl && toastEl.parentNode) toastEl.parentNode.removeChild(toastEl); toastEl = null; }
 
-  window.QMCustomise = { get: function () { return JSON.parse(JSON.stringify(S)); }, set: set, reset: reset, mount: mount, unmount: unmount };
+  window.QMCustomise = { get: function () { return JSON.parse(JSON.stringify(S)); }, set: set, reset: reset, mount: mount, unmount: unmount, addSection: function (fn) { sectionBuilders.push(fn); } };
 
   /* apply immediately (before first paint) using the cached prayer times */
   phaseInfo = currentPhase(Date.now());
