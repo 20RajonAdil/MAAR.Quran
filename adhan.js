@@ -280,6 +280,16 @@
       '.qm-ad-next b{color:var(--gold);}',
       '.qm-ad-note{margin:8px 2px 4px;font-size:12.5px;color:var(--muted);line-height:1.55;}',
       '.qm-ad-permt{font-size:16px;font-weight:700;margin-bottom:2px;}',
+      '.qm-ad-tip{padding:16px;border-radius:18px;border:1px solid var(--gold-dim,rgba(207,51,66,.4));background:rgba(var(--accent-rgb,179,32,47),.10);}',
+      '.qm-ad-tip b{display:block;font-size:16px;line-height:1.35;margin-bottom:5px;}',
+      '.qm-ad-tip p{margin:0 0 12px;font-size:13.5px;color:var(--muted);line-height:1.5;}',
+      '.qm-ad-tip ul{list-style:none;padding:0;margin:0 0 12px;display:grid;gap:10px;}',
+      '.qm-ad-tip li{display:flex;gap:11px;align-items:flex-start;font-size:14.5px;line-height:1.4;font-weight:600;}',
+      '.qm-ad-tip li i{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:13px;color:#fff;margin-top:0;}',
+      '.qm-ad-tip li.ok i{background:#1f9d6b;}.qm-ad-tip li.no i{background:#d6453d;}',
+      '.qm-ad-tip p.foot{margin:0;font-size:12.5px;}',
+      '.qm-ad-ask .qm-ad-tip{padding:0;border:none;background:none;}',
+      '.qm-ad-ask .qm-ad-tip p.foot{margin-bottom:14px;}',
       '.qm-ad-ask{position:fixed;left:12px;right:12px;margin:0 auto;max-width:460px;bottom:calc(var(--tab-h,64px) + env(safe-area-inset-bottom,0px) + 12px);z-index:9000;padding:18px;border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02)),var(--bg-soft,#121010);border:1px solid var(--gold);color:var(--ink);box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 30px -6px rgba(var(--gold-rgb,207,51,66),.4);animation:qmAskIn .45s cubic-bezier(.22,.9,.3,1);}',
       '@keyframes qmAskIn{from{opacity:0;transform:translateY(24px);}}',
       '@media(min-width:820px){.qm-ad-ask{left:auto;right:24px;bottom:24px;margin:0;}}',
@@ -346,7 +356,7 @@
   }
 
   function buildCard(api) {
-    css(); closeAsk();
+    css(); closeAsk(); closeTip();
     var h = api.h;
     function row(icon, label, hint, control, click) {
       return h('div', { class: 'qm-row', onclick: click || null }, [
@@ -358,8 +368,8 @@
     /* master switch */
     var master = row('bell', 'Play the adhan at prayer time', 'Turn it off any time.', sw('on', 'Play the adhan at prayer time'), function () {
       if (S.on) { S.on = false; save(); clearTimeout(timer); clearInterval(tickIv); stop(); syncNative(); api.toast('Adhan is off'); refreshCard(); return; }
-      if (supported() && perm() === 'default' && S.notify) { enableAll(function (p) { api.toast(p === 'granted' ? 'Notifications are on' : 'Notifications were not allowed'); }); return; }
-      S.on = true; save(); unlock(); start(); api.toast('Adhan is on'); refreshCard();
+      if (supported() && perm() === 'default' && S.notify) { enableAll(function (p) { api.toast(p === 'granted' ? 'Notifications are on' : 'Notifications were not allowed'); if (p === 'granted') showKeepTip(); }); return; }
+      S.on = true; save(); unlock(); start(); api.toast('Adhan is on'); refreshCard(); showKeepTip();
     });
 
     var permBox = h('div', { class: 'qm-block', 'data-ad': 'perm' }, [
@@ -367,10 +377,10 @@
       h('p', { class: 'qm-ad-note', 'data-ad': 'permmsg' }),
       h('div', { class: 'qm-ad-btns' }, [
         h('button', { type: 'button', class: 'qm-ad-btn primary', 'data-ad': 'allow', html: api.icn('bell', 18) + '<span></span>', onclick: function () {
-          enableAll(function (p) { api.toast(p === 'granted' ? 'Notifications are on' : p === 'denied' ? 'Notifications were not allowed' : 'Adhan is on'); }); } }),
-        h('button', { type: 'button', class: 'qm-ad-btn', 'data-ad': 'soundonly', hidden: '', text: 'Turn on without notifications', onclick: function () { soundOnly(function () { api.toast('Adhan is on'); }); } }),
+          enableAll(function (p) { api.toast(p === 'granted' ? 'Notifications are on' : p === 'denied' ? 'Notifications were not allowed' : 'Adhan is on'); if (p === 'granted' || p === 'unsupported') showKeepTip(); }); } }),
+        h('button', { type: 'button', class: 'qm-ad-btn', 'data-ad': 'soundonly', hidden: '', text: 'Turn on without notifications', onclick: function () { soundOnly(function () { api.toast('Adhan is on'); showKeepTip(); }); } }),
         h('button', { type: 'button', class: 'qm-ad-btn', 'data-ad': 'recheck', hidden: '', text: 'I\u2019ve allowed it \u2014 check again', onclick: function () {
-          if (perm() === 'granted') enableAll(function () { api.toast('Notifications are on'); }); else { refreshCard(); api.toast('Still blocked'); } } })
+          if (perm() === 'granted') enableAll(function () { api.toast('Notifications are on'); showKeepTip(); }); else { refreshCard(); api.toast('Still blocked'); } } })
       ])]);
 
     var next = h('div', { class: 'qm-block' }, [h('div', { class: 'qm-ad-next', 'data-ad': 'next' })]);
@@ -396,12 +406,46 @@
     });
     var warn = h('p', { class: 'qm-ad-note', 'data-ad': 'warn', hidden: '' });
 
-    var note = h('div', { class: 'qm-block' }, [h('p', { class: 'qm-ad-note', style: 'margin:0;', text: 'Phones pause websites in the background, so the adhan sounds while Quran Maar is open (screen on). Keep the app open, or leave it on the lock screen with the phone charging.' })]);
+    var note = h('div', { class: 'qm-block' }, [h('div', { class: 'qm-ad-tip', html: tipInner() })]);
 
     cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [permBox, master, next, which, volume, notifRow, warn, note]);
     setTimeout(refreshCard, 0);   /* the card is not in the page yet at this moment */
     var iv = setInterval(function () { if (!document.body.contains(cardEl)) { clearInterval(iv); return; } refreshCard(); }, 30000);
     return cardEl;
+  }
+
+  /* ---------- "keep it running" message ---------- */
+  var TIP = 'qm_adhan_tip', tipEl = null;
+  function platform() {
+    var ua = navigator.userAgent || '';
+    return /iphone|ipad|ipod/i.test(ua) ? 'ios' : /android/i.test(ua) ? 'android' : 'desktop';
+  }
+  function tipInner() {
+    var pl = platform(), ok, no;
+    if (pl === 'desktop') {
+      ok = ['Minimise the window or switch to another tab. Quran Maar keeps running.', 'Keep your volume up and Do Not Disturb off.'];
+      no = ['Don\u2019t close the tab or the window.'];
+    } else {
+      ok = [pl === 'ios' ? 'Swipe up to the Home Screen to leave the app.' : 'Press the Home button to leave the app.', 'Keep your volume up and Do Not Disturb off.'];
+      no = ['Don\u2019t swipe Quran Maar away from your recent apps (the minimised screen).'];
+    }
+    function li(cls, mark, txt) { return '<li class="' + cls + '"><i aria-hidden="true">' + mark + '</i><span>' + txt + '</span></li>'; }
+    return '<b>Keep Quran Maar running so you never miss the adhan</b>' +
+      '<p>The call to prayer can only sound while the app is still running. Please:</p>' +
+      '<ul>' + ok.map(function (t) { return li('ok', '\u2713', t); }).join('') + no.map(function (t) { return li('no', '\u2715', t); }).join('') + '</ul>' +
+      '<p class="foot">If the app is closed, the adhan stays silent until you open it again.</p>';
+  }
+  function tipAcknowledged() { try { return !!localStorage.getItem(TIP); } catch (e) { return false; } }
+  function ackTip() { try { localStorage.setItem(TIP, '1'); } catch (e) {} }
+  function closeTip() { if (tipEl && tipEl.parentNode) tipEl.parentNode.removeChild(tipEl); tipEl = null; }
+  /* shown once, right after the adhan is switched on, until the person taps "Got it" */
+  function showKeepTip() {
+    if (tipEl || tipAcknowledged()) return;
+    css();
+    tipEl = document.createElement('div'); tipEl.className = 'qm-ad-ask'; tipEl.id = 'qm-ad-tip'; tipEl.setAttribute('role', 'dialog'); tipEl.setAttribute('aria-label', 'Keep Quran Maar running');
+    tipEl.innerHTML = '<div class="qm-ad-tip">' + tipInner() + '</div><div class="qm-ad-btns"><button type="button" class="qm-ad-btn primary" data-a="ok">Got it</button></div>';
+    tipEl.querySelector('[data-a="ok"]').addEventListener('click', function () { ackTip(); closeTip(); });
+    document.body.appendChild(tipEl);
   }
 
   /* ---------- one-time friendly prompt ---------- */
@@ -424,6 +468,11 @@
       var box = askEl; box._busy = true;
       enableAll(function (p) {
         if (!box) return;
+        if (p === 'granted' && !tipAcknowledged()) {
+          box.innerHTML = '<div class="qm-ad-tip">' + tipInner() + '</div><div class="qm-ad-btns"><button type="button" class="qm-ad-btn primary" data-a="ok">Got it</button></div>';
+          box.querySelector('[data-a="ok"]').addEventListener('click', function () { ackTip(); closeAsk(); });
+          return;
+        }
         box.innerHTML = '<b>' + (p === 'granted' ? '\u2713 Prayer reminders are on' : 'Notifications weren\u2019t allowed') + '</b><p>' + (p === 'granted' ? 'The adhan will sound at each prayer time while Quran Maar is open.' : 'You can turn them on later in Settings, then Adhan.') + '</p>';
         if (p !== 'granted') { try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {} }
         setTimeout(closeAsk, 3200);
