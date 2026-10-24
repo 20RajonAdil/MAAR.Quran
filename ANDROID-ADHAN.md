@@ -1,7 +1,7 @@
 # Adhan on Android (when the app is closed)
 
 ## What works today
-`adhan.js` plays the adhan at each prayer time **while Quran Maar is open** (browser, installed PWA, or the current APK). Settings > Adhan has an on/off switch, per-prayer switches, volume, a test button, notifications, and "choose my own file".
+`adhan.js` plays the adhan at each prayer time **while Quran Maar is open** (browser, installed PWA, or the current APK). Settings > Adhan has an on/off switch, per-prayer switches, volume, and notifications.
 
 ## Why it cannot ring when the app is closed
 A web page cannot schedule sound on a phone. Android and iOS freeze websites in the background. The current APK is a wrapper around the website, so it has the same limit.

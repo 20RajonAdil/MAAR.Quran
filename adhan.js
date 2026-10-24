@@ -7,8 +7,8 @@
      window.QM_PRAYER, published by app.js).
    - Settings card is added to the Settings page via
      QMCustomise.addSection (see customise.js).
-   - Default recording: adhan/adhan.mp3 (CC0, see adhan/NOTICE.md).
-     People can choose their own audio file; it stays on their device.
+   - Sound: adhan/Adan1.mp3 at Fajr, adhan/Adan2.mp3 at the other four
+     prayers (the site owner uploads these).
    - Honest limit: a web page cannot wake a phone while closed.
      Inside a native wrapper with Capacitor LocalNotifications the
      same schedule is handed to the phone's alarm system (see
@@ -20,9 +20,10 @@
   var KEY = 'qm_adhan', FIRED = 'qm_adhan_fired';
   var PRAYERS = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
   /* Fajr has its own recording; the other four prayers share a second one.
-     If a file is missing, the bundled recording plays instead. */
-  var SRC_FAJR = 'adhan/Adan1.mp3', SRC_OTHER = 'adhan/Adan2.mp3', SRC_FALLBACK = 'adhan/adhan.mp3';
+     Both files are uploaded by the site owner into the adhan/ folder. */
+  var SRC_FAJR = 'adhan/Adan1.mp3', SRC_OTHER = 'adhan/Adan2.mp3';
   function srcFor(label) { return label === 'Fajr' ? SRC_FAJR : SRC_OTHER; }
+  function altFor(label) { return label === 'Fajr' ? SRC_OTHER : SRC_FAJR; }   /* only used if the first file will not load */
   var SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
   var WINDOW_MS = 90 * 1000;     /* still play if the page wakes up this soon after the time */
 
@@ -31,7 +32,7 @@
   function load() {
     var o = {};
     try { o = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) {}
-    var r = { on: !!o.on, prayers: {}, volume: typeof o.volume === 'number' ? Math.max(5, Math.min(100, o.volume)) : 85, notify: o.notify !== false, custom: !!o.custom, customName: typeof o.customName === 'string' ? o.customName : '' };
+    var r = { on: !!o.on, prayers: {}, volume: typeof o.volume === 'number' ? Math.max(5, Math.min(100, o.volume)) : 85, notify: o.notify !== false };
     PRAYERS.forEach(function (p) { r.prayers[p] = !(o.prayers && o.prayers[p] === false); });
     return r;
   }
@@ -73,21 +74,8 @@
     try { var a = (localStorage.getItem(FIRED) || '').split('|').filter(Boolean); a.push(key); localStorage.setItem(FIRED, a.slice(-12).join('|')); } catch (e) {}
   }
 
-  /* ---------- custom audio (IndexedDB) ---------- */
-  function idb() {
-    return new Promise(function (res, rej) {
-      var r = indexedDB.open('qm-adhan', 1);
-      r.onupgradeneeded = function () { r.result.createObjectStore('f'); };
-      r.onsuccess = function () { res(r.result); };
-      r.onerror = function () { rej(r.error); };
-    });
-  }
-  function putCustom(blob) { return idb().then(function (db) { return new Promise(function (res, rej) { var tx = db.transaction('f', 'readwrite'); tx.objectStore('f').put(blob, 'custom'); tx.oncomplete = res; tx.onerror = function () { rej(tx.error); }; }); }); }
-  function getCustom() { return idb().then(function (db) { return new Promise(function (res) { var q = db.transaction('f').objectStore('f').get('custom'); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }).catch(function () { return null; }); }
-  function delCustom() { return idb().then(function (db) { return new Promise(function (res) { var tx = db.transaction('f', 'readwrite'); tx.objectStore('f').delete('custom'); tx.oncomplete = res; tx.onerror = res; }); }).catch(function () {}); }
-
   /* ---------- audio ---------- */
-  var audio = null, objUrl = null, unlocked = false, pill = null, banner = null;
+  var audio = null, unlocked = false, pill = null, banner = null;
   function ensureAudio() {
     if (audio) return audio;
     audio = new Audio(); audio.preload = 'none';
@@ -95,12 +83,13 @@
     audio.addEventListener('error', function () { fallback(); });
     return audio;
   }
-  /* The chosen file is missing or unreadable: use the bundled recording once. */
+  /* The chosen file is missing or unreadable: try the other file once. */
   function fallback() {
     var a = audio;
     if (!a || !a._active) { setPlaying(false); return; }
-    if (a._fb || S.custom || a.getAttribute('data-src') === SRC_FALLBACK) { setPlaying(false); return; }
-    a._fb = true; a.src = SRC_FALLBACK; a.setAttribute('data-src', SRC_FALLBACK); a.volume = S.volume / 100;
+    var alt = altFor(a._label);
+    if (a._fb || a.getAttribute('data-src') === alt) { setPlaying(false); return; }
+    a._fb = true; a.src = alt; a.setAttribute('data-src', alt); a.volume = S.volume / 100;
     var p = a.play();
     if (p && p.then) p.then(function () { setPlaying(true, a._label); }, function (e) { if (e && e.name === 'NotAllowedError') showBlocked(a._label); else setPlaying(false); });
   }
@@ -117,14 +106,7 @@
   }
   ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, unlock, { once: true, passive: true, capture: true }); });
 
-  function resolveSrc(label) {
-    if (!S.custom) return Promise.resolve(srcFor(label));
-    return getCustom().then(function (blob) {
-      if (!blob) return srcFor(label);
-      if (objUrl) { try { URL.revokeObjectURL(objUrl); } catch (e) {} }
-      objUrl = URL.createObjectURL(blob); return objUrl;
-    });
-  }
+  function resolveSrc(label) { return Promise.resolve(srcFor(label)); }
   function play(label) {
     var a = ensureAudio();
     return resolveSrc(label).then(function (src) {
@@ -229,7 +211,11 @@
     refreshCard(); syncNative();
   }
   /* Fetching once while online lets the service worker keep a copy for offline. */
-  function warm() { [SRC_FAJR, SRC_OTHER, SRC_FALLBACK].forEach(function (u) { try { fetch(u).catch(function () {}); } catch (e) {} }); }
+  function warm() {
+    var c = navigator.connection;
+    if (c && (c.saveData || /(^|-)2g$/.test(c.effectiveType || ''))) return;
+    [SRC_FAJR, SRC_OTHER].forEach(function (u) { try { fetch(u).catch(function () {}); } catch (e) {} });
+  }
   function start() {
     warm();
     clearInterval(tickIv);
@@ -310,6 +296,7 @@
   function hhmm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
 
   function refreshCard() {
+    if (askEl && !askEl._busy && (S.on || perm() !== 'default')) closeAsk();
     if (!cardEl || !document.body.contains(cardEl)) return;
     var q = function (s) { return cardEl.querySelector(s); };
     var master = q('[data-ad="on"]'); if (master) master.setAttribute('aria-checked', String(S.on));
@@ -317,9 +304,6 @@
     Array.prototype.forEach.call(cardEl.querySelectorAll('[data-prayer]'), function (b) { b.setAttribute('aria-pressed', String(!!S.prayers[b.getAttribute('data-prayer')])); });
     var vol = q('[data-ad="vol"]'); if (vol) { vol.value = S.volume; vol.style.setProperty('--p', ((S.volume - vol.min) / (vol.max - vol.min) * 100) + '%'); }
     var vo = q('[data-ad="volout"]'); if (vo) vo.textContent = S.volume + '%';
-    var snd = q('[data-ad="snd"]'); if (snd) snd.textContent = S.custom ? 'Your file' + (S.customName ? ': ' + S.customName : '') : 'Default recording';
-    var use = q('[data-ad="usedef"]'); if (use) use.hidden = !S.custom;
-    var stopB = q('[data-ad="stop"]'); if (stopB) stopB.hidden = !pill;
     var nx = q('[data-ad="next"]');
     if (nx) {
       var now = Date.now();
@@ -362,7 +346,7 @@
   }
 
   function buildCard(api) {
-    css();
+    css(); closeAsk();
     var h = api.h;
     function row(icon, label, hint, control, click) {
       return h('div', { class: 'qm-row', onclick: click || null }, [
@@ -404,21 +388,6 @@
       oninput: function (e) { S.volume = +e.target.value; save(); if (audio) audio.volume = S.volume / 100; refreshCard(); } });
     var volume = h('div', { class: 'qm-block' }, [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-ic', html: api.icn('volume') }), h('span', { class: 'qm-t', text: 'Volume' }), out]), vol]);
 
-    /* sound choice */
-    var file = h('input', { type: 'file', accept: 'audio/*', hidden: '', 'aria-label': 'Choose an adhan audio file' });
-    file.addEventListener('change', function () {
-      var f = file.files && file.files[0]; if (!f) return;
-      if (f.size > 12 * 1024 * 1024) { api.toast('File is too large (max 12 MB)'); file.value = ''; return; }
-      putCustom(f).then(function () { S.custom = true; S.customName = f.name.slice(0, 40); save(); refreshCard(); api.toast('Your adhan is set'); }, function () { api.toast('Could not save that file'); });
-      file.value = '';
-    });
-    var sound = h('div', { class: 'qm-block' }, [
-      h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-ic', html: api.icn('bell') }), h('span', { class: 'qm-t', text: 'Adhan sound' }), h('span', { class: 'qm-val', 'data-ad': 'snd', style: 'font-size:12.5px;font-weight:600;color:var(--muted);' })]),
-      h('div', { class: 'qm-ad-btns' }, [
-        h('button', { type: 'button', class: 'qm-ad-btn', html: api.icn('upload', 18) + '<span>Choose my own file</span>', onclick: function () { file.click(); } }),
-        h('button', { type: 'button', class: 'qm-ad-btn', 'data-ad': 'usedef', hidden: '', text: 'Use the default', onclick: function () { delCustom().then(function () { S.custom = false; S.customName = ''; save(); refreshCard(); api.toast('Default adhan'); }); } })]),
-      h('p', { class: 'qm-ad-note', text: 'Your file stays on this device and is never uploaded.' }), file]);
-
     /* notification */
     var notifRow = row('bell', 'Show a notification', 'A pop-up at prayer time, along with the sound.', sw('notify', 'Show a notification'), function () {
       S.notify = !S.notify; save();
@@ -427,14 +396,9 @@
     });
     var warn = h('p', { class: 'qm-ad-note', 'data-ad': 'warn', hidden: '' });
 
-    /* test */
-    var test = h('div', { class: 'qm-block' }, [h('div', { class: 'qm-ad-btns' }, [
-      h('button', { type: 'button', class: 'qm-ad-btn primary', html: api.icn('play', 18) + '<span>Test Fajr adhan</span>', onclick: function () { unlock(); play('Fajr'); } }),
-      h('button', { type: 'button', class: 'qm-ad-btn primary', html: api.icn('play', 18) + '<span>Test other prayers</span>', onclick: function () { unlock(); play('Dhuhr'); } }),
-      h('button', { type: 'button', class: 'qm-ad-btn', 'data-ad': 'stop', hidden: '', html: api.icn('stop', 18) + '<span>Stop</span>', onclick: stop })]),
-      h('p', { class: 'qm-ad-note', text: 'Phones pause websites in the background, so the adhan sounds while Quran Maar is open (screen on). Keep the app open, or leave it on the lock screen with the phone charging.' })]);
+    var note = h('div', { class: 'qm-block' }, [h('p', { class: 'qm-ad-note', style: 'margin:0;', text: 'Phones pause websites in the background, so the adhan sounds while Quran Maar is open (screen on). Keep the app open, or leave it on the lock screen with the phone charging.' })]);
 
-    cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [permBox, master, next, which, volume, sound, notifRow, warn, test]);
+    cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [permBox, master, next, which, volume, notifRow, warn, note]);
     setTimeout(refreshCard, 0);   /* the card is not in the page yet at this moment */
     var iv = setInterval(function () { if (!document.body.contains(cardEl)) { clearInterval(iv); return; } refreshCard(); }, 30000);
     return cardEl;
@@ -449,7 +413,7 @@
   }
   function closeAsk() { if (askEl && askEl.parentNode) askEl.parentNode.removeChild(askEl); askEl = null; }
   function maybeAsk(tries) {
-    if (!canAsk() || askEl) return;
+    if (!canAsk() || askEl || document.getElementById('qm-s-adhan')) return;
     if (document.querySelector('.qm-intro') && tries < 30) { setTimeout(function () { maybeAsk(tries + 1); }, 1000); return; }
     css();
     askEl = document.createElement('div'); askEl.className = 'qm-ad-ask'; askEl.id = 'qm-ad-ask'; askEl.setAttribute('role', 'region'); askEl.setAttribute('aria-label', 'Prayer reminders');
@@ -457,7 +421,7 @@
       '<div class="qm-ad-btns"><button type="button" class="qm-ad-btn" data-a="no">Not now</button><button type="button" class="qm-ad-btn primary" data-a="yes">Turn on</button></div>';
     askEl.querySelector('[data-a="no"]').addEventListener('click', function () { try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {} closeAsk(); });
     askEl.querySelector('[data-a="yes"]').addEventListener('click', function () {
-      var box = askEl;
+      var box = askEl; box._busy = true;
       enableAll(function (p) {
         if (!box) return;
         box.innerHTML = '<b>' + (p === 'granted' ? '\u2713 Prayer reminders are on' : 'Notifications weren\u2019t allowed') + '</b><p>' + (p === 'granted' ? 'The adhan will sound at each prayer time while Quran Maar is open.' : 'You can turn them on later in Settings, then Adhan.') + '</p>';
