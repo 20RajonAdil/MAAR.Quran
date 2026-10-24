@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v39';
+const SHELL_VERSION = 'v40';
 const DATA_VERSION  = 'v1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
@@ -37,7 +37,9 @@ const SHELL_ASSETS = [
   './404.html',
   './features.js?v=1',
   './customise.js?v=8',
-  './adhan.js?v=2',
+  './adhan.js?v=3',
+  './adhan/Adan1.mp3',
+  './adhan/Adan2.mp3',
   './adhan/adhan.mp3',
   './app.js?v=44',
   './offline.js?v=3',
@@ -342,6 +344,37 @@ self.addEventListener('fetch', (event) => {
   /* Hosted videos/audio and their list go straight to the network — saved
      copies live in IndexedDB, and big media must never fill the shell cache. */
   if (url.origin === self.location.origin && (/\/media\//.test(url.pathname) || /\/media\.json$/.test(url.pathname))) return;
+
+  /* 0. ADHAN FILES — the call to prayer has to play with no signal at all.
+        Served from the shell cache (as a proper 206 for Range requests, which
+        Safari insists on), refreshed quietly behind the scenes, and cached the
+        first time they are fetched so files added later work offline too. */
+  if (url.origin === self.location.origin && /\/adhan\/[^/]+\.(mp3|ogg|m4a)$/i.test(url.pathname)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(SHELL_CACHE);
+        const key = url.origin + url.pathname;
+        const hit = await cache.match(key, { ignoreSearch: true });
+        if (hit) {
+          event.waitUntil(
+            fetch(key, { cache: 'no-cache' })
+              .then((r) => { if (r && r.ok) return cache.put(key, r); })
+              .catch(() => {})
+          );
+          return blobResponse(await hit.blob(), request);
+        }
+        try {
+          const net = await fetch(key);
+          if (!net || !net.ok) return net;
+          await cache.put(key, net.clone());
+          return blobResponse(await net.blob(), request);
+        } catch (e) {
+          return new Response('', { status: 504, statusText: 'Adhan unavailable offline' });
+        }
+      })()
+    );
+    return;
+  }
 
   /* 1. AUDIO — downloaded blobs win, always. Anything not downloaded
         simply streams from the network and is never auto-cached, so a
