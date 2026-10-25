@@ -3898,7 +3898,6 @@ function IslamicCountdown({ setTab }){
               <div class="ev-digit"><b>${pad(S)}</b><span>Sec</span></div>
             </div>`}
         </div>
-        ${first.k === 'ram' && !isToday ? html`<div style=${{ marginTop: 16 }}><button class="btn btn-ghost" onClick=${() => setTab('daily')}>Plan your Ramadan</button></div>` : null}
         ${rest.length ? html`
           <div class="ev-next">
             ${rest.map((e) => html`<div class="ev-chip" key=${e.label + e.hy}><b>${e.label}</b><span>${e.date.toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' })} \u00b7 in ${e.inDays} day${e.inDays === 1 ? '' : 's'}</span></div>`)}
@@ -4337,6 +4336,18 @@ function App(){
   const [hadithBookmarks, setHadithBookmarks] = useState(() => store.getArray('v5_hadith_bookmarks'));
   const [surahCount, setSurahCount] = useState(114);
   const geo = useGeo();
+
+  /* lets plain-JS parts of the site (the Settings preview) open a tab */
+  useEffect(() => {
+    const go = (e) => {
+      const d = (e && e.detail) || {};
+      if (!NAV_ITEMS.some((n) => n.id === d.tab)) return;
+      setTab(d.tab); window.scrollTo(0, 0);
+      if (d.scroll) setTimeout(() => document.getElementById(d.scroll)?.scrollIntoView({ behavior:'smooth', block:'start' }), 500);
+    };
+    window.addEventListener('qm-nav', go);
+    return () => window.removeEventListener('qm-nav', go);
+  }, []);
 
   /* make sure the site-wide prayer colours have times even if the
      visitor never opens the Home tab */

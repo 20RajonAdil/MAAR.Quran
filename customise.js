@@ -557,7 +557,8 @@
     '@keyframes qmPulse{70%{box-shadow:0 0 0 9px rgba(var(--gold-rgb),0);}100%{box-shadow:0 0 0 0 rgba(var(--gold-rgb),0);}}',
     '.qm-hero-ar{font-family:var(--arabic-font);direction:rtl;text-align:center;font-size:clamp(30px,8vw,42px);line-height:1.9;margin:16px 0 14px;color:var(--gold-hi);text-shadow:0 0 28px rgba(var(--glow-rgb),.45);}',
     '.qm-hero-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}',
-    '.qm-pill{padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:700;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);}',
+    '.qm-pill{cursor:pointer;transition:transform .15s;padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:700;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);}',
+    '.qm-pill:active{transform:scale(.96);}',
     '.qm-pill.solid{background:linear-gradient(135deg,var(--gold),rgba(var(--accent-rgb),1));border-color:transparent;color:#f5f2ed;box-shadow:0 10px 26px -10px rgba(var(--gold-rgb),.8);}',
 
     /* chips */
@@ -660,6 +661,7 @@
   ].join('\n');
 
   var sectionBuilders = [];
+  function go(tab, scroll) { window.dispatchEvent(new CustomEvent('qm-nav', { detail: { tab: tab, scroll: scroll } })); }
   function persist() { save(); apply(); syncSel(); toast(); }
   function set(k, v) { S[k] = v; persist(); }
 
@@ -771,7 +773,9 @@
     host.appendChild(h('div', { class: 'qm-hero', 'aria-label': 'Live preview of your colours' }, [
       h('div', { class: 'qm-hero-top' }, [h('span', { class: 'qm-chip' }, [h('i', { class: 'qm-live' }), h('span', { id: 'qm-hero-name', text: '' })]), h('span', { id: 'qm-hero-next', text: '' })]),
       h('div', { class: 'qm-hero-ar', text: '\u0628\u0650\u0633\u0652\u0645\u0650 \u0671\u0644\u0644\u0651\u064e\u0647\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0671\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650' }),
-      h('div', { class: 'qm-hero-btns' }, [h('span', { class: 'qm-pill solid', text: 'Open the Qur\u2019an' }), h('span', { class: 'qm-pill', text: 'Prayer times' })])
+      h('div', { class: 'qm-hero-btns' }, [
+        h('button', { type: 'button', class: 'qm-pill solid', text: 'Open the Qur\u2019an', onclick: function () { go('quran'); } }),
+        h('button', { type: 'button', class: 'qm-pill', text: 'Prayer times', onclick: function () { go('home', 'home-today'); } })])
     ]));
 
     /* jump chips */
