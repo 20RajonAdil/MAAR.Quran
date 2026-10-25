@@ -1452,6 +1452,7 @@ function HomeSection({ setTab, surahCount, geo }){
     <${React.Fragment}>
       <${Hero} setTab=${setTab} surahCount=${surahCount} />
       <${RamadanBanner} prayer=${prayerData} setTab=${setTab} />
+      <${IslamicCountdown} setTab=${setTab} />
       <${PrayerRing} geo=${geo} prayer=${prayerData} />
       <${DailyAyah} />
       <section id="home-today" class="section shell" ref=${ref}>
@@ -2177,7 +2178,7 @@ function computePrayerTimesLocal(date, lat, lon){
   const out = {}; for (const k in raw) out[k] = fmt(raw[k]); return out;
 }
 const HIJRI_MONTHS = ['Muharram','Safar',"Rabi' al-awwal","Rabi' al-thani",'Jumada al-awwal','Jumada al-thani','Rajab',"Sha'ban",'Ramadan','Shawwal',"Dhu al-Qi'dah","Dhu al-Hijjah"];
-function gregorianToHijriLocal(date){
+function gregorianToHijriTabular(date){
   let l = Math.floor(julianDay(date)) - 1948440 + 10632;
   const n = Math.floor((l - 1) / 10631);
   l = l - 10631 * n + 354;
@@ -2187,6 +2188,23 @@ function gregorianToHijriLocal(date){
   const day = l - Math.floor((709 * month) / 24);
   const year = 30 * n + j - 30;
   return { day, month: { en: HIJRI_MONTHS[month - 1] }, year };
+}
+
+/* Hijri dates follow the Umm al-Qura calendar, Saudi Arabia's official
+   calendar. Browsers ship it (Intl), so this needs no network request
+   and works offline. The arithmetic calendar above is only a fallback
+   for a browser that lacks it. */
+const UQ_FMT = (() => { try { return new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { day:'numeric', month:'numeric', year:'numeric', timeZone:'UTC' }); } catch { return null; } })();
+function gregorianToHijriLocal(date){
+  if (UQ_FMT) {
+    try {
+      const noon = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12));   // the visitor's own calendar day
+      const p = {}; UQ_FMT.formatToParts(noon).forEach((x) => { p[x.type] = x.value; });
+      const day = +p.day, m = +p.month, year = +p.year;
+      if (day >= 1 && day <= 30 && m >= 1 && m <= 12 && year > 1300 && year < 1600) return { day, month: { en: HIJRI_MONTHS[m - 1] }, year };
+    } catch {}
+  }
+  return gregorianToHijriTabular(date);
 }
 
 /* Share today's prayer times with customise.js so the whole site can
@@ -3761,8 +3779,8 @@ function Duas(){
 
 /* ---------------------------------------------------------------
    12d. HIJRI TOOLS — calendar, Ramadan banner, hifz helper.
-   Dates are calculated (tabular), so they can differ by a day from
-   the local moon sighting.
+   Dates follow the Umm al-Qura calendar, so they can differ by a day
+   from the local moon sighting.
 --------------------------------------------------------------- */
 function hijriParts(date){
   const noon = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
@@ -3819,15 +3837,75 @@ function RamadanBanner({ prayer, setTab }){
         </div>
       </section>`;
   }
-  const next = upcomingHijriEvents(60).find((e) => e.k === 'ram' && e.h.d === 1);
-  if (next && next.inDays <= 45) return html`
+  return null;
+}
+
+/* ---------------------------------------------------------------
+   12e. ISLAMIC EVENTS COUNTDOWN
+   Always counts down to the next major event: Ramadan, Eid al-Fitr,
+   Day of Arafah, Eid al-Adha, Islamic New Year, Ashura. Once Ramadan
+   begins it automatically counts down to Eid al-Fitr.
+   Dates come from the Umm al-Qura calendar (see gregorianToHijriLocal).
+   The official start is confirmed by moon sighting, so it can differ
+   by a day where the visitor lives, and the card says so.
+--------------------------------------------------------------- */
+const COUNTDOWN_EVENTS = [
+  { m:1,  d:1,  k:'new',    label:'Islamic New Year', hello:'Happy Islamic New Year' },
+  { m:1,  d:10, k:'ashura', label:'Day of Ashura',    hello:'Today is the Day of Ashura' },
+  { m:9,  d:1,  k:'ram',    label:'Ramadan begins',   hello:'Ramadan Mubarak' },
+  { m:10, d:1,  k:'eid',    label:'Eid al-Fitr',      hello:'Eid Mubarak' },
+  { m:12, d:9,  k:'arafah', label:'Day of Arafah',    hello:'Today is the Day of Arafah' },
+  { m:12, d:10, k:'eid',    label:'Eid al-Adha',      hello:'Eid Mubarak' },
+];
+function nextIslamicEvents(limit = 5){
+  const out = [], base = new Date();
+  for (let i = 0; i < 400 && out.length < limit; i++) {
+    const day = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    const h = hijriParts(day);
+    const e = COUNTDOWN_EVENTS.find((x) => x.m === h.m && x.d === h.d);
+    if (e) out.push({ ...e, date: day, hy: h.y, inDays: i });
+  }
+  return out;
+}
+function IslamicCountdown({ setTab }){
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
+  const dayKey = now.toDateString();
+  const events = useMemo(() => nextIslamicEvents(5), [dayKey]);
+  if (!events.length) return null;
+  const first = events[0], isToday = first.inDays === 0;
+  const rest = events.slice(1, 4);
+  const dateText = (e) => e.date.toLocaleDateString(undefined, { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const hijriText = (e) => `${e.d} ${HIJRI_MONTHS[e.m - 1]} ${e.hy} AH`;
+  const ms = Math.max(0, first.date.getTime() - now.getTime());
+  const D = Math.floor(ms / 864e5), H = Math.floor(ms / 36e5) % 24, M = Math.floor(ms / 6e4) % 60, S = Math.floor(ms / 1000) % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return html`
     <section class="section shell" style=${{ paddingBottom: 0 }}>
-      <div class="rm-banner soft">
-        <div class="rm-txt"><div class="eyebrow" style=${{ marginBottom: 6 }}>Coming soon</div><h3>Ramadan begins in about ${next.inDays} day${next.inDays === 1 ? '' : 's'}</h3><p>Calculated date — the exact day depends on the moon sighting.</p></div>
-        <button class="btn btn-ghost" onClick=${() => setTab('daily')}>Plan your Ramadan</button>
+      <div class="ev-card">
+        <div class="ev-top">
+          <div class="ev-title">
+            <div class="eyebrow">${isToday ? 'Today' : 'Countdown'}</div>
+            ${isToday
+              ? html`<h3>${first.hello}</h3><p>${first.label} \u00b7 ${hijriText(first)}</p>`
+              : html`<h3>${first.label}</h3><p>${hijriText(first)} \u00b7 ${dateText(first)}</p>`}
+          </div>
+          ${isToday ? null : html`
+            <div class="ev-digits" role="timer" aria-label=${`${D} days until ${first.label}`}>
+              <div class="ev-digit"><b>${D}</b><span>Days</span></div>
+              <div class="ev-digit"><b>${pad(H)}</b><span>Hours</span></div>
+              <div class="ev-digit"><b>${pad(M)}</b><span>Min</span></div>
+              <div class="ev-digit"><b>${pad(S)}</b><span>Sec</span></div>
+            </div>`}
+        </div>
+        ${first.k === 'ram' && !isToday ? html`<div style=${{ marginTop: 16 }}><button class="btn btn-ghost" onClick=${() => setTab('daily')}>Plan your Ramadan</button></div>` : null}
+        ${rest.length ? html`
+          <div class="ev-next">
+            ${rest.map((e) => html`<div class="ev-chip" key=${e.label + e.hy}><b>${e.label}</b><span>${e.date.toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' })} \u00b7 in ${e.inDays} day${e.inDays === 1 ? '' : 's'}</span></div>`)}
+          </div>` : null}
+        <p class="ev-note">Dates follow the Umm al-Qura calendar, Saudi Arabia\u2019s official calendar. The official start is confirmed by the moon sighting, so it can be a day earlier or later where you live. Check your local mosque\u2019s announcement.</p>
       </div>
     </section>`;
-  return null;
 }
 
 function HijriCalendar(){
@@ -3876,7 +3954,7 @@ function HijriCalendar(){
         <div class="eyebrow" style=${{ marginBottom: 10 }}>Coming up</div>
         ${up.map((e, i) => html`<div key=${i} class="cal-up-row"><span class=${'cal-up-dot k-' + e.k}></span><span class="cal-up-n">${e.label}</span><span class="cal-up-d">${e.date.toLocaleDateString([], { day:'numeric', month:'short' })} · ${e.inDays === 0 ? 'today' : e.inDays === 1 ? 'tomorrow' : `in ${e.inDays} days`}</span></div>`)}
       </div>
-      <p class="pr-note">Dates are calculated and can differ by a day depending on the moon sighting in your area. Islamic days begin at Maghrib.</p>
+      <p class="pr-note">Dates follow the Umm al-Qura calendar and can differ by a day depending on the moon sighting in your area. Islamic days begin at Maghrib.</p>
     </div>`;
 }
 

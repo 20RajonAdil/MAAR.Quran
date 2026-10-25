@@ -747,6 +747,22 @@ body{padding-bottom:var(--tab-h);}
 .rm-txt{flex:1 1 260px}.rm-txt h3{font-family:'Instrument Serif',serif;font-weight:400;font-size:clamp(24px,3.6vw,32px);margin:0 0 4px}.rm-txt p{margin:0;color:var(--muted);font-size:14px}
 .rm-count{display:flex;flex-direction:column;align-items:flex-end;gap:2px}.rm-count span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .rm-count b{font-variant-numeric:tabular-nums;font-size:clamp(26px,5vw,34px);font-weight:700}
+/* ---------- Islamic events countdown ---------- */
+.ev-card{padding:26px 28px;border-radius:28px;border:1px solid rgba(var(--gold-rgb),.35);background:linear-gradient(180deg,rgba(var(--accent-rgb),.14),rgba(var(--deep-rgb),.10)),var(--card);box-shadow:0 30px 70px -44px rgba(var(--gold-rgb),.55)}
+.ev-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:18px 28px}
+.ev-title{flex:1 1 280px;min-width:0}
+.ev-title h3{font-family:'Instrument Serif',serif;font-weight:400;font-size:clamp(26px,4vw,38px);margin:6px 0 4px}
+.ev-title p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.ev-digits{display:flex;gap:10px}
+.ev-digit{min-width:68px;padding:13px 8px 11px;border-radius:18px;background:rgba(0,0,0,.28);border:1px solid var(--line-soft);text-align:center}
+.ev-digit b{display:block;font-variant-numeric:tabular-nums;font-size:clamp(26px,6vw,36px);font-weight:700;line-height:1.1}
+.ev-digit span{display:block;margin-top:5px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ev-next{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.ev-chip{padding:11px 15px;border-radius:16px;border:1px solid var(--line);background:rgba(0,0,0,.2);font-size:13px;line-height:1.4}
+.ev-chip b{display:block;font-size:14px;margin-bottom:1px}.ev-chip span{color:var(--muted)}
+.ev-note{margin:18px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.6}
+@media(max-width:640px){.ev-card{padding:20px 16px}.ev-digits{width:100%}.ev-digit{flex:1;min-width:0}}
+
 @media (max-width:640px){.rm-count{align-items:flex-start}}
 
 /* ---------- hijri calendar ---------- */
@@ -952,7 +968,7 @@ body{padding-bottom:var(--tab-h);}
 <script src="vendor/leaflet.js"></script>
 <script src="offline.js?v=3"></script>
 <script src="features.js?v=1"></script>
-<script src="app.js?v=44"></script>
+<script src="app.js?v=45"></script>
 
 <script>
 /* ---- Service worker registration ----------------------------------
