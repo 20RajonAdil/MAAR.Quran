@@ -448,6 +448,7 @@ function qmCollectState(){
     app: 'Quran Maar', format: 'quran-maar', version: 1, savedAt: new Date().toISOString(),
     reciter: store.get('reciter'),
     langEdition: store.get('lang_edition'),
+    uiLang: (function(){ try { return localStorage.getItem('qm_ui_lang'); } catch { return null; } })(),
     arabicFontIndex: store.get('arabic_font_index'),
     bookmarks: store.getArray('v5_bookmarks'),
     hadithBookmarks: store.getArray('v5_hadith_bookmarks'),
@@ -461,6 +462,7 @@ function qmApplyState(incoming){
   const s = incoming.state || incoming;
   if (s.reciter) store.set('reciter', s.reciter);
   if (s.langEdition) store.set('lang_edition', s.langEdition);
+  if (s.uiLang && window.QMI18n) window.QMI18n.set(s.uiLang);
   if (s.arabicFontIndex !== undefined) store.set('arabic_font_index', String(s.arabicFontIndex));
   // only ever accept the array shape this app actually uses — an older or
   // foreign export/backup file (e.g. v4's object-keyed hadith bookmarks)
@@ -1639,7 +1641,7 @@ function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, ar
           <${Icon} name="search" size=${15} />
           <input placeholder="Search a surah by name or number…" value=${query} onInput=${(e) => setQuery(e.target.value)} />
         </div>
-        <select class="select-pill" value=${langEdition} onChange=${(e) => setLangEdition(e.target.value)} aria-label="Translation language">
+        <select class="select-pill" value=${langEdition} onChange=${(e) => { store.set('edition_manual', '1'); setLangEdition(e.target.value); }} aria-label="Translation language">
           ${LANGUAGES.map((l) => html`<option key=${l.code} value=${l.edition}>${l.label}</option>`)}
         </select>
         <select class="select-pill" value=${arabicFontIdx} onChange=${(e) => setArabicFontIdx(Number(e.target.value))} aria-label="Arabic script">
@@ -2879,8 +2881,32 @@ function SettingsSection(){
         </div>
         <p>Colours, animation and ease of access. Saved on this device only.</p>
       </div>
+      <${LanguageCard} />
       <div ref=${host} class="qm-settings-host"></div>
     </section>
+  `;
+}
+
+/* Site language. "Auto" follows the visitor's country; picking a language
+   saves it on the device and it is used from then on, in every country. */
+function LanguageCard(){
+  const i18n = window.QMI18n;
+  const [, force] = useState(0);
+  useEffect(() => (i18n ? i18n.onChange(() => force((n) => n + 1)) : undefined), []);
+  if (!i18n) return null;
+  const value = i18n.isAuto() ? 'auto' : i18n.get();
+  return html`
+    <div class="qm-settings-host" style=${{ paddingBottom: '0' }}>
+      <div class="arch-card" style=${{ cursor:'default', marginBottom:'18px', padding:'18px 20px' }}>
+        <div class="surah-en" style=${{ marginBottom:'6px' }}>Language</div>
+        <div class="surah-meta" style=${{ lineHeight:'1.55', marginBottom:'12px' }}>Choose the language of the whole website. Your choice is saved on this device and is always used.</div>
+        <select class="select-pill" data-no-i18n="1" value=${value} aria-label="Language"
+                onChange=${(e) => i18n.set(e.target.value)} style=${{ maxWidth:'100%' }}>
+          <option value="auto">${'\u{1F310} ' + (i18n.get() === 'en' ? 'Auto (detect from my country)' : ((window.QM_I18N_DATA && window.QM_I18N_DATA[i18n.get()] && window.QM_I18N_DATA[i18n.get()]['Auto (detect from my country)']) || 'Auto (detect from my country)'))}</option>
+          ${i18n.langs.map((l) => html`<option key=${l.code} value=${l.code}>${l.name}${l.code === 'en' ? '' : ' \u00B7 ' + l.code.toUpperCase()}</option>`)}
+        </select>
+      </div>
+    </div>
   `;
 }
 
@@ -4281,34 +4307,16 @@ function Footer(){
 /* ---------------------------------------------------------------
    13. APP ROOT
 --------------------------------------------------------------- */
-/* Surfaces two transient states the user otherwise can't see: loss of
-   connection, and a new app version sitting in the service worker
-   waiting to take over. The update is offered, not forced. */
+/* Surfaces loss of connection. New app versions no longer need a button:
+   index.html installs them by itself (see the service-worker script there). */
 function NetBanner(){
   const online = useOnlineStatus();
   const [showOffline, setShowOffline] = useState(false);
-  const [updateReg, setUpdateReg] = useState(null);
 
   useEffect(() => {
     if (online) { const t = setTimeout(() => setShowOffline(false), 300); return () => clearTimeout(t); }
     setShowOffline(true);
   }, [online]);
-
-  useEffect(() => {
-    const onUpdate = (e) => setUpdateReg(e.detail);
-    window.addEventListener('qm-sw-update', onUpdate);
-    return () => window.removeEventListener('qm-sw-update', onUpdate);
-  }, []);
-
-  if (updateReg) {
-    return html`
-      <div class="net-banner update show">
-        A new version of Quran Maar is ready.
-        <button onClick=${() => { updateReg.waiting && updateReg.waiting.postMessage({ type:'SKIP_WAITING' }); }}>Update</button>
-        <button onClick=${() => setUpdateReg(null)}>Later</button>
-      </div>
-    `;
-  }
 
   return html`
     <div class=${'net-banner' + (showOffline ? ' show' : '')}>
@@ -4331,6 +4339,28 @@ function App(){
   const [bmOpen, setBmOpen] = useState(false);
   const [reciterId, setReciterId] = useLocalState('reciter', 'alafasy');
   const [langEdition, setLangEdition] = useLocalState('lang_edition', 'en.sahih');
+  /* When the site language changes (country auto-detect or the visitor's own
+     choice) the Qur'an translation follows it. A translation the visitor
+     picked by hand (or saved before this existed) is never overridden by the
+     automatic country change. */
+  const hadEdition = useRef(null);
+  if (hadEdition.current === null) hadEdition.current = store.get('lang_edition') !== null;
+  useEffect(() => {
+    const i18n = window.QMI18n;
+    if (!i18n) return undefined;
+    if (!hadEdition.current) store.set('edition_auto', '1');
+    else if (!store.get('edition_auto') && !store.get('edition_manual')) store.set('edition_manual', '1');
+    const follow = (code, why) => {
+      const l = i18n.info(code);
+      if (!l) return;
+      if (why === 'auto' && store.get('edition_manual')) return;
+      if (l.edition) setLangEdition(l.edition);
+      if (why === 'user') store.set('edition_manual', '');
+      if (why === 'user' && l.hadith) store.set('hadith_lang', l.hadith);
+    };
+    if (!store.get('edition_manual') && i18n.get() !== 'en') follow(i18n.get(), 'auto');
+    return i18n.onChange(follow);
+  }, []);
   const [arabicFontIdx, setArabicFontIdx] = useLocalState('arabic_font_index', 0);
   const [bookmarks, setBookmarks] = useState(() => store.getArray('v5_bookmarks'));
   const [hadithBookmarks, setHadithBookmarks] = useState(() => store.getArray('v5_hadith_bookmarks'));

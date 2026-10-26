@@ -966,29 +966,67 @@ body{padding-bottom:var(--tab-h);}
 <script src="vendor/react-dom.production.min.js"></script>
 <script src="vendor/htm.js"></script>
 <script src="vendor/leaflet.js"></script>
+<script src="i18n-data.js?v=1"></script>
+<script src="i18n.js?v=1"></script>
 <script src="offline.js?v=3"></script>
 <script src="features.js?v=1"></script>
-<script src="app.js?v=46"></script>
+<script src="app.js?v=47"></script>
 
 <script>
-/* ---- Service worker registration ----------------------------------
-   Registered after load so it never competes with first paint. The
-   update prompt is shown rather than forced: silently swapping the
-   worker mid-session can tear a running audio chain. ------------- */
+/* ---- Service worker registration + automatic updates ---------------
+   A new version installs itself: as soon as one is ready it is switched
+   on and the page reloads, with no button. The only thing that makes it
+   wait is audio or video that is playing right now (a reload would cut
+   it off) - it applies the moment playback stops. The site is also
+   checked for a new version on every launch, whenever the app comes back
+   to the foreground, and every 15 minutes while it is open. ------------ */
 (function () {
   if (!('serviceWorker' in navigator)) return;
+
+  /* Audio made with new Audio() never sits in the page, so remember every
+     element that has been asked to play and check those as well. */
+  var live = [];
+  try {
+    var origPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      if (live.indexOf(this) < 0) live.push(this);
+      return origPlay.apply(this, arguments);
+    };
+  } catch (e) {}
+  function mediaPlaying() {
+    var m = document.querySelectorAll('audio,video'), i;
+    for (i = 0; i < m.length; i++) if (!m[i].paused && !m[i].ended) return true;
+    live = live.filter(function (el) { return el.isConnected || !el.paused; });
+    for (i = 0; i < live.length; i++) if (!live[i].paused && !live[i].ended) return true;
+    return false;
+  }
+  var applying = false;
+  function applyWhenIdle(reg) {
+    if (applying || !reg || !reg.waiting) return;
+    applying = true;
+    (function tick() {
+      if (mediaPlaying()) { setTimeout(tick, 4000); return; }
+      try { reg.waiting && reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {}
+      applying = false;
+    })();
+  }
+
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js', { scope: './' }).then(function (reg) {
       window.__qmSW = reg;
+      if (reg.waiting && navigator.serviceWorker.controller) applyWhenIdle(reg);
       reg.addEventListener('updatefound', function () {
         var nw = reg.installing;
         if (!nw) return;
         nw.addEventListener('statechange', function () {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            window.dispatchEvent(new CustomEvent('qm-sw-update', { detail: reg }));
-          }
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) applyWhenIdle(reg);
         });
       });
+      function check() { try { reg.update(); } catch (e) {} }
+      check();
+      setInterval(check, 15 * 60 * 1000);
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+      window.addEventListener('online', check);
     }).catch(function (e) {
       console.warn('[QM] Service worker registration failed:', e);
     });
