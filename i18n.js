@@ -105,19 +105,131 @@
     return base;
   }
 
+
+  /* ------------------------ machine translation fallback ------------------------
+     Strings that have no hand-written translation (long paragraphs, dates,
+     countdowns, About text...) are translated on the fly, so the WHOLE site
+     changes language. Order of preference:
+       1. the browser's own on-device translator (Chrome) — nothing leaves the device
+       2. Google Translate's public endpoint, interface text only
+     Every result is saved on the device (per language), so the next visit —
+     even offline — needs no request at all. Turn it off any time with
+     QMI18n.setMachine(false) / the switch in Settings → Language.
+     Qur'an, Hadith and video text is never sent (see SKIP classes below). */
+  var MT_OFF_KEY = 'qm_mt_off';
+  var mtCache = {};
+  var mtSaveTimer = null;
+  var mtQueue = [], mtInflight = 0, mtSeen = {}, mtBlockedUntil = 0, mtRequests = 0, mtDoneTimer = null;
+  var MT_MAX_REQUESTS = 1500;
+  var churn = new WeakMap();
+
+  function mtLoad(lang) {
+    if (!mtCache[lang]) {
+      try { mtCache[lang] = JSON.parse(ls('get', 'qm_mt_' + lang) || '{}') || {}; } catch (e) { mtCache[lang] = {}; }
+    }
+    return mtCache[lang];
+  }
+  function mtSave(lang) {
+    clearTimeout(mtSaveTimer);
+    mtSaveTimer = setTimeout(function () {
+      var s = '{}';
+      try { s = JSON.stringify(mtCache[lang] || {}); if (s.length > 1400000) { mtCache[lang] = {}; s = '{}'; } } catch (e) {}
+      try { localStorage.setItem('qm_mt_' + lang, s); } catch (e) { mtCache[lang] = {}; }
+    }, 800);
+  }
+  function mtOn() { return ls('get', MT_OFF_KEY) !== '1' && window.QM_MT !== false; }
+
+  function eligible(core) {
+    if (core.length < 3 || core.length > 600) return false;
+    if (!/[A-Za-z]{3,}/.test(core)) return false;                 // needs a real word
+    if (/^(https?:|www\.)|@|\.(com|app|io|org|net)\b/i.test(core)) return false;
+    if (/\d{1,2}:\d{2}:\d{2}/.test(core)) return false;           // live countdowns
+    var letters = core.match(/[A-Za-z\u00C0-\uFFFF]/g) || [], latin = core.match(/[A-Za-z]/g) || [];
+    if (letters.length && latin.length / letters.length < 0.7) return false; // already another script
+    return true;
+  }
+
+  var chromeTr = {};
+  function chromeTranslator(lang) {
+    if (chromeTr[lang]) return chromeTr[lang];
+    chromeTr[lang] = new Promise(function (resolve) {
+      try {
+        if (typeof Translator === 'undefined' || !Translator.availability) return resolve(null);
+        Translator.availability({ sourceLanguage: 'en', targetLanguage: lang }).then(function (a) {
+          if (a !== 'available') return resolve(null);
+          return Translator.create({ sourceLanguage: 'en', targetLanguage: lang }).then(resolve);
+        }).catch(function () { resolve(null); });
+      } catch (e) { resolve(null); }
+    });
+    return chromeTr[lang];
+  }
+  function googleTranslate(lang, text) {
+    var g = lang === 'zh' ? 'zh-CN' : lang;
+    var url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&dt=t&tl=' + g + '&q=' + encodeURIComponent(text);
+    return fetchWithTimeout(url, 10000).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j[0]) throw new Error('bad');
+      return j[0].map(function (x) { return x && x[0] ? x[0] : ''; }).join('');
+    });
+  }
+  function mtTranslate(lang, text) {
+    return chromeTranslator(lang).then(function (tr) {
+      return tr ? tr.translate(text) : googleTranslate(lang, text);
+    });
+  }
+
+  function mtRequest(src) {
+    if (mtRequests >= MT_MAX_REQUESTS || !mtOn()) return;
+    var k = current + '\u0000' + src;
+    if (mtSeen[k]) return;
+    mtSeen[k] = 1;
+    mtQueue.push({ lang: current, src: src });
+    mtPump();
+  }
+  function mtPump() {
+    var wait = mtBlockedUntil - Date.now();
+    if (wait > 0) { setTimeout(mtPump, wait + 50); return; }
+    while (mtInflight < 4 && mtQueue.length) {
+      var job = mtQueue.shift();
+      if (job.lang !== current) { delete mtSeen[job.lang + '\u0000' + job.src]; continue; }
+      mtInflight++; mtRequests++;
+      (function (j) {
+        mtTranslate(j.lang, j.src).then(function (out) {
+          out = String(out || '').trim();
+          if (out && out !== j.src) {
+            mtLoad(j.lang)[j.src] = out; mtSave(j.lang);
+            if (j.lang === current) {
+              clearTimeout(mtDoneTimer);
+              mtDoneTimer = setTimeout(function () { if (document.body) queue(document.body); }, 250);
+            }
+          }
+        }).catch(function () {
+          delete mtSeen[j.lang + '\u0000' + j.src];
+          mtBlockedUntil = Date.now() + 90 * 1000;   // rate-limited or offline: pause, retry later
+        }).then(function () { mtInflight--; mtPump(); });
+      })(job);
+    }
+  }
+
   /* ------------------------ translation engine ------------------------ */
   var ATTRS = ['placeholder', 'aria-label', 'title', 'alt'];
   var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, TEXTAREA: 1, INPUT: 1, NOSCRIPT: 1, CODE: 1, PRE: 1 };
   var textState = new WeakMap(); // text node -> { orig, applied }
 
-  function table() { return current === 'en' ? null : (DATA[current] || null); }
+  function table() { return current === 'en' ? null : (DATA[current] || {}); }
 
-  function lookup(str, t) {
+  function lookup(str, t, node) {
     if (!t) return null;
     var core = str.replace(/^\s+|\s+$/g, '');
-    if (!core || core.length > 400) return null;
+    if (!core || core.length > 600) return null;
     var hit = t[core];
-    if (hit === undefined) return null;
+    if (hit === undefined) {
+      if (current === 'en' || !mtOn()) return null;
+      hit = mtLoad(current)[core];
+      if (hit === undefined) {
+        if (eligible(core) && !(node && (churn.get(node) || 0) > 6)) mtRequest(core);
+        return null;
+      }
+    }
     var lead = str.slice(0, str.indexOf(core));
     var trail = str.slice(lead.length + core.length);
     return lead + hit + trail;
@@ -129,7 +241,7 @@
     for (var n = el; n && n.nodeType === 1; n = n.parentNode) {
       if (SKIP_TAGS[n.tagName] && !(attrMode && n === el && (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA'))) return true;
       if (n.hasAttribute && n.hasAttribute('data-no-i18n')) return true;
-      if (n.classList && (n.classList.contains('ay-ar') || n.classList.contains('ayah-ar') || n.classList.contains('ayah-tr') || n.classList.contains('notranslate'))) return true;
+      if (n.classList && (n.classList.contains('ay-ar') || n.classList.contains('ayah-ar') || n.classList.contains('ayah-tr') || n.classList.contains('ay-en') || n.classList.contains('hadith-en') || n.classList.contains('hadith-ar') || n.classList.contains('yt-title') || n.classList.contains('yt-modal-title') || n.classList.contains('notranslate'))) return true;
     }
     return false;
   }
@@ -143,9 +255,10 @@
       if (!t) { node.nodeValue = cur; textState.delete(node); return; }
     } else if (st) {
       textState.delete(node); // React wrote fresh text
+      churn.set(node, (churn.get(node) || 0) + 1);
     }
     if (!t) return;
-    var out = lookup(cur, t);
+    var out = lookup(cur, t, node);
     if (out !== null) {
       if (out !== node.nodeValue) node.nodeValue = out;
       textState.set(node, { orig: cur, applied: out });
@@ -331,6 +444,13 @@
     onChange: function (fn) {
       listeners.push(fn);
       return function () { listeners = listeners.filter(function (f) { return f !== fn; }); };
+    },
+    machine: function () { return mtOn(); },
+    setMachine: function (on) {
+      if (on) ls('del', MT_OFF_KEY); else ls('set', MT_OFF_KEY, '1');
+      mtSeen = {}; mtQueue = [];
+      setCurrent(current, false);
+      listeners.slice().forEach(function (fn) { try { fn(current, 'machine'); } catch (e) {} });
     },
     refresh: function () { if (document.body) walk(document.body, table()); },
     languageFor: languageFor,

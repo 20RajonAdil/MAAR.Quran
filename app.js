@@ -1201,24 +1201,29 @@ function dailyAyahRef(d = new Date()){
 
 function useDailyAyah(){
   const key = localDayKey();
+  /* the translation shown under the Arabic follows the site language */
+  const edOf = () => { const i = window.QMI18n; const l = i && i.info(i.get()); return (l && l.edition) || 'en.sahih'; };
+  const [ed, setEd] = useState(edOf);
+  useEffect(() => (window.QMI18n ? window.QMI18n.onChange(() => setEd(edOf())) : undefined), []);
+  const fresh = (c) => c && c.day === key && (c.ed || 'en.sahih') === ed;
   const [ayah, setAyah] = useState(() => {
     const c = store.getJSON(DAILY_AYAH_KEY, null);
-    return c && c.day === key ? c : (c ? { ...c, stale:true } : null);
+    return fresh(c) ? c : (c ? { ...c, stale:true } : null);
   });
-  const [status, setStatus] = useState(ayah && !ayah.stale ? 'ok' : 'loading');
+  const [status, setStatus] = useState(fresh(ayah) ? 'ok' : 'loading');
   const load = useCallback(() => {
     const ref = dailyAyahRef();
     setStatus('loading');
-    fetch(`${QURAN_API}/ayah/${ref}/editions/quran-uthmani,en.sahih`)
+    fetch(`${QURAN_API}/ayah/${ref}/editions/quran-uthmani,${ed}`)
       .then((r) => r.json())
       .then((j) => {
         const [ar, en] = j.data;
-        const a = { day: key, ref, arabic: ar.text, english: en.text, surah: ar.surah.englishName, surahAr: ar.surah.name, surahNo: ar.surah.number, ayahNo: ar.numberInSurah };
+        const a = { day: key, ed, ref, arabic: ar.text, english: en.text, surah: ar.surah.englishName, surahAr: ar.surah.name, surahNo: ar.surah.number, ayahNo: ar.numberInSurah };
         store.setJSON(DAILY_AYAH_KEY, a); setAyah(a); setStatus('ok');
       })
       .catch(() => setStatus('error'));
-  }, [key]);
-  useEffect(() => { if (!ayah || ayah.day !== key) load(); }, []);
+  }, [key, ed]);
+  useEffect(() => { if (!fresh(ayah)) load(); }, [ed]);
   return { ayah, status, reload: load };
 }
 
@@ -1578,7 +1583,7 @@ function SurahCard({ s, i, reciter, onOpen, isDone }){
         ${hasVoice ? html`<span class="surah-badge">${glyphFor(s.number)} Voiced</span>` : null}
       </div>
       <div class="surah-ar">${s.name}</div>
-      <div class="surah-en">${s.englishName}</div>
+      <div class="surah-en notranslate">${s.englishName}</div>
       <div class="surah-meta">${s.englishNameTranslation}<span class="dot"></span>${s.numberOfAyahs} ayahs<span class="dot"></span>${s.revelationType}</div>
       ${hasVoice ? html`
         <div style=${{ marginTop:'12px' }}>
@@ -2898,13 +2903,20 @@ function LanguageCard(){
   return html`
     <div class="qm-settings-host" style=${{ paddingBottom: '0' }}>
       <div class="arch-card" style=${{ cursor:'default', marginBottom:'18px', padding:'18px 20px' }}>
-        <div class="surah-en" style=${{ marginBottom:'6px' }}>Language</div>
+        <div style=${{ marginBottom:'6px', fontWeight:'600', fontSize:'1.05rem' }}>Language</div>
         <div class="surah-meta" style=${{ lineHeight:'1.55', marginBottom:'12px' }}>Choose the language of the whole website. Your choice is saved on this device and is always used.</div>
         <select class="select-pill" data-no-i18n="1" value=${value} aria-label="Language"
                 onChange=${(e) => i18n.set(e.target.value)} style=${{ maxWidth:'100%' }}>
           <option value="auto">${'\u{1F310} ' + (i18n.get() === 'en' ? 'Auto (detect from my country)' : ((window.QM_I18N_DATA && window.QM_I18N_DATA[i18n.get()] && window.QM_I18N_DATA[i18n.get()]['Auto (detect from my country)']) || 'Auto (detect from my country)'))}</option>
           ${i18n.langs.map((l) => html`<option key=${l.code} value=${l.code}>${l.name}${l.code === 'en' ? '' : ' \u00B7 ' + l.code.toUpperCase()}</option>`)}
         </select>
+        <label style=${{ display:'flex', gap:'10px', alignItems:'flex-start', marginTop:'16px', cursor:'pointer' }}>
+          <input type="checkbox" checked=${i18n.machine()} onChange=${(e) => i18n.setMachine(e.target.checked)} style=${{ marginTop:'3px' }} />
+          <span>
+            <span style=${{ display:'block' }}>Translate the rest of the site automatically</span>
+            <span class="surah-meta" style=${{ display:'block', lineHeight:'1.5' }}>Text without a hand-written translation is translated by your browser or Google Translate and saved on this device. Only interface text is sent \u2014 never your notes, the Qur'an, Hadith or videos.</span>
+          </span>
+        </label>
       </div>
     </div>
   `;

@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v48';
+const SHELL_VERSION = 'v49';
 const DATA_VERSION  = 'v1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
@@ -38,9 +38,9 @@ const SHELL_ASSETS = [
   './features.js?v=1',
   './customise.js?v=9',
   './adhan.js?v=7',
-  './app.js?v=47',
-  './i18n.js?v=1',
-  './i18n-data.js?v=1',
+  './app.js?v=48',
+  './i18n.js?v=2',
+  './i18n-data.js?v=2',
   './offline.js?v=3',
   './manifest.json',
   './icon-192.png',
@@ -105,7 +105,7 @@ const DATA_HOSTS  = ['api.alquran.cloud', 'cdn.jsdelivr.net', 'api.aladhan.com']
 const FONT_HOSTS  = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 /* Location lookups must never be served stale — a cached answer would
    pin prayer times and the Qibla bearing to wherever the user last was. */
-const NEVER_CACHE_HOSTS = ['ipapi.co', 'ipwho.is', 'api.bigdatacloud.net', 'nominatim.openstreetmap.org'];
+const NEVER_CACHE_HOSTS = ['translate.googleapis.com', 'ipapi.co', 'ipwho.is', 'api.bigdatacloud.net', 'nominatim.openstreetmap.org'];
 
 const isAudio = (url) =>
   AUDIO_HOSTS.some((h) => url.hostname.includes(h)) || /\.(mp3|ogg|m4a)($|\?)/i.test(url.pathname);
