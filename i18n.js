@@ -117,6 +117,26 @@
      QMI18n.setMachine(false) / the switch in Settings → Language.
      Qur'an, Hadith and video text is never sent (see SKIP classes below). */
   var MT_OFF_KEY = 'qm_mt_off';
+  /* The site's own name is never translated, in any language or sentence. */
+  var BRAND = /Quran[\s\u00A0]+Maar|Qur['\u2019]an[\s\u00A0]+Maar|MAAR\.Quran|MAAR[\s\u00A0]+Quran|BMet[\s\u00A0]+Prayer(?:[\s\u00A0]+(?:Time|Web))?|\bMAAR\b/gi;
+  function brandOnly(core) { return /^(quran|maar)$/i.test(core) || (/\bMAAR\b/i.test(core) && core.split(/\s+/).length <= 4); }
+  var TOKENS = 'abcdefghij';
+  function protect(src) {
+    var found = [];
+    var text = src.replace(BRAND, function (m) { found.push(m); return 'Xqmbrand' + TOKENS.charAt((found.length - 1) % 10); });
+    return { text: text, found: found };
+  }
+  function restore(out, found) {
+    var n = 0;
+    var res = String(out).replace(/Xqmbrand([a-j])/gi, function (m, ch) { n++; return found[TOKENS.indexOf(ch.toLowerCase())] || m; });
+    return n === found.length ? res : null;   // a token got lost: don't trust this translation
+  }
+  try { // older caches may contain a translated site name
+    for (var ki = localStorage.length - 1; ki >= 0; ki--) {
+      var kn = localStorage.key(ki);
+      if (kn && /^qm_mt_[a-z]{2}$/.test(kn)) localStorage.removeItem(kn);
+    }
+  } catch (e) {}
   var mtCache = {};
   var mtSaveTimer = null;
   var mtQueue = [], mtInflight = 0, mtSeen = {}, mtBlockedUntil = 0, mtRequests = 0, mtDoneTimer = null;
@@ -125,7 +145,7 @@
 
   function mtLoad(lang) {
     if (!mtCache[lang]) {
-      try { mtCache[lang] = JSON.parse(ls('get', 'qm_mt_' + lang) || '{}') || {}; } catch (e) { mtCache[lang] = {}; }
+      try { mtCache[lang] = JSON.parse(ls('get', 'qm_mt2_' + lang) || '{}') || {}; } catch (e) { mtCache[lang] = {}; }
     }
     return mtCache[lang];
   }
@@ -134,7 +154,7 @@
     mtSaveTimer = setTimeout(function () {
       var s = '{}';
       try { s = JSON.stringify(mtCache[lang] || {}); if (s.length > 1400000) { mtCache[lang] = {}; s = '{}'; } } catch (e) {}
-      try { localStorage.setItem('qm_mt_' + lang, s); } catch (e) { mtCache[lang] = {}; }
+      try { localStorage.setItem('qm_mt2_' + lang, s); } catch (e) { mtCache[lang] = {}; }
     }, 800);
   }
   function mtOn() { return ls('get', MT_OFF_KEY) !== '1' && window.QM_MT !== false; }
@@ -142,6 +162,7 @@
   function eligible(core) {
     if (core.length < 3 || core.length > 600) return false;
     if (!/[A-Za-z]{3,}/.test(core)) return false;                 // needs a real word
+    if (brandOnly(core)) return false;                            // the site's own name
     if (/^(https?:|www\.)|@|\.(com|app|io|org|net)\b/i.test(core)) return false;
     if (/\d{1,2}:\d{2}:\d{2}/.test(core)) return false;           // live countdowns
     var letters = core.match(/[A-Za-z\u00C0-\uFFFF]/g) || [], latin = core.match(/[A-Za-z]/g) || [];
@@ -193,8 +214,9 @@
       if (job.lang !== current) { delete mtSeen[job.lang + '\u0000' + job.src]; continue; }
       mtInflight++; mtRequests++;
       (function (j) {
-        mtTranslate(j.lang, j.src).then(function (out) {
-          out = String(out || '').trim();
+        var pr = protect(j.src);
+        mtTranslate(j.lang, pr.text).then(function (out) {
+          out = pr.found.length ? restore(String(out || '').trim(), pr.found) : String(out || '').trim();
           if (out && out !== j.src) {
             mtLoad(j.lang)[j.src] = out; mtSave(j.lang);
             if (j.lang === current) {
