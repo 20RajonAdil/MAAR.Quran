@@ -1,0 +1,34 @@
+import { useEffect, useRef, useState } from 'react';
+import type { Settings as S } from '../types';
+import type { QuranData } from '../services/datasetManager';
+import { installTranslation, verifyQuranIntegrity } from '../services/datasetManager';
+import { MODELS, type ModelState } from '../ai/modelManager';
+import { exportBackup, restoreBackup } from '../storage/backup';
+import { clearAllConversations } from '../storage/conversationHistory';
+import { clearBookmarks } from '../storage/bookmarks';
+import { fmtBytes, requestPersistence, storageInfo } from '../services/offlineManager';
+import { LanguageSelector } from './LanguageSelector';
+export function Settings({ s, set, quran, model, onTranslation, onDeleteModel, onSwitchModel, onDataChanged }: { s: S; set: (p: Partial<S>) => void; quran: QuranData; model: ModelState; onTranslation: () => Promise<void>; onDeleteModel: () => Promise<void>; onSwitchModel: (id: string) => void; onDataChanged: () => Promise<void> }) {
+  const [info, setInfo] = useState<Awaited<ReturnType<typeof storageInfo>>>(null); const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(''); const file = useRef<HTMLInputElement>(null);
+  useEffect(() => { storageInfo().then(setInfo); }, [msg]);
+  const run = async (label: string, fn: () => Promise<string | void>) => { setBusy(label); try { const r = await fn(); setMsg(r || 'Done.'); } catch (e: any) { setMsg('Error: ' + (e.message || e)); } setBusy(''); };
+  return (<div className="panel"><h2>Settings</h2>
+    <div className="form"><label className="field">Theme <select value={s.theme} onChange={e => set({ theme: e.target.value as S['theme'] })}><option value="auto">Follow device</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+      <LanguageSelector value={s.responseLang} onChange={v => set({ responseLang: v })} />
+      <label className="field">Answer length <select value={s.detail} onChange={e => set({ detail: e.target.value as S['detail'] })}><option value="short">Short</option><option value="normal">Normal</option><option value="detailed">Detailed</option></select></label></div>
+    <h3>Quran translations (database)</h3><p className="muted small">Arabic text and the English translation are installed first. Each other translation is a separate download (about 1–2 MB) and is stored on this device. Source: Tanzil (Arabic) and QuranEnc (translations); see About.</p>
+    <ul className="list">{quran.manifest.translations.map(t => { const have = !!quran.translations[t.lang]; return <li key={t.key}><strong>{t.label}</strong> <span className="muted small">{t.title} v{t.version} · {fmtBytes(t.bytes)}</span> {have ? <><span className="badge ok">installed</span>{quran.translations[t.lang] && <label className="check"><input type="radio" name="disp" checked={(s.displayTranslation.default ?? 'en') === t.lang} onChange={() => set({ displayTranslation: { ...s.displayTranslation, default: t.lang } })} /> show under verses</label>}</> : <button className="btn small" disabled={!!busy} onClick={() => run('t' + t.lang, async () => { await installTranslation(t.lang); await onTranslation(); return t.label + ' installed.'; })}>Install</button>}</li>; })}</ul>
+    <button className="btn" disabled={!!busy} onClick={() => run('verify', async () => { const r = await verifyQuranIntegrity(); return r.ok ? 'Quran database verified: 114 surahs, 6,236 ayat, checksums match.' : 'Problems: ' + r.problems.join(' '); })}>Verify Quran database integrity</button>
+    <h3>AI model</h3><p className="muted small">Status and downloads are separate from the Quran/Hadith databases. The model is stored in your browser's cache; the browser may clear it if storage runs low.</p>
+    <label className="field">Model <select value={s.modelId} onChange={e => { set({ modelId: e.target.value }); onSwitchModel(e.target.value); }}><option value="auto">Automatic for this device</option>{MODELS.map(m => <option key={m.id} value={m.id}>{m.label} (~{m.approxDownloadMB} MB)</option>)}</select></label>
+    <label className="check"><input type="checkbox" checked={s.autoDownloadModel} onChange={e => set({ autoDownloadModel: e.target.checked })} /> Download the model automatically on first visit</label>
+    {'modelId' in model && model.status === 'ready' && <button className="btn danger" onClick={() => confirm('Delete the downloaded model from this device? It will have to be downloaded again.') && run('dm', async () => { await onDeleteModel(); return 'Model deleted.'; })}>Delete downloaded model</button>}
+    <h3>Storage & offline</h3>{info && <p>Used {fmtBytes(info.usage)} of about {fmtBytes(info.quota)} · persistent storage: {info.persisted ? 'granted' : 'not granted'} {!info.persisted && <button className="btn small" onClick={() => run('p', async () => ((await requestPersistence()) ? 'Persistent storage granted.' : 'The browser declined persistent storage; data may be cleared if the device is low on space.'))}>Request</button>}</p>}
+    <p className="muted small">After the model and Quran database are installed, MAAR works without internet. Browsers can clear site data or evict caches when space is low; if that happens, reconnect once to reinstall.</p>
+    <h3>Your data (stored only on this device)</h3><p className="muted small">Conversations, bookmarks and settings never leave your device and are never sent to any server.</p>
+    <div className="row"><button className="btn" onClick={() => run('exp', async () => { const b = await exportBackup(true); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `maar-assistant-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); return 'Backup downloaded (includes any Hadith you imported).'; })}>Export backup</button>
+      <button className="btn" onClick={() => file.current?.click()}>Restore backup…</button><input ref={file} type="file" accept=".json" hidden onChange={e => { const f = e.target.files?.[0]; if (f) run('res', async () => { const r = await restoreBackup(await f.text()); await onDataChanged(); return `Restored ${r.conversations} conversations, ${r.bookmarks} bookmarks${r.hadith ? `, ${r.hadith} Hadith records` : ''}.`; }); e.target.value = ''; }} /></div>
+    <div className="row"><button className="btn danger" onClick={() => confirm('Delete ALL conversations? This cannot be undone.') && run('c', async () => { await clearAllConversations(); await onDataChanged(); return 'All conversations deleted.'; })}>Clear all history</button><button className="btn danger" onClick={() => confirm('Delete ALL bookmarks?') && run('b', async () => { await clearBookmarks(); await onDataChanged(); return 'Bookmarks deleted.'; })}>Clear bookmarks</button></div>
+    {busy && <p role="status">Working…</p>}{msg && <p role="status" className="note">{msg}</p>}
+  </div>);
+}
