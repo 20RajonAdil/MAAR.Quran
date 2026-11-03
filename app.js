@@ -1062,6 +1062,15 @@ function HeroOrb(){
   `;
 }
 
+/* Full-screen "OS mode": the browser goes full screen and a system-style bar
+   (clock, Hijri date, next prayer, today's five prayers) is pinned to the top.
+   The Fullscreen API call has to happen inside the click, so it lives here;
+   App listens for the 'qm-os' event and draws the bar. */
+function enterOsMode(){
+  try { const el = document.documentElement; const p = el.requestFullscreen && el.requestFullscreen(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  window.dispatchEvent(new CustomEvent('qm-os', { detail: { on: true } }));
+}
+
 function Hero({ setTab, surahCount }){
   const ref = useReveal();
   const [iosOpen, setIosOpen] = useState(false);
@@ -1081,6 +1090,7 @@ function Hero({ setTab, surahCount }){
             <a class="btn btn-ghost" href=${ANDROID_APK_URL} download="Quran.MAAR.apk" rel="noopener"><${Icon} name="android" size=${16} /> Download for Android</a>
             <button class="btn btn-ghost" onClick=${() => setIosOpen(true)}><${Icon} name="phone" size=${16} /> Download for iPhone</button>
           `}
+          <button class="btn btn-ghost" onClick=${enterOsMode} title="Full screen with a live clock and prayer-time bar"><${Icon} name="expand" size=${16} /> Full screen</button>
         </div>
         ${iosOpen && html`<${IosInstallModal} onClose=${() => setIosOpen(false)} />`}
         <div class="hero-stats">
@@ -1715,7 +1725,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   const [full, setFull] = useState(false);
   function exitFull(){
     setFull(false);
-    try { if (document.fullscreenElement && document.exitFullscreen) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+    try { if (document.fullscreenElement && !document.documentElement.classList.contains('os-on') && document.exitFullscreen) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
   }
   function toggleFull(){
     if (full) { exitFull(); return; }
@@ -1730,7 +1740,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     return () => {
       document.removeEventListener('fullscreenchange', onFs);
       document.removeEventListener('keydown', onKey);
-      try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
+      try { if (document.fullscreenElement && !document.documentElement.classList.contains('os-on') && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
     };
   }, []);
   const [notes, setNotes] = useState(() => {
@@ -4364,6 +4374,36 @@ function NetBanner(){
   `;
 }
 
+/* ---------------------------------------------------------------
+   OS BAR — pinned to the very top while the site is in full-screen
+   "OS mode": live clock, Gregorian + Hijri date, next prayer with a
+   countdown, and today's five prayers. Nothing else, on purpose.
+--------------------------------------------------------------- */
+function OsBar({ geo, onExit }){
+  const prayer = usePrayerTimes(geo);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
+  const valid = !!(prayer.timings && ['Fajr','Dhuhr','Asr','Maghrib','Isha'].every((k) => /^\d{1,2}:\d{2}/.test(String(prayer.timings[k] || ''))));
+  const c = valid ? prayerClock(prayer.timings, now) : null;
+  const nextName = c ? c.next.k : null;
+  const h = prayer.date && prayer.date.hijri;
+  const clock = now.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+  const day = now.toLocaleDateString([], { weekday:'short', day:'numeric', month:'short' });
+  return html`
+    <div class="os-bar" role="region" aria-label="Prayer times and clock">
+      <div class="os-row">
+        <div class="os-left"><span class="os-mark" aria-hidden="true">۩</span><b>Quran Maar</b><span class="os-sep">·</span><span class="os-date">${day}${h ? html` <i>·</i> ${h.day} ${h.month.en} ${h.year} AH` : null}</span></div>
+        <div class="os-next">${c
+          ? html`<span class="os-next-l">Next</span> <b>${prayerLabel(nextName, c.next.d)}</b> <span class="os-next-t">${to12h(prayer.timings[nextName])}</span> <span class="os-count">in ${fmtCountdown(c.msLeft)}</span>`
+          : html`<span class="os-next-l">${geo.status === 'error' ? 'Allow location for prayer times' : 'Loading prayer times…'}</span>`}</div>
+        <div class="os-right"><span class="os-clock">${clock}</span><button class="os-exit" onClick=${onExit} aria-label="Exit full screen"><${Icon} name="shrink" size=${14} /><span>Exit</span></button></div>
+      </div>
+      ${valid ? html`<div class="os-prayers">${RING_PRAYERS.map((k) => html`
+        <div key=${k} class=${'os-p' + (k === nextName ? ' is-next' : '')}><span>${prayerLabel(k, now)}</span><b>${to12h(prayer.timings[k])}</b></div>`)}</div>` : null}
+    </div>
+  `;
+}
+
 function App(){
   /* Manifest shortcuts and shared links land on ?tab=<id>; validated
      against NAV_ITEMS so a junk param can't blank the screen. */
@@ -4374,6 +4414,22 @@ function App(){
     } catch { return 'home'; }
   });
   const [menuOpen, setMenuOpen] = useState(false);
+  /* full-screen OS mode (see enterOsMode / OsBar) */
+  const [osMode, setOsMode] = useState(false);
+  function exitOsMode(){
+    setOsMode(false);
+    try { if (document.fullscreenElement && document.exitFullscreen) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+  }
+  useEffect(() => {
+    const on = (e) => setOsMode(!!(e && e.detail && e.detail.on));
+    /* leaving full screen with Esc / the browser UI also leaves OS mode */
+    let wasFs = false; /* ignore a 'not full screen' event unless full screen was really entered first (iPhone / blocked requests never enter it) */
+    const fs = () => { if (document.fullscreenElement) wasFs = true; else if (wasFs) { wasFs = false; setOsMode(false); } };
+    const key = (e) => { if (e.key === 'Escape') setOsMode(false); };
+    window.addEventListener('qm-os', on); document.addEventListener('fullscreenchange', fs); document.addEventListener('keydown', key);
+    return () => { window.removeEventListener('qm-os', on); document.removeEventListener('fullscreenchange', fs); document.removeEventListener('keydown', key); };
+  }, []);
+  useEffect(() => { document.documentElement.classList.toggle('os-on', osMode); return () => document.documentElement.classList.remove('os-on'); }, [osMode]);
   const [bmOpen, setBmOpen] = useState(false);
   const [reciterId, setReciterId] = useLocalState('reciter', 'alafasy');
   const [langEdition, setLangEdition] = useLocalState('lang_edition', 'en.sahih');
@@ -4543,6 +4599,7 @@ function App(){
   return html`
     <${React.Fragment}>
       <${NetBanner} />
+      ${osMode ? html`<${OsBar} geo=${geo} onExit=${exitOsMode} />` : null}
       <${NavBar} tab=${tab} setTab=${setTab} onOpenMenu=${() => setMenuOpen(true)} onOpenBookmarks=${() => setBmOpen(true)} bookmarkCount=${bookmarks.length + hadithBookmarks.length} />
       <${MobileMenu} open=${menuOpen} onClose=${() => setMenuOpen(false)} tab=${tab} setTab=${setTab} />
       <main key=${tab} class="page-enter">${page}</main>
