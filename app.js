@@ -754,6 +754,8 @@ const ICONS = {
   bookmarkFilled: 'M6 3.5h12v18l-6-4-6 4v-18Z',
   menu: 'M4 7h16M4 12h16M4 17h16',
   close: 'M5 5l14 14M19 5 5 19',
+  expand: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  shrink: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
   search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm10 17-5.6-5.6',
   play: 'M7 4.5v15l13-7.5-13-7.5Z',
   eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
@@ -1708,6 +1710,29 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   const [status, setStatus] = useState('loading');
   const [playingId, setPlayingId] = useState(null);
   const [playingWhole, setPlayingWhole] = useState(false);
+  /* Full-screen reading mode: real Fullscreen API where the browser allows it (desktop, Android),
+     otherwise a CSS full-viewport layout (iPhone Safari). Works for every surah. */
+  const [full, setFull] = useState(false);
+  function exitFull(){
+    setFull(false);
+    try { if (document.fullscreenElement && document.exitFullscreen) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+  }
+  function toggleFull(){
+    if (full) { exitFull(); return; }
+    setFull(true);
+    try { const el = document.documentElement; const p = el.requestFullscreen && el.requestFullscreen(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  }
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement) setFull(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setFull(false); };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('keydown', onKey);
+      try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
+    };
+  }, []);
   const [notes, setNotes] = useState(() => {
     const v = store.getJSON('v5_notes', {});
     return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
@@ -1852,7 +1877,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
 
   return html`
     <div class="reader-overlay" onClick=${(e) => e.target === e.currentTarget && onClose()}>
-      <div class="reader-panel">
+      <div class=${'reader-panel' + (full ? ' is-full' : '')}>
         <div class="reader-head">
           <div class="qmx-readhead">
             <${QMXC('SurahMedallion')} n=${surah.number} progress=${readProg} size=${56} />
@@ -1861,6 +1886,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
               <div class="surah-meta">${surah.englishNameTranslation} · ${surah.numberOfAyahs} ayahs · ${surah.revelationType}</div>
             </div>
           </div>
+          <button class="icon-btn reader-fs" onClick=${toggleFull} aria-label=${full ? 'Exit full screen' : 'Full screen'} title=${full ? 'Exit full screen' : 'Full screen'}><${Icon} name=${full ? 'shrink' : 'expand'} size=${16} /></button>
           <button class="icon-btn" onClick=${onClose} aria-label="Close"><${Icon} name="close" size=${16} /></button>
         </div>
         <div class="reader-body" onScroll=${onBodyScroll}>
