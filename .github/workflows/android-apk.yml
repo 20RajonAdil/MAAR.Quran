@@ -1,0 +1,82 @@
+name: Build Android debug APK
+
+# Builds an installable DEBUG apk in the cloud and uploads it as a workflow artifact.
+# - No secrets and no signing keys are used or needed (debug builds are signed with
+#   the throw-away debug key that Android's build tools generate on the runner).
+# - This workflow does not touch GitHub Pages. Pages keeps deploying from the branch
+#   exactly as before.
+on:
+  workflow_dispatch:          # Actions tab -> "Build Android debug APK" -> Run workflow
+  push:
+    branches: [ main, android-capacitor ]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - 'adhan/**'
+      - '*.js'
+      - '*.html'
+      - 'manifest.json'
+      - 'vendor/**'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle (with caching)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare the website files (copy into www/)
+        run: npm run prepare:www
+
+      - name: Sync Capacitor (copies www/ into the Android project)
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace -PappVersionCode=${{ github.run_number }} -PappVersionName=1.0.${{ github.run_number }}
+
+      - name: Check the APK exists and contains the adhan audio
+        run: |
+          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -n1)
+          echo "APK: $APK ($(du -h "$APK" | cut -f1))"
+          unzip -l "$APK" | grep -E "assets/public/adhan/Adan[12]\.mp3" 
+          unzip -l "$APK" | grep -E "assets/public/index.html"
+          cp "$APK" Quran-MAAR-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quran-MAAR-debug-apk
+          path: Quran-MAAR-debug.apk
+          if-no-files-found: error
+          retention-days: 30

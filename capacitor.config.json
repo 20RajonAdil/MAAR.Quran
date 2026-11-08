@@ -1,0 +1,11 @@
+{
+  "appId": "com.maar.quran",
+  "appName": "Quran Maar",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

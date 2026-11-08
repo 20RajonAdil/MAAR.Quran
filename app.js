@@ -3049,7 +3049,8 @@ const YT_CACHE_KEY = 'yt_cache_v1';
 /* The video feed is a Vercel function. Static hosts (GitHub Pages, file://)
    can't run it, so there the app calls the Vercel copy of the site. */
 const YT_VERCEL_ORIGIN = 'https://quranmaar.vercel.app';
-const YT_API_URL = (/(^|\.)github\.io$/.test(location.hostname) || location.protocol === 'file:')
+const IS_ANDROID_APP = (() => { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch { return false; } })();
+const YT_API_URL = (/(^|\.)github\.io$/.test(location.hostname) || location.protocol === 'file:' || IS_ANDROID_APP)
   ? YT_VERCEL_ORIGIN + '/api/videos'
   : '/api/videos';
 const YT_FALLBACK_CHANNELS = [

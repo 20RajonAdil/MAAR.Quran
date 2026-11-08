@@ -1,0 +1,16 @@
+node_modules/
+www/
+# Android build output (the native project itself IS committed)
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/src/main/res/xml/config.xml
+android/local.properties
+android/capacitor-cordova-android-plugins/
+*.keystore
+*.jks
+*.apk
+*.aab
