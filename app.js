@@ -1297,28 +1297,67 @@ async function ayahImageBlob(a){
   return new Promise((res) => cv.toBlob(res, 'image/png'));
 }
 
+/* In the Android app the browser's share/download calls do not exist, so these go to the native QuranShare plugin. */
+let _nativeShare;
+function nativeShareP(){
+  if (_nativeShare !== undefined) return _nativeShare;
+  _nativeShare = null;
+  try {
+    const C = window.Capacitor;
+    if (C && C.isNativePlatform && C.isNativePlatform() && C.getPlatform && C.getPlatform() === 'android' && C.registerPlugin) _nativeShare = C.registerPlugin('QuranShare');
+  } catch {}
+  return _nativeShare;
+}
+const blobToBase64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
+
 function DailyAyah(){
   const ref = useReveal();
   const { ayah, status, reload } = useDailyAyah();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
-  const flash = (t) => { setMsg(t); clearTimeout(flash._t); flash._t = setTimeout(() => setMsg(''), 3200); };
+  const flash = (t) => { setMsg(t); clearTimeout(flash._t); flash._t = setTimeout(() => setMsg(''), 4200); };
+  const errText = (e) => (e && (e.message || e.errorMessage)) ? String(e.message || e.errorMessage) : '';
+
+  /* Download: saves the picture itself. In the app it goes straight into Photos > "Quran Maar"; no other app is opened. */
+  async function downloadImage(){
+    if (!ayah || busy) return;
+    setBusy('save');
+    try {
+      const blob = await ayahImageBlob(ayah);
+      const name = `quran-maar-${ayah.surahNo}-${ayah.ayahNo}.png`;
+      const NP = nativeShareP();
+      if (NP) {
+        await NP.saveImage({ base64: await blobToBase64(blob), filename: name });
+        flash('Saved to your Photos, in the \u201cQuran Maar\u201d album.');
+      } else {
+        const url = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Image downloaded.');
+      }
+    } catch (e) { flash(errText(e) || "Couldn't save the image. Try again."); }
+    setBusy('');
+  }
 
   async function shareImage(){
     if (!ayah || busy) return;
-    setBusy(true);
+    setBusy('share');
     try {
       const blob = await ayahImageBlob(ayah);
+      const NP = nativeShareP();
+      if (NP) {
+        await NP.shareImage({ base64: await blobToBase64(blob), filename: `quran-maar-${ayah.surahNo}-${ayah.ayahNo}.png`, text: `${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}` });
+        setBusy(''); return;
+      }
       const file = new File([blob], `ayah-${ayah.surahNo}-${ayah.ayahNo}.png`, { type:'image/png' });
       if (navigator.canShare && navigator.canShare({ files:[file] })) {
-        try { await navigator.share({ files:[file], title:'Ayah of the day', text:`${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} — ${SITE_HOST_PATH}` }); setBusy(false); return; }
-        catch (e) { if (e && e.name === 'AbortError') { setBusy(false); return; } }
+        try { await navigator.share({ files:[file], title:'Ayah of the day', text:`${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} — ${SITE_HOST_PATH}` }); setBusy(''); return; }
+        catch (e) { if (e && e.name === 'AbortError') { setBusy(''); return; } }
       }
       const url = URL.createObjectURL(blob), a = document.createElement('a');
       a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Image saved to your device.');
-    } catch { flash("Couldn't make the image. Try again."); }
-    setBusy(false);
+    } catch (e) { flash(errText(e) || "Couldn't make the image. Try again."); }
+    setBusy('');
   }
   async function copyText(){
     if (!ayah) return;
@@ -1339,7 +1378,8 @@ function DailyAyah(){
           <p class="ay-ar" lang="ar" dir="rtl">${ayah.arabic}</p>
           <p class="ay-en">${ayah.english}</p>
           <div class="ay-actions">
-            <button class="btn btn-gold" onClick=${shareImage} disabled=${busy}>${busy ? 'Making image…' : 'Share as image'}</button>
+            <button class="btn btn-gold" onClick=${shareImage} disabled=${!!busy}>${busy === 'share' ? 'Making image…' : 'Share as image'}</button>
+            <button class="btn btn-ghost" onClick=${downloadImage} disabled=${!!busy}>${busy === 'save' ? 'Saving…' : 'Download image'}</button>
             <button class="btn btn-ghost" onClick=${copyText}>Copy text</button>
             ${msg ? html`<span class="ay-msg" role="status">${msg}</span>` : null}
           </div>
