@@ -33,6 +33,8 @@ jobs:
   build-debug-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write        # only needed to attach the APK to the "android-latest" release
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -89,3 +91,17 @@ jobs:
           path: Quran-MAAR-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      # On main, also publish the APK to a public release so the website's
+      # "Download for Android" button always points at the newest build.
+      - name: Publish APK to the android-latest release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp Quran-MAAR-debug.apk Quran.MAAR.apk
+          gh release view android-latest >/dev/null 2>&1 || gh release create android-latest \
+            --title "Quran Maar for Android (latest build)" \
+            --notes "Automatically rebuilt from main. Install Quran.MAAR.apk on your phone. If Android says it conflicts with an installed copy, uninstall the old Quran Maar first." \
+            --target "${{ github.sha }}"
+          gh release upload android-latest Quran.MAAR.apk --clobber
