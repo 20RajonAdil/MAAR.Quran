@@ -100,8 +100,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp Quran-MAAR-debug.apk Quran.MAAR.apk
-          gh release view android-latest >/dev/null 2>&1 || gh release create android-latest \
-            --title "Quran Maar for Android (latest build)" \
-            --notes "Automatically rebuilt from main. Install Quran.MAAR.apk on your phone. If Android says it conflicts with an installed copy, uninstall the old Quran Maar first." \
-            --target "${{ github.sha }}"
-          gh release upload android-latest Quran.MAAR.apk --clobber
+          if ! gh release view android-latest >/dev/null 2>&1; then
+            out=$(gh release create android-latest --title "Quran Maar for Android (latest build)" --notes "Automatically rebuilt from main. Install Quran.MAAR.apk on your phone. If Android says it conflicts with an installed copy, uninstall the old Quran Maar first." --target "${{ github.sha }}" 2>&1) || { echo "::error title=release create failed::$(echo "$out" | head -c 700 | tr '\n' ' ')"; exit 1; }
+          fi
+          out=$(gh release upload android-latest Quran.MAAR.apk --clobber 2>&1) || { echo "::error title=release upload failed::$(echo "$out" | head -c 700 | tr '\n' ' ')"; exit 1; }
+          echo "Published: https://github.com/${{ github.repository }}/releases/tag/android-latest"
