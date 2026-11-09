@@ -85,8 +85,8 @@ public class AdhanPlugin extends Plugin {
         JSArray events = call.getArray("events");
         AdhanScheduler.saveConfig(getContext(), enabled, vol == null ? 85 : vol, events);
         int n;
-        if (enabled) n = AdhanScheduler.rescheduleAll(getContext());
-        else { AdhanScheduler.cancelAlarms(getContext()); AdhanService.stopNow(); n = 0; }
+        if (enabled) { n = AdhanScheduler.rescheduleAll(getContext()); AdhanKeepAliveService.start(getContext()); }
+        else { AdhanScheduler.cancelAlarms(getContext()); AdhanService.stopNow(); AdhanKeepAliveService.stop(getContext()); n = 0; }
         JSObject o = statusObject();
         o.put("scheduled", n);
         call.resolve(o);

@@ -40,6 +40,15 @@
         </receiver>
 
         <service
+            android:name=".AdhanKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps prayer-time alarms and the adhan reliable while the app is closed" />
+        </service>
+
+        <service
             android:name=".AdhanService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
@@ -67,6 +76,8 @@
     <!-- Play the adhan with the screen locked / app closed -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Quiet "Adhan is on" service that keeps the app active in the background -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Saving the Ayah image to Photos on Android 9 and older only (Android 10+ needs no permission) -->
