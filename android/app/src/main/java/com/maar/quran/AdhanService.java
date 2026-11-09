@@ -94,7 +94,7 @@ public class AdhanService extends Service {
             AssetFileDescriptor afd = open(name);
             mp = new MediaPlayer();
             mp.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
             mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             afd.close();
@@ -123,7 +123,7 @@ public class AdhanService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             focusReq = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                     .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setUsage(AudioAttributes.USAGE_ALARM)
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
                     .setOnAudioFocusChangeListener(focusListener).build();
             audio.requestAudioFocus(focusReq);

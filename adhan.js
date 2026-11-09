@@ -222,6 +222,7 @@
   }
   /* One tap: ask the phone for permission and, if allowed, switch everything on. */
   function enableAll(done) {
+    if (isNative()) { nativeEnable(done); return; }   /* the app plays audio natively: no browser audio unlock needed */
     unlock();
     if (!supported()) { S.on = true; S.notify = false; save(); start(); refreshCard(); if (done) done('unsupported'); return; }
     requestPerm().then(function (p) {
@@ -334,6 +335,33 @@
     lastSig = sig; lastSyncAt = now;
     P.schedule(payload).then(function (r) { applyStatus(r); refreshCard(); }, function () { lastSig = ''; });
   }
+  /* One tap in the Android app: ask for notifications, switch the adhan on for every prayer,
+     hand the schedule to the phone, then ask Android to let the app run in the background. */
+  var BATT = 'qm_adhan_batt';
+  function askBattery(force) {
+    var P = NP();
+    if (!P || nstate.batteryUnrestricted) return Promise.resolve();
+    try {
+      if (!force && Date.now() - (+localStorage.getItem(BATT) || 0) < 14 * 864e5) return Promise.resolve();
+      localStorage.setItem(BATT, String(Date.now()));
+    } catch (e) {}
+    return P.requestIgnoreBatteryOptimizations().catch(function () {});
+  }
+  function nativeEnable(done) {
+    var P = NP();
+    if (!P) { S.on = true; save(); start(); refreshCard(); if (done) done('unsupported'); return; }
+    nstate.asked = true;
+    P.requestNotificationPermission().catch(function () {})
+      .then(function () { return P.status(); })
+      .then(applyStatus, function () {})
+      .then(function () {
+        var granted = !!nstate.notifications;
+        S.on = true; S.notify = true; save(); start(); forceSync(); syncNative(); refreshCard();
+        if (done) done(granted ? 'granted' : 'denied');
+        return askBattery(true);
+      })
+      .then(function () { setTimeout(refreshNative, 1500); });
+  }
   function bindNative() {
     var P = NP(); if (!P || bound) return; bound = true;
     try {
@@ -342,7 +370,10 @@
         if (nstate.playing) setPlaying(true, nstate.name); else setPlaying(false);
       });
     } catch (e) {}
-    refreshNative(function () { if (nstate.playing) setPlaying(true, nstate.name); });
+    refreshNative(function () {
+      if (nstate.playing) setPlaying(true, nstate.name);
+      if (S.on) setTimeout(function () { if (!document.hidden) askBattery(false); }, 4000);   /* re-asks at most every 14 days */
+    });
   }
   /* Console-only helper for real-device testing (no button in the app):
      QMAdhan.nativeTest(2) schedules a Dhuhr adhan + notification 2 minutes from now. */
@@ -445,17 +476,6 @@
     var notif = q('[data-ad="notify"]'); if (notif) notif.setAttribute('aria-checked', String(S.notify));
     Array.prototype.forEach.call(cardEl.querySelectorAll('[data-prayer]'), function (b) { b.setAttribute('aria-pressed', String(!!S.prayers[b.getAttribute('data-prayer')])); });
     Array.prototype.forEach.call(cardEl.querySelectorAll('[data-nprayer]'), function (b) { b.setAttribute('aria-pressed', String(!!S.notifyPrayers[b.getAttribute('data-nprayer')])); });
-    if (isNative()) {
-      var st = function (id, text, ok) { var e = q('[data-nat-s="' + id + '"]'); if (e) { e.textContent = text; e.className = ok ? 'ok' : 'no'; } };
-      var bt = function (id, show, text) { var e = q('[data-nat-b="' + id + '"]'); if (e) { e.hidden = !show; if (text) e.textContent = text; } };
-      st('notif', nstate.notifications ? 'On' : 'Off \u2014 no prayer notifications', nstate.notifications);
-      bt('notif', !nstate.notifications, /^prompt/.test(String(nstate.notifState)) ? 'Allow' : 'Open settings');
-      var exRow = q('[data-nat="exact"]'); if (exRow) exRow.hidden = !!nstate.exactAlarms;
-      st('exact', nstate.exactAlarms ? 'Allowed' : 'Not allowed \u2014 the adhan may be a few minutes late', nstate.exactAlarms);
-      bt('exact', !nstate.exactAlarms);
-      st('batt', nstate.batteryUnrestricted ? 'Unrestricted (best)' : 'Optimised \u2014 Android may delay the adhan on some phones', nstate.batteryUnrestricted);
-      bt('batt', !nstate.batteryUnrestricted);
-    }
     var vol = q('[data-ad="vol"]'); if (vol) { vol.value = S.volume; vol.style.setProperty('--p', ((S.volume - vol.min) / (vol.max - vol.min) * 100) + '%'); }
     var vo = q('[data-ad="volout"]'); if (vo) vo.textContent = S.volume + '%';
     var nx = q('[data-ad="next"]');
@@ -545,24 +565,7 @@
     });
     var nwhich = h('div', { class: 'qm-block' }, [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-ic', html: api.icn('bell') }), h('span', { class: 'qm-t', text: 'Show a notification for' })]), nchips]);
 
-    /* Android app only: permission status and fixes */
-    function natRow(id, title, btnText, onTap) {
-      return h('div', { class: 'qm-ad-nrow', 'data-nat': id }, [
-        h('div', { class: 't' }, [title, h('small', { 'data-nat-s': id })]),
-        h('button', { type: 'button', 'data-nat-b': id, hidden: '', text: btnText, onclick: onTap })]);
-    }
-    var nat = null;
-    if (isNative()) {
-      nat = h('div', { class: 'qm-block' }, [
-        h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-ic', html: api.icn('bell') }), h('span', { class: 'qm-t', text: 'Android settings' })]),
-        h('div', { class: 'qm-ad-nat' }, [
-          natRow('notif', 'Notifications', 'Allow', function () { var P = NP(); if (!P) return; if (/^prompt/.test(String(nstate.notifState))) requestPerm().then(refreshCard); else P.openNotificationSettings().catch(function () {}); }),
-          natRow('exact', 'Exact alarms', 'Allow', function () { var P = NP(); if (P) P.openExactAlarmSettings().catch(function () {}); }),
-          natRow('batt', 'Battery', 'Set to Unrestricted', function () { var P = NP(); if (P) P.requestIgnoreBatteryOptimizations().catch(function () {}); })
-        ]),
-        h('p', { class: 'qm-ad-note', text: 'The adhan is set with Android alarms, so it can sound with the app closed or the screen locked. Some phones (Xiaomi, Huawei, Oppo, Samsung and others) stop apps in the background to save battery. If the adhan is ever late or silent, set Battery to Unrestricted and allow auto-start for Quran Maar in your phone\u2019s settings. Playing uses your media volume.' })
-      ]);
-    }
+    var nat = null;   /* (the old Android settings box was removed: one "Allow" pop-up does the setup) */
 
     /* volume */
     var out = h('span', { class: 'qm-val', 'data-ad': 'volout' });
@@ -598,7 +601,7 @@
       function li2(cls, mark, txt) { return '<li class="' + cls + '"><i aria-hidden="true">' + mark + '</i><span>' + txt + '</span></li>'; }
       return '<b>The adhan can sound with the app closed</b>' +
         '<p>Quran Maar sets Android alarms for each prayer. To make sure they are on time:</p>' +
-        '<ul>' + li2('ok', '\u2713', 'Allow notifications, and set Battery to Unrestricted in the Android settings box below.') +
+        '<ul>' + li2('ok', '\u2713', 'Allow notifications, and let Android run the app in the background when it asks.') +
         li2('ok', '\u2713', 'Keep your media volume up (the adhan plays at media volume).') +
         li2('no', '\u2715', 'Don\u2019t use \u201cForce stop\u201d on the app. That cancels all alarms until you open it again.') + '</ul>' +
         '<p class="foot">Open the app now and then (about every two weeks) so it can refresh your prayer times.</p>';
@@ -621,7 +624,7 @@
   function closeTip() { if (tipEl && tipEl.parentNode) tipEl.parentNode.removeChild(tipEl); tipEl = null; }
   /* shown once, right after the adhan is switched on, until the person taps "Got it" */
   function showKeepTip() {
-    if (tipEl || tipAcknowledged()) return;
+    if (tipEl || tipAcknowledged() || isNative()) return;
     css();
     tipEl = document.createElement('div'); tipEl.className = 'qm-ad-ask'; tipEl.id = 'qm-ad-tip'; tipEl.setAttribute('role', 'dialog'); tipEl.setAttribute('aria-label', 'Keep Quran Maar running');
     tipEl.innerHTML = '<div class="qm-ad-tip">' + tipInner() + '</div><div class="qm-ad-btns"><button type="button" class="qm-ad-btn primary" data-a="ok">Got it</button></div>';
@@ -632,8 +635,9 @@
   /* ---------- one-time friendly prompt ---------- */
   var ASK = 'qm_adhan_ask', askEl = null;
   function canAsk() {
-    if (!supported() || S.on || perm() !== 'default') return false;
-    try { if (Date.now() - (+localStorage.getItem(ASK) || 0) < 14 * 864e5) return false; } catch (e) {}
+    if (!supported() || S.on) return false;
+    if (!isNative() && perm() !== 'default') return false;
+    try { if (Date.now() - (+localStorage.getItem(ASK) || 0) < (isNative() ? 2 : 14) * 864e5) return false; } catch (e) {}
     return true;
   }
   function closeAsk() { if (askEl && askEl.parentNode) askEl.parentNode.removeChild(askEl); askEl = null; }
@@ -644,11 +648,19 @@
     askEl = document.createElement('div'); askEl.className = 'qm-ad-ask'; askEl.id = 'qm-ad-ask'; askEl.setAttribute('role', 'region'); askEl.setAttribute('aria-label', 'Prayer reminders');
     askEl.innerHTML = '<b>Get a reminder at every prayer time?</b><p>Allow notifications and Quran Maar will sound the adhan when it\u2019s time. You can turn it off any time in Settings.</p>' +
       '<div class="qm-ad-btns"><button type="button" class="qm-ad-btn" data-a="no">Not now</button><button type="button" class="qm-ad-btn primary" data-a="yes">Turn on</button></div>';
+    if (isNative()) askEl.innerHTML = '<b>Allow notifications to hear the adhan?</b><p>Quran Maar will play the full adhan at every prayer time, even when the app is closed or your phone is locked. You can change this any time in Settings.</p>' +
+      '<div class="qm-ad-btns"><button type="button" class="qm-ad-btn" data-a="no">Not now</button><button type="button" class="qm-ad-btn primary" data-a="yes">Allow</button></div>';
     askEl.querySelector('[data-a="no"]').addEventListener('click', function () { try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {} closeAsk(); });
     askEl.querySelector('[data-a="yes"]').addEventListener('click', function () {
       var box = askEl; box._busy = true;
       enableAll(function (p) {
         if (!box) return;
+        if (isNative()) {
+          box.innerHTML = '<b>' + (p === 'granted' ? '\u2713 The adhan is on' : 'The adhan is on, but notifications are off') + '</b><p>' +
+            (p === 'granted' ? 'It will play at every prayer time, even with the app closed.' : 'It will still play at prayer time. To also see the prayer notification, turn notifications on for Quran Maar in Android settings.') + '</p>';
+          setTimeout(closeAsk, 3500);
+          return;
+        }
         if (p === 'granted' && !tipAcknowledged()) {
           box.innerHTML = '<div class="qm-ad-tip">' + tipInner() + '</div><div class="qm-ad-btns"><button type="button" class="qm-ad-btn primary" data-a="ok">Got it</button></div>';
           box.querySelector('[data-a="ok"]').addEventListener('click', function () { ackTip(); closeAsk(); });
@@ -666,7 +678,7 @@
   if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(buildCard);
 
   /* run the scheduler whenever the adhan is on */
-  function boot() { if (isNative()) bindNative(); if (S.on) start(); setTimeout(function () { maybeAsk(0); }, 6000); }
+  function boot() { if (isNative()) bindNative(); if (S.on) start(); setTimeout(function () { maybeAsk(0); }, isNative() ? 1500 : 6000); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
   window.QMAdhan = { play: function (l) { unlock(); return play(l || 'Dhuhr'); }, state: function () { return audio ? { paused: audio.paused, src: audio.getAttribute('data-src'), error: !!audio.error, t: audio.currentTime } : null; }, stop: stop, get: function () { return JSON.parse(JSON.stringify(S)); }, next: function () { return nextEvent(Date.now()); }, native: function () { return isNative() ? JSON.parse(JSON.stringify(nstate)) : null; }, nativeTest: nativeTest };
