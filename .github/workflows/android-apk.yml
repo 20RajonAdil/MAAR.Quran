@@ -92,16 +92,16 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # On main, also publish the APK to a public release so the website's
-      # "Download for Android" button always points at the newest build.
-      - name: Publish APK to the android-latest release
-        if: github.ref == 'refs/heads/main'
+      # Manual runs on main ("Run workflow") also publish the APK as a new GitHub Release.
+      # (Releases in this repo are immutable, so each one is created with the APK attached.)
+      - name: Publish APK as a release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp Quran-MAAR-debug.apk Quran.MAAR.apk
-          if ! gh release view android-latest >/dev/null 2>&1; then
-            out=$(gh release create android-latest --title "Quran Maar for Android (latest build)" --notes "Automatically rebuilt from main. Install Quran.MAAR.apk on your phone. If Android says it conflicts with an installed copy, uninstall the old Quran Maar first." --target "${{ github.sha }}" 2>&1) || { echo "::error title=release create failed::$(echo "$out" | head -c 700 | tr '\n' ' ')"; exit 1; }
-          fi
-          out=$(gh release upload android-latest Quran.MAAR.apk --clobber 2>&1) || { echo "::error title=release upload failed::$(echo "$out" | head -c 700 | tr '\n' ' ')"; exit 1; }
-          echo "Published: https://github.com/${{ github.repository }}/releases/tag/android-latest"
+          out=$(gh release create "apk-${{ github.run_number }}" Quran.MAAR.apk \
+            --title "Quran Maar for Android (build ${{ github.run_number }})" \
+            --notes "Debug build of Quran Maar for Android, built from main. Download Quran.MAAR.apk and install it. If Android says it conflicts with an installed copy, uninstall the old Quran Maar first." \
+            --target "${{ github.sha }}" --latest 2>&1) || { echo "::error title=release failed::$(echo "$out" | head -c 700 | tr '\n' ' ')"; exit 1; }
+          echo "Published: $out"
