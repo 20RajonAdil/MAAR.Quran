@@ -992,7 +992,7 @@ function TabBar({ tab, setTab }){
 /* ---------------------------------------------------------------
    6. HOME
 --------------------------------------------------------------- */
-const ANDROID_APK_URL = 'https://github.com/20RajonAdil/MAAR.Quran/releases/download/v6.0/Quran-MAAR.apk';
+const ANDROID_APK_URL = 'https://github.com/20RajonAdil/MAAR.Quran/releases/latest/download/Quran.MAAR.apk';
 const SITE_HOST_PATH = '20rajonadil.github.io/MAAR.Quran';
 
 /* Hide the install buttons when the site is already running as an installed app. */

@@ -267,7 +267,7 @@
     tick();
   }
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { if (isNative()) { forceSync(); refreshNative(); ensureCal(); } tick(); } });
-  window.addEventListener('focus', function () { if (isNative()) refreshNative(); tick(); });
+  window.addEventListener('focus', function () { if (isNative()) refreshNative(function () { if (awaitingSettings && nstate.notifications) { awaitingSettings = false; if (!S.on) nativeEnable(function (p) { resultCard(p); }); else resultCard('granted'); } }); tick(); });
   window.addEventListener('online', tick);
   window.addEventListener('qm-prayer', tick);
 
@@ -337,6 +337,75 @@
   }
   /* One tap in the Android app: ask for notifications, switch the adhan on for every prayer,
      hand the schedule to the phone, then ask Android to let the app run in the background. */
+  /* Android shows one permission dialog at a time. The site asks for location when it opens, so wait for that
+     dialog to be answered before showing the notification dialog. */
+  function afterLocation(cb) {
+    var done = false;
+    function go() {
+      if (done) return; done = true;
+      var tries = 0;
+      (function waitIntro() {
+        if (document.querySelector('.qm-intro') && tries++ < 30) { setTimeout(waitIntro, 1000); return; }
+        setTimeout(cb, 600);
+      })();
+    }
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' }).then(function (st) {
+          if (st.state !== 'prompt') { setTimeout(go, 2500); return; }
+          st.onchange = function () { setTimeout(go, 400); };
+          setTimeout(go, readGeo() ? 6000 : 25000);
+        }, function () { setTimeout(go, 5000); });
+        return;
+      }
+    } catch (e) {}
+    setTimeout(go, 6000);
+  }
+  /* A small message card (same look as the other pop-ups) */
+  function flashCard(title, text, ms) {
+    css(); closeAsk();
+    askEl = document.createElement('div'); askEl.className = 'qm-ad-ask'; askEl.id = 'qm-ad-ask'; askEl.setAttribute('role', 'status');
+    askEl.innerHTML = '<b>' + title + '</b><p>' + text + '</p>';
+    document.body.appendChild(askEl);
+    setTimeout(closeAsk, ms || 3500);
+  }
+  function resultCard(p) {
+    if (p === 'granted') flashCard('\u2713 The adhan is on', 'It will play at every prayer time, even with the app closed.');
+    else flashCard('The adhan is on, but notifications are off', 'It will still play at prayer time. Allow notifications for Quran Maar to also see the reminder.', 4500);
+  }
+  /* Notifications are blocked (Android will not show its dialog again): send the user to the app's notification settings. */
+  var awaitingSettings = false;
+  function showBlocked() {
+    var P = NP(); if (!P || askEl) return;
+    css();
+    askEl = document.createElement('div'); askEl.className = 'qm-ad-ask'; askEl.id = 'qm-ad-ask'; askEl.setAttribute('role', 'dialog');
+    askEl.innerHTML = '<b>Notifications are blocked</b><p>Turn on notifications for Quran Maar so the adhan and prayer reminders can appear at prayer time. Tap Open settings, switch notifications on, then come back.</p>' +
+      '<div class="qm-ad-btns"><button type="button" class="qm-ad-btn" data-a="no">Not now</button><button type="button" class="qm-ad-btn primary" data-a="go">Open settings</button></div>';
+    askEl.querySelector('[data-a="no"]').addEventListener('click', function () { try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {} closeAsk(); });
+    askEl.querySelector('[data-a="go"]').addEventListener('click', function () {
+      awaitingSettings = true; try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {}
+      closeAsk(); P.openNotificationSettings().catch(function () {});
+    });
+    document.body.appendChild(askEl);
+  }
+  /* What to do each time the app opens (Android app only). */
+  function nativeLaunchFlow() {
+    var P = NP(); if (!P) return;
+    afterLocation(function () {
+      refreshNative(function () {
+        if (askEl) return;
+        var st = String(nstate.notifState), recent = false;
+        try { recent = Date.now() - (+localStorage.getItem(ASK) || 0) < 2 * 864e5; } catch (e) {}
+        if (nstate.notifications) { if (!S.on && !recent) maybeAsk(0); return; }       /* allowed but the adhan is off: friendly pop-up */
+        if (recent) return;
+        if (st === 'prompt' && !S.on) {                                                    /* never asked: show Android's own dialog now */
+          try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {}
+          nativeEnable(function (p) { resultCard(p); });
+        } else if (st === 'denied') { showBlocked(); }                                     /* blocked: needs the settings page */
+        else if (!S.on) { maybeAsk(0); }                                                   /* denied once: explain, then ask again */
+      });
+    });
+  }
   var BATT = 'qm_adhan_batt';
   function askBattery(force) {
     var P = NP();
@@ -655,12 +724,7 @@
       var box = askEl; box._busy = true;
       enableAll(function (p) {
         if (!box) return;
-        if (isNative()) {
-          box.innerHTML = '<b>' + (p === 'granted' ? '\u2713 The adhan is on' : 'The adhan is on, but notifications are off') + '</b><p>' +
-            (p === 'granted' ? 'It will play at every prayer time, even with the app closed.' : 'It will still play at prayer time. To also see the prayer notification, turn notifications on for Quran Maar in Android settings.') + '</p>';
-          setTimeout(closeAsk, 3500);
-          return;
-        }
+        if (isNative()) { closeAsk(); if (p !== 'granted' && String(nstate.notifState) === 'denied') showBlocked(); else resultCard(p); return; }
         if (p === 'granted' && !tipAcknowledged()) {
           box.innerHTML = '<div class="qm-ad-tip">' + tipInner() + '</div><div class="qm-ad-btns"><button type="button" class="qm-ad-btn primary" data-a="ok">Got it</button></div>';
           box.querySelector('[data-a="ok"]').addEventListener('click', function () { ackTip(); closeAsk(); });
@@ -678,7 +742,7 @@
   if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(buildCard);
 
   /* run the scheduler whenever the adhan is on */
-  function boot() { if (isNative()) bindNative(); if (S.on) start(); setTimeout(function () { maybeAsk(0); }, isNative() ? 1500 : 6000); }
+  function boot() { if (isNative()) { bindNative(); if (S.on) start(); nativeLaunchFlow(); return; } if (S.on) start(); setTimeout(function () { maybeAsk(0); }, 6000); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
   window.QMAdhan = { play: function (l) { unlock(); return play(l || 'Dhuhr'); }, state: function () { return audio ? { paused: audio.paused, src: audio.getAttribute('data-src'), error: !!audio.error, t: audio.currentTime } : null; }, stop: stop, get: function () { return JSON.parse(JSON.stringify(S)); }, next: function () { return nextEvent(Date.now()); }, native: function () { return isNative() ? JSON.parse(JSON.stringify(nstate)) : null; }, nativeTest: nativeTest };

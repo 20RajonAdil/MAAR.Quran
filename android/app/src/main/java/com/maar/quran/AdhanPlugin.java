@@ -34,7 +34,8 @@ public class AdhanPlugin extends Plugin {
 
     @Override
     public void load() {
-        AdhanNotifications.ensureChannels(getContext());
+        /* Notification channels are created lazily (when a notification is first shown). Creating them here would make
+           Android 13+ pop up its own notification prompt at launch, before the app is ready to explain it. */
         stateReceiver = new BroadcastReceiver() {
             @Override public void onReceive(Context c, Intent i) {
                 JSObject o = new JSObject();

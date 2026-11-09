@@ -17,9 +17,11 @@ The website's `adhan.js` still does everything it did before on the web and the 
 | `BootReceiver` | Re-sets all alarms after a **restart**, an **app update**, and any **clock / time-zone / date change**. |
 | `AdhanPlugin` | The Capacitor bridge: schedule, status, stop, notification permission, exact-alarm settings, battery-optimisation request. |
 
-**First launch (inside the app):** a pop-up asks *"Allow notifications to hear the adhan?"*. Tapping **Allow** asks Android for notification
-permission, switches the adhan on for all five prayers, schedules it, and then shows Android's own one-tap "let the app run in the background"
-dialog (battery exemption). No other setup screens. If the user taps *Not now* the pop-up returns after 2 days.
+**First launch (inside the app):** after the location question is answered, Android's own notification dialog appears (same style as the location one).
+Tapping **Allow** switches the adhan on for all five prayers, schedules it, and then shows Android's one-tap "run in the background" dialog (battery exemption).
+- If notifications were denied once, a friendly pop-up explains and asks again (at most every 2 days).
+- If notifications are **blocked** (Android shows its dialog only twice, then never again), a pop-up with **Open settings** takes the user straight to Quran Maar's notification settings; when they come back with notifications on, the adhan switches on by itself.
+- To reset a blocked state from scratch, uninstall and reinstall the app.
 
 **Settings > Adhan (inside the app)** has: the master on/off switch, **per-prayer adhan sound** switches, **per-prayer notification**
 switches and volume. Nothing changes on the website.
