@@ -38,7 +38,7 @@ final class AdhanNotifications {
         nm.createNotificationChannel(reminder);
     }
 
-    private static PendingIntent openApp(Context c) {
+    static PendingIntent openApp(Context c) {
         Intent launch = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
         if (launch == null) launch = new Intent(c, MainActivity.class);
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);

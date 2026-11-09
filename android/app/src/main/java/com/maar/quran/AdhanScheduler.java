@@ -120,8 +120,12 @@ public final class AdhanScheduler {
                     .putExtra("at", at).putExtra("play", play).putExtra("notify", notify);
             PendingIntent pi = pending(c, CODE_BASE + scheduled, in, PendingIntent.FLAG_UPDATE_CURRENT);
             try {
-                if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pi);
-                else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pi);
+                if (exact) {
+                    /* setAlarmClock = the same kind of alarm as the phone's own alarm clock app: the most reliable type on Android */
+                    am.setAlarmClock(new AlarmManager.AlarmClockInfo(fireAt, AdhanNotifications.openApp(c)), pi);
+                } else {
+                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pi);
+                }
             } catch (SecurityException se) {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pi);
             }
