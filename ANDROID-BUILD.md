@@ -47,6 +47,13 @@ It can be set for the home screen, lock screen or both, and works with the app c
 Native code: `WallpaperPlugin`, `WallpaperJobService`, `WallpaperScheduler`, `WallpaperWorker`, `WallpaperRenderer` in `android/app/src/main/java/com/maar/quran/`.
 The Arabic font (Amiri Quran, OFL) is bundled in `android/app/src/main/assets/fonts/`. Not yet tested on a real device.
 
+## Update notice (Android app only)
+
+On start (at most every 6 hours) the app asks GitHub for the latest `apk-<build>` release. If its build number is higher than the installed
+`versionCode` (= the workflow run number), an **Update available** card appears with a Download button; **Settings -> App updates** has
+"Check for updates". Android only installs an update over the old app if both are signed with the same key. Debug builds are signed with
+a different key on each CI run, so for now the person may have to uninstall the old copy first (this clears local app data).
+
 ## Known limits of the Android WebView (not changed by this work)
 
 - **Recite & Check** (browser speech recognition) is not available in Android WebView.
