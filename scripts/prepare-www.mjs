@@ -31,7 +31,7 @@ const EXCLUDE = new Set([
 
 /* Files the app cannot start without. */
 const REQUIRED = [
-  'index.html', 'app.js', 'adhan.js', 'customise.js', 'features.js', 'i18n.js', 'i18n-data.js', 'offline.js',
+  'index.html', 'app.js', 'adhan.js', 'wallpaper.js', 'customise.js', 'features.js', 'i18n.js', 'i18n-data.js', 'offline.js',
   'sw.js', 'manifest.json', 'offline.html', 'icon-192.png', 'icon-512.png',
   'vendor/react.production.min.js', 'vendor/react-dom.production.min.js', 'vendor/htm.js', 'vendor/leaflet.js',
   'adhan/Adan1.mp3', 'adhan/Adan2.mp3',

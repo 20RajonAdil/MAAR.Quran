@@ -39,6 +39,14 @@ To refresh the app's offline cache for installed copies, bump `SHELL_VERSION` in
   (the same thing the GitHub Pages site already does). This needs a connection; the last good list is cached offline as before.
 - Adhan: see `ANDROID-ADHAN.md`.
 
+## Daily wallpaper (Android app only)
+
+Settings -> **Daily wallpaper**. When switched on, the phone's wallpaper changes every day (a few minutes after midnight) to one of 8 calm
+backgrounds drawn in code, with the ayah of the day (same ayah as the Home page) in Arabic plus the translation in the app's current language.
+It can be set for the home screen, lock screen or both, and works with the app closed (Android JobScheduler, needs internet once a day).
+Native code: `WallpaperPlugin`, `WallpaperJobService`, `WallpaperScheduler`, `WallpaperWorker`, `WallpaperRenderer` in `android/app/src/main/java/com/maar/quran/`.
+The Arabic font (Amiri Quran, OFL) is bundled in `android/app/src/main/assets/fonts/`. Not yet tested on a real device.
+
 ## Known limits of the Android WebView (not changed by this work)
 
 - **Recite & Check** (browser speech recognition) is not available in Android WebView.
