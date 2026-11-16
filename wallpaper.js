@@ -54,7 +54,7 @@
     return fn().then(function (r) { last = r || last; busy = false; paint(); return r; }, function () { busy = false; last = { error: 'failed' }; paint(); });
   }
 
-  function turnOn() { S.on = true; save(); return call(function () { return P.enable(payload(true)); }); }
+  function turnOn() { S.on = true; ls_(ASKED, '1'); save(); return call(function () { return P.enable(payload(true)); }); }
   function turnOff() { S.on = false; save(); last = null; return P.disable().then(function (r) { last = null; paint(); }, function () { paint(); }); }
   function setTarget(t) { S.target = t; save(); if (S.on) call(function () { return P.enable(payload(true)); }); else paint(); }
 
@@ -68,10 +68,35 @@
       '.qm-wp-btn[aria-pressed="true"]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset;}',
       '.qm-wp-btn:disabled{opacity:.6;}',
       '.qm-wp-note{margin:12px 2px 0;font-size:13px;color:var(--muted);line-height:1.5;}',
+      '.qm-wp-ask{position:fixed;left:12px;right:12px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:9997;max-width:520px;margin:0 auto;padding:18px 16px 14px;border-radius:22px;background:var(--card,#181414);color:var(--ink,#f5f2ed);border:1px solid var(--gold,#cf3342);box-shadow:0 18px 50px -12px rgba(0,0,0,.7);}',
+      '@media(min-width:820px){.qm-wp-ask{bottom:24px;}}',
+      '.qm-wp-ask b{display:block;font-size:16px;margin-bottom:6px;}',
+      '.qm-wp-ask p{margin:0 0 14px;font-size:13.5px;line-height:1.55;color:var(--muted,#bbb);}',
+      '.qm-wp-ask .qm-wp-btns{justify-content:flex-end;margin-top:0;}',
+      '.qm-wp-ask .qm-wp-btn{flex:0 0 auto;}',
+      '.qm-wp-btn.primary{background:var(--gold,#cf3342);border-color:var(--gold,#cf3342);color:#fff;}',
       '.qm-wp-fine{margin:12px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.5;}'
     ].join('\n');
     document.head.appendChild(s);
   }
+
+
+  /* ---- first-run question (like the location pop-up): "Change your wallpaper every day?" ---- */
+  var ASKED = 'qm_wp_asked', askEl = null, tries = 0;
+  function closeAsk() { if (askEl && askEl.parentNode) askEl.parentNode.removeChild(askEl); askEl = null; }
+  function maybeAsk() {
+    if (S.on || askEl || ls_(ASKED)) return;
+    /* wait while another pop-up (location, notifications, update) is showing, so they never stack */
+    if (document.querySelector('.qm-ad-ask, .qm-up, .qm-ad-pill') && tries++ < 8) { setTimeout(maybeAsk, 6000); return; }
+    css();
+    askEl = document.createElement('div'); askEl.className = 'qm-wp-ask'; askEl.setAttribute('role', 'dialog'); askEl.setAttribute('aria-label', 'Daily wallpaper');
+    askEl.innerHTML = '<b>New ayah on your wallpaper every day?</b><p>Quran Maar can change your phone\u2019s wallpaper each day to a calm background with the ayah of the day and its meaning, in your language. You can turn it off any time in Settings.</p>' +
+      '<div class="qm-wp-btns"><button type="button" class="qm-wp-btn" data-a="no">Not now</button><button type="button" class="qm-wp-btn primary" data-a="yes">Turn on</button></div>';
+    askEl.querySelector('[data-a="no"]').addEventListener('click', function () { ls_(ASKED, '1'); closeAsk(); });
+    askEl.querySelector('[data-a="yes"]').addEventListener('click', function () { ls_(ASKED, '1'); closeAsk(); turnOn(); });
+    document.body.appendChild(askEl);
+  }
+  function ls_(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
 
   function buildCard(api) {
     css();
@@ -103,6 +128,9 @@
   if (window.QMI18n && window.QMI18n.onChange) window.QMI18n.onChange(function () { if (S.on && !busy) call(function () { return P.enable(payload(true)); }); });
 
   /* app start: keep the native side in step (language, schedule) without redrawing */
-  function boot() { if (S.on) P.enable(payload(false)).then(function (r) { last = r; paint(); }, function () {}); }
+  function boot() {
+    if (S.on) P.enable(payload(false)).then(function (r) { last = r; paint(); }, function () {});
+    else setTimeout(maybeAsk, 9000);
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
