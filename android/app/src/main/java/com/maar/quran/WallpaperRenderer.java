@@ -37,7 +37,7 @@ final class WallpaperRenderer {
     };
     private static final List<String> LATIN = Arrays.asList("en", "fr", "de", "es", "it", "tr", "id", "ms", "sw");
 
-    static Bitmap render(Context c, WallpaperWorker.Verse v, String title, String lang, boolean rtl, int dayIdx, int W, int H) {
+    static Bitmap render(Context c, WallpaperStore.Verse v, String title, String lang, boolean rtl, int dayIdx, int W, int H) {
         int th = Math.floorMod(dayIdx, NTHEMES);
         int[] col = T[th];
         Bitmap bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
@@ -60,6 +60,7 @@ final class WallpaperRenderer {
             case 6: stars(cv, rnd, W, H, u, 90); aurora(cv, W, H); break;
             default: lattice(cv, W, H, u, col[3], 46); break;
         }
+        frame(cv, W, H, u, col[3]);
 
         /* ---- text ---- */
         Typeface arabicFace;
@@ -77,6 +78,9 @@ final class WallpaperRenderer {
         TextPaint hp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         hp.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)); hp.setColor(col[3]); hp.setTextSize(W * 0.026f); hp.setLetterSpacing(0.14f);
 
+        TextPaint mp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        mp.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)); mp.setColor(0xA6E8E2DA); mp.setTextSize(W * 0.022f);
+
         int textW = (int) (W * 0.80f);
         float pad = W * 0.055f, gap = W * 0.03f;
         float maxH = H * 0.54f - 2 * pad;
@@ -84,6 +88,8 @@ final class WallpaperRenderer {
         String ref = ("ar".equals(lang) && v.surahAr != null && !v.surahAr.isEmpty() ? v.surahAr : v.surahEn) + "  \u00B7  " + v.surahNo + ":" + v.ayahNo;
         StaticLayout hL = lay(head, hp, textW, 1f, false);
         StaticLayout rL = lay(ref, rp, textW, 1f, false);
+        StaticLayout byL = (v.translator != null && v.text != null && !v.text.isEmpty()) ? lay(v.translator, mp, textW, 1f, false) : null;
+        float orH = W * 0.04f;
 
         float aSize = W * 0.068f, aMin = W * 0.030f, tMin = W * 0.024f, tMax = W * 0.042f;
         StaticLayout aL, tL;
@@ -95,12 +101,12 @@ final class WallpaperRenderer {
                 tp.setTextSize(Math.max(tMin, Math.min(tMax, aSize * 0.6f)));
                 tL = lay(v.text, tp, textW, 1.3f, rtl);
             }
-            float total = hL.getHeight() + gap + aL.getHeight() + (tL != null ? gap * 2 + tL.getHeight() : 0) + gap + rL.getHeight();
+            float total = hL.getHeight() + gap + orH + gap + aL.getHeight() + (tL != null ? gap * 2 + tL.getHeight() : 0) + gap + rL.getHeight() + (byL != null ? gap * 0.4f + byL.getHeight() : 0);
             if (total <= maxH || aSize <= aMin) break;
             aSize -= W * 0.002f;
             if (aSize < aMin) aSize = aMin;
         }
-        float contentH = hL.getHeight() + gap + aL.getHeight() + (tL != null ? gap * 2 + tL.getHeight() : 0) + gap + rL.getHeight();
+        float contentH = hL.getHeight() + gap + orH + gap + aL.getHeight() + (tL != null ? gap * 2 + tL.getHeight() : 0) + gap + rL.getHeight() + (byL != null ? gap * 0.4f + byL.getHeight() : 0);
         float panelH = Math.min(H * 0.9f, contentH + 2 * pad);
         float panelW = textW + 2 * pad;
         float left = (W - panelW) / 2f;
@@ -117,6 +123,8 @@ final class WallpaperRenderer {
         float y = top + pad;
         float cx = W / 2f;
         y = draw(cv, hL, cx, y) + gap;
+        divider(cv, cx, y + orH / 2f, textW * 0.34f, col[3], u);
+        y += orH + gap;
         y = draw(cv, aL, cx, y);
         if (tL != null) {
             y += gap;
@@ -127,7 +135,8 @@ final class WallpaperRenderer {
             y = draw(cv, tL, cx, y);
         }
         y += gap;
-        draw(cv, rL, cx, y);
+        y = draw(cv, rL, cx, y);
+        if (byL != null) draw(cv, byL, cx, y + gap * 0.4f);
 
         TextPaint bp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         bp.setTypeface(Typeface.create(Typeface.SERIF, Typeface.ITALIC)); bp.setColor(0x99F5F2ED); bp.setTextSize(W * 0.034f);
@@ -152,6 +161,49 @@ final class WallpaperRenderer {
         l.draw(cv);
         cv.restore();
         return y + l.getHeight();
+    }
+
+    /* ---------------- Islamic ornaments ---------------- */
+
+    /** A filled 8-point star (the classic khatam), centred on cx, cy. */
+    private static void star8(Canvas cv, float cx, float cy, float r, Paint p) {
+        Path s = new Path();
+        for (int i = 0; i < 16; i++) {
+            double a = Math.toRadians(22.5 * i - 90);
+            float rr = (i % 2 == 0) ? r : r * 0.62f;
+            float x = cx + (float) Math.cos(a) * rr, y = cy + (float) Math.sin(a) * rr;
+            if (i == 0) s.moveTo(x, y); else s.lineTo(x, y);
+        }
+        s.close();
+        cv.drawPath(s, p);
+    }
+
+    /** Thin double frame around the whole wallpaper with an 8-point star in each corner. */
+    private static void frame(Canvas cv, int W, int H, float u, int accent) {
+        float m = W * 0.045f, rad = W * 0.05f;
+        Paint s = new Paint(Paint.ANTI_ALIAS_FLAG);
+        s.setStyle(Paint.Style.STROKE);
+        s.setStrokeWidth(Math.max(1.6f, 2.2f * u)); s.setColor((accent & 0x00FFFFFF) | 0x73000000);
+        cv.drawRoundRect(new RectF(m, m, W - m, H - m), rad, rad, s);
+        s.setStrokeWidth(Math.max(1f, 1.2f * u)); s.setColor((accent & 0x00FFFFFF) | 0x40000000);
+        float m2 = m + 14 * u;
+        cv.drawRoundRect(new RectF(m2, m2, W - m2, H - m2), rad * 0.7f, rad * 0.7f, s);
+        Paint f = new Paint(Paint.ANTI_ALIAS_FLAG);
+        f.setColor((accent & 0x00FFFFFF) | 0xE6000000);
+        float r = 15 * u;
+        star8(cv, m, m, r, f); star8(cv, W - m, m, r, f); star8(cv, m, H - m, r, f); star8(cv, W - m, H - m, r, f);
+    }
+
+    /** Line - star - line. */
+    private static void divider(Canvas cv, float cx, float cy, float half, int accent, float u) {
+        Paint l = new Paint(Paint.ANTI_ALIAS_FLAG);
+        l.setStrokeWidth(Math.max(1.5f, 2f * u)); l.setColor((accent & 0x00FFFFFF) | 0x99000000);
+        float r = 12 * u;
+        cv.drawLine(cx - half, cy, cx - r * 2.4f, cy, l);
+        cv.drawLine(cx + r * 2.4f, cy, cx + half, cy, l);
+        Paint f = new Paint(Paint.ANTI_ALIAS_FLAG);
+        f.setColor((accent & 0x00FFFFFF) | 0xF0000000);
+        star8(cv, cx, cy, r, f);
     }
 
     /* ---------------- backgrounds ---------------- */
