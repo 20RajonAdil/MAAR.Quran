@@ -17,10 +17,28 @@
   function isNative() {
     try { var C = window.Capacitor; return !!(C && C.isNativePlatform && C.isNativePlatform() && C.getPlatform && C.getPlatform() === 'android' && C.registerPlugin); } catch (e) { return false; }
   }
-  if (!isNative()) return;
+  var APK = 'https://github.com/20RajonAdil/MAAR.Quran/releases/latest/download/Quran.MAAR.apk';
+
+  /* Not the Android app (website / home-screen shortcut): still show the card, so nobody is left wondering where it is. */
+  if (!isNative()) {
+    if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(function (api) {
+      var h = api.h, plat = 'web';
+      try { if (window.Capacitor && window.Capacitor.getPlatform) plat = window.Capacitor.getPlatform(); } catch (e) {}
+      return api.card('spark', 'Daily Quran Wallpaper', 'A new verse of the Qur\u2019an on your wallpaper, every day.', 'qm-s-wallpaper', [
+        h('div', { class: 'qm-block' }, [
+          h('p', { style: 'margin:0 0 12px;font-size:14px;line-height:1.6;', text: 'This works only in the Quran Maar Android app, because it needs Android\u2019s real wallpaper system. You are using the website version, so it is switched off here.' }),
+          h('a', { href: APK, style: 'display:inline-block;padding:13px 18px;border-radius:16px;background:var(--gold,#cf3342);color:#fff;font-weight:700;font-size:14px;text-decoration:none;', text: 'Download the Android app' }),
+          h('p', { style: 'margin:12px 0 0;font-size:12px;opacity:.7;', text: 'Detected: ' + plat + ' (no Android app bridge)' })
+        ])
+      ]);
+    });
+    return;
+  }
 
   var P = null;
-  try { P = window.Capacitor.registerPlugin('DailyWallpaper'); } catch (e) { return; }
+  try { P = window.Capacitor.registerPlugin('DailyWallpaper'); } catch (e) { P = null; }
+  var lastErr = '';
+  function errText(e) { return (e && (e.message || e.errorMessage)) || String(e || 'unknown error'); }
 
   var ASKED = 'qm_wp_asked', MIGRATE = 'qm_wp_migrate_asked';
   var st = null;        /* last status from Android / the native side */
@@ -56,10 +74,10 @@
 
   /* ---------------- talking to the native side ---------------- */
   function loadStatus() {
-    return P.status().then(function (r) { st = r; paint(); return r; }, function () { paint(); });
+    return P.status().then(function (r) { lastErr = ''; st = r; paint(); return r; }, function (e) { lastErr = errText(e); paint(); });
   }
   function loadCurrent() {
-    return P.getCurrent().then(function (r) { cur = r; st = r; paint(); return r; }, function () { paint(); });
+    return P.getCurrent().then(function (r) { lastErr = ''; cur = r; st = r; paint(); return r; }, function (e) { lastErr = errText(e); paint(); });
   }
 
   function turnOn() {
@@ -184,6 +202,7 @@
 
   function statusBlock() {
     var kids = [];
+    if (lastErr) kids.push(H('div', { class: 'qm-wp-warn', text: 'Could not talk to Android: ' + lastErr + '. If this says the plugin is not implemented, this app is an older build: install the latest from Download for Android.' }));
     if (busy === 'enable') kids.push(H('p', { class: 'qm-wp-note', text: 'Waiting for Android\u2019s wallpaper screen\u2026 tap \u201CSet wallpaper\u201D there to confirm.' }));
     if (st && st.enabled && !st.active) {
       kids.push(H('div', { class: 'qm-wp-warn', text: 'Android is not using Quran Maar as your wallpaper right now (it may have been changed). Turn Daily Quran Wallpaper on to confirm it with Android again.' }));
@@ -256,6 +275,7 @@
 
   function buildCard(api) {
     css();
+    if (!P) lastErr = 'the wallpaper plugin could not be loaded';
     H = api.h;
     var sw = H('button', { type: 'button', class: 'qm-tg', role: 'switch', 'data-wp': 'on', 'aria-label': 'Daily Quran Wallpaper', 'aria-checked': String(isOn()) });
     var master = H('div', { class: 'qm-row', onclick: function () { if (busy) return; if (isOn()) turnOff(); else turnOn(); } }, [
@@ -264,24 +284,25 @@
     var body = H('div', { class: 'qm-block', 'data-wp': 'body' });
     cardEl = api.card('spark', 'Daily Quran Wallpaper', 'A new verse of the Qur\u2019an on your wallpaper, every day.', 'qm-s-wallpaper', [master, body]);
     paint();
-    loadStatus().then(loadCurrent);
+    if (P) loadStatus().then(loadCurrent);
     return cardEl;
   }
 
   if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(buildCard);
 
   /* the app language changed (by the person, or by country detection): the wallpaper follows it */
-  if (window.QMI18n && window.QMI18n.onChange) window.QMI18n.onChange(function () {
+  if (P && window.QMI18n && window.QMI18n.onChange) window.QMI18n.onChange(function () {
     P.configure(payload()).then(function (r) { st = r; return loadCurrent(); }, function () {});
   });
 
   /* coming back to the app (for example from Android's settings): ask Android again what is really set */
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible' && cardEl && cardEl.isConnected && !busy) loadStatus().then(loadCurrent);
+    if (P && document.visibilityState === 'visible' && cardEl && cardEl.isConnected && !busy) loadStatus().then(loadCurrent);
   });
 
   /* app start: keep the native side in step with the app language, then see where we stand */
   function boot() {
+    if (!P) return;
     P.configure(payload()).then(function (r) {
       st = r;
       if (r && r.supported === false) return;
