@@ -1,4 +1,0 @@
-Amiri Quran (AmiriQuran-Regular.ttf)
-Copyright (c) The Amiri Project Authors (https://github.com/aliftype/amiri-quran)
-Licensed under the SIL Open Font License, Version 1.1 — https://openfontlicense.org
-Used by the Daily Wallpaper feature to draw the Arabic verse.

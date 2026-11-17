@@ -53,22 +53,6 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
-        <!-- Daily Quran Wallpaper: a real Android live wallpaper. Android shows its own preview / "Set wallpaper"
-             screen for it. Only the system may bind to it (BIND_WALLPAPER). The daily refresh itself is done by
-             WorkManager (WallpaperWorker), which needs no manifest entry. -->
-        <service
-            android:name=".MaarWallpaperService"
-            android:label="@string/wallpaper_label"
-            android:permission="android.permission.BIND_WALLPAPER"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.wallpaper.WallpaperService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.service.wallpaper"
-                android:resource="@xml/maar_wallpaper" />
-        </service>
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -106,6 +90,4 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
-    <!-- The app still installs on phones without live-wallpaper support; the Settings card then says so -->
-    <uses-feature android:name="android.software.live_wallpaper" android:required="false" />
 </manifest>
