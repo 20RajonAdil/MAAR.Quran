@@ -82,6 +82,10 @@ jobs:
           echo "APK: $APK ($(du -h "$APK" | cut -f1))"
           unzip -l "$APK" | grep -E "assets/public/adhan/Adan[12]\.mp3" 
           unzip -l "$APK" | grep -E "assets/public/index.html"
+          # Daily Quran Wallpaper: the bundled verses and the live-wallpaper service must be in the APK
+          unzip -l "$APK" | grep -E "assets/wallpaper/verses.json"
+          unzip -l "$APK" | grep -E "assets/fonts/AmiriQuran-Regular.ttf"
+          grep -rq "BIND_WALLPAPER" android/app/build/intermediates/merged_manifests/debug || { echo "::error::merged manifest has no live wallpaper service"; exit 1; }
           cp "$APK" Quran-MAAR-debug.apk
 
       - name: Upload APK artifact

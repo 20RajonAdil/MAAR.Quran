@@ -1,86 +1,105 @@
 package com.maar.quran;
 
-import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.SharedPreferences;
 
-import java.util.Calendar;
+import androidx.work.BackoffPolicy;
+import androidx.work.Constraints;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.NetworkType;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
+
+import java.util.concurrent.TimeUnit;
 
 /**
- * Daily wallpaper: settings + scheduling.
- * Uses Android's JobScheduler (no extra library): one job fires a few minutes after midnight, and one
- * "catch-up" job runs right away when today's wallpaper has not been set yet (phone was off, no internet, etc).
+ * Background scheduling for the Daily Quran Wallpaper, using WorkManager.
+ *
+ * Every job has a unique name, so enabling twice, rebooting, or changing the time zone can never create a
+ * duplicate. WorkManager itself keeps the jobs across restarts.
+ *
+ *  - DAILY  : repeats every 24 h, first run a few minutes after local midnight. Inexact: Android may delay it
+ *             (battery saver, Doze, manufacturer limits). That is fine, because the wallpaper engine also checks the
+ *             date by itself whenever the wallpaper is shown (see MaarWallpaperService).
+ *  - NOW    : one immediate run (after enabling, a language change, or when today's verse has not been set yet).
+ *  - NET    : like NOW, but waits for an internet connection (to download a translation language).
  */
 final class WallpaperScheduler {
-    static final String PREFS = "maar_wallpaper";
-    static final int JOB_NEXT = 7301;
-    static final int JOB_NOW = 7302;
+    static final String W_DAILY = "maar_wallpaper_daily";
+    static final String W_NOW = "maar_wallpaper_now";
+    static final String W_NET = "maar_wallpaper_net";
+    static final String TAG_NET = "maar_net";
+    private static final long AFTER_MIDNIGHT_MS = 5L * 60_000L;
 
     private WallpaperScheduler() {}
 
-    static SharedPreferences p(Context c) {
-        return c.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-    }
-
-    static boolean isEnabled(Context c) {
-        return p(c).getBoolean("enabled", false);
-    }
-
-    /** Today's date in the phone's time zone, e.g. 2026-11-16. */
-    static String dayKey() {
-        Calendar c = Calendar.getInstance();
-        return String.format(java.util.Locale.US, "%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH));
-    }
-
-    static boolean isStale(Context c) {
-        return !dayKey().equals(p(c).getString("applied_day", ""));
-    }
-
-    /** Re-arm the midnight job, and run a catch-up job straight away if today's wallpaper is missing. */
+    /** Re-arm everything that should exist. Called at app start, after a restart / app update, and by the engine. */
     static void ensure(Context c) {
-        if (!isEnabled(c)) return;
-        scheduleNext(c);
-        if (isStale(c)) scheduleNow(c);
+        cancelLegacyJobs(c);
+        if (!WallpaperStore.isEnabled(c)) return;
+        scheduleDaily(c, false);
+        if (WallpaperStore.isStale(c)) scheduleNow(c, false);
     }
 
-    static void scheduleNext(Context c) {
-        if (!isEnabled(c)) return;
-        Calendar t = Calendar.getInstance();
-        t.add(Calendar.DAY_OF_YEAR, 1);
-        t.set(Calendar.HOUR_OF_DAY, 0);
-        t.set(Calendar.MINUTE, 5);
-        t.set(Calendar.SECOND, 0);
-        t.set(Calendar.MILLISECOND, 0);
-        long latency = Math.max(60_000L, t.getTimeInMillis() - System.currentTimeMillis());
-        submit(c, JOB_NEXT, latency, latency + 3L * 3600_000L);
+    /** The clock or time zone changed: the midnight run has to be worked out again. */
+    static void rescheduleAfterClockChange(Context c) {
+        if (!WallpaperStore.isEnabled(c)) return;
+        scheduleDaily(c, true);
+        scheduleNow(c, true);
     }
 
-    static void scheduleNow(Context c) {
-        if (!isEnabled(c)) return;
-        submit(c, JOB_NOW, 0, 0);
+    static void scheduleDaily(Context c, boolean replace) {
+        try {
+            long delay = WallpaperStore.millisUntilMidnight() + AFTER_MIDNIGHT_MS;
+            PeriodicWorkRequest r = new PeriodicWorkRequest.Builder(WallpaperWorker.class, 24, TimeUnit.HOURS)
+                    .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+                    .build();
+            WorkManager.getInstance(c.getApplicationContext()).enqueueUniquePeriodicWork(W_DAILY,
+                    replace ? ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE : ExistingPeriodicWorkPolicy.KEEP, r);
+        } catch (Throwable ignored) {}
     }
 
+    static void scheduleNow(Context c, boolean replace) {
+        try {
+            OneTimeWorkRequest r = new OneTimeWorkRequest.Builder(WallpaperWorker.class)
+                    .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                    .build();
+            WorkManager.getInstance(c.getApplicationContext()).enqueueUniqueWork(W_NOW,
+                    replace ? ExistingWorkPolicy.REPLACE : ExistingWorkPolicy.KEEP, r);
+        } catch (Throwable ignored) {}
+    }
+
+    /** Wait for internet, then download the translations. */
+    static void scheduleNet(Context c) {
+        try {
+            Constraints online = new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();
+            OneTimeWorkRequest r = new OneTimeWorkRequest.Builder(WallpaperWorker.class)
+                    .setConstraints(online)
+                    .addTag(TAG_NET)
+                    .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
+                    .build();
+            WorkManager.getInstance(c.getApplicationContext()).enqueueUniqueWork(W_NET, ExistingWorkPolicy.KEEP, r);
+        } catch (Throwable ignored) {}
+    }
+
+    /** Switching the feature off: no more automatic updates. (The wallpaper already on the phone is left alone.) */
     static void cancel(Context c) {
         try {
-            JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-            if (js != null) { js.cancel(JOB_NEXT); js.cancel(JOB_NOW); }
-        } catch (Exception ignored) {}
+            WorkManager wm = WorkManager.getInstance(c.getApplicationContext());
+            wm.cancelUniqueWork(W_DAILY);
+            wm.cancelUniqueWork(W_NOW);
+            wm.cancelUniqueWork(W_NET);
+        } catch (Throwable ignored) {}
+        cancelLegacyJobs(c);
     }
 
-    private static void submit(Context c, int id, long latencyMs, long deadlineMs) {
+    /** Older builds used Android's JobScheduler with these ids. Remove them so nothing runs twice. */
+    private static void cancelLegacyJobs(Context c) {
         try {
-            JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-            if (js == null) return;
-            JobInfo.Builder b = new JobInfo.Builder(id, new ComponentName(c, WallpaperJobService.class))
-                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                    .setPersisted(true);
-            if (latencyMs > 0) {
-                b.setMinimumLatency(latencyMs);
-                b.setOverrideDeadline(deadlineMs);
-            }
-            js.schedule(b.build());
-        } catch (Exception ignored) {}
+            JobScheduler js = (JobScheduler) c.getApplicationContext().getSystemService(Context.JOB_SCHEDULER_SERVICE);
+            if (js != null) { js.cancel(7301); js.cancel(7302); }
+        } catch (Throwable ignored) {}
     }
 }

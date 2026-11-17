@@ -19,6 +19,12 @@ public class BootReceiver extends BroadcastReceiver {
         if (Intent.ACTION_TIMEZONE_CHANGED.equals(a)) TimeZone.setDefault(null);   /* re-read the phone's zone */
         AdhanScheduler.rescheduleAll(c);
         if (AdhanScheduler.isEnabled(c)) AdhanKeepAliveService.start(c);   /* bring the "Adhan is on" background service back after a restart / update */
-        try { WallpaperScheduler.ensure(c); } catch (Throwable ignored) {}   /* daily wallpaper: re-arm after restart / update / clock change */
+        try {
+            WallpaperScheduler.ensure(c);                                    /* daily wallpaper: re-arm after restart / update */
+            if (Intent.ACTION_TIMEZONE_CHANGED.equals(a) || Intent.ACTION_TIME_CHANGED.equals(a) || Intent.ACTION_DATE_CHANGED.equals(a)) {
+                WallpaperScheduler.rescheduleAfterClockChange(c);            /* midnight moved: work it out again */
+                MaarWallpaperService.refreshAll();
+            }
+        } catch (Throwable ignored) {}
     }
 }

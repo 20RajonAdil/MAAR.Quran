@@ -4,4 +4,6 @@
     <string name="title_activity_main">Quran Maar</string>
     <string name="package_name">com.maar.quran</string>
     <string name="custom_url_scheme">com.maar.quran</string>
+    <string name="wallpaper_label">Quran Maar – Daily Ayah</string>
+    <string name="wallpaper_description">A new verse of the Qur’an every day: Arabic, translation, surah and ayah number.</string>
 </resources>

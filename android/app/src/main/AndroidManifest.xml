@@ -53,11 +53,21 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
-        <!-- Daily wallpaper: runs a few minutes after midnight, with internet -->
+        <!-- Daily Quran Wallpaper: a real Android live wallpaper. Android shows its own preview / "Set wallpaper"
+             screen for it. Only the system may bind to it (BIND_WALLPAPER). The daily refresh itself is done by
+             WorkManager (WallpaperWorker), which needs no manifest entry. -->
         <service
-            android:name=".WallpaperJobService"
-            android:permission="android.permission.BIND_JOB_SERVICE"
-            android:exported="false" />
+            android:name=".MaarWallpaperService"
+            android:label="@string/wallpaper_label"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/maar_wallpaper" />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -73,8 +83,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Daily ayah wallpaper (only used if the person switches it on in Settings) -->
-    <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
     <!-- Prayer notifications (Android 13+ asks the user at run time) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -98,4 +106,6 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- The app still installs on phones without live-wallpaper support; the Settings card then says so -->
+    <uses-feature android:name="android.software.live_wallpaper" android:required="false" />
 </manifest>
