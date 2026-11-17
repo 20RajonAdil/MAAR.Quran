@@ -1301,20 +1301,28 @@ async function ayahImageClassic(a){
    Each photo has its own text zones (fractions of the picture height) so the verse never covers the aeroplane. */
 const AYAH_DESIGN_KEY = 'ayah_design_v1';
 const AYAH_DESIGNS = [
-  { id:'classic', name:'Classic' },
-  { id:'sunset-arch', name:'Sunset flight', file:'daily-ayah-img/sunset-arch.jpg', accent:'#ffd49a',
-    head:.105, ref:.135, brand:.945, ar:[.16,.43], en:[.76,.90],
-    scrim:[[0,0],[.12,.15],[.3,.3],[.45,.1],[.6,0],[.72,0],[.76,.35],[.9,.5],[1,.5]] },
-  { id:'moonlit-arch', name:'Moonlit flight', file:'daily-ayah-img/moonlit-arch.jpg', accent:'#c9d8ff',
-    head:.10, ref:.13, brand:.945, ar:[.16,.50], en:[.78,.92],
-    scrim:[[0,0],[.15,.2],[.35,.2],[.5,0],[.74,0],[.78,.35],[.92,.55],[1,.55]] },
-  { id:'clouds-arch', name:'Above the clouds', file:'daily-ayah-img/clouds-arch.jpg', accent:'#cfe0ff',
-    head:.09, ref:.12, brand:.93, ar:[.15,.37], en:[.65,.80],
-    scrim:[[0,0],[.14,.18],[.37,.22],[.45,0],[.6,0],[.66,.25],[.8,.4],[.95,.5],[1,.5]] },
-  { id:'runway-arch', name:'Runway sunset', file:'daily-ayah-img/runway-arch.jpg', accent:'#ffb36b',
-    head:.075, ref:.10, brand:.957, ar:[.13,.38], en:[.79,.925],
-    scrim:[[0,0],[.7,0],[.8,.25],[1,.25]] },
+  { id:'classic', name:'Classic', cat:'Classic' },
+  { id:'sunset-arch', name:'Sunset flight', cat:'Airplanes', file:'daily-ayah-img/sunset-arch.jpg', thumb:'daily-ayah-img/thumbs/sunset-arch.jpg', accent:'#ffd49a', head:0.105, ref:0.135, brand:0.945, ar:[0.16, 0.43], en:[0.76, 0.9], scrim:[[0, 0], [0.12, 0.15], [0.3, 0.3], [0.45, 0.1], [0.6, 0], [0.72, 0], [0.76, 0.35], [0.9, 0.5], [1, 0.5]] },
+  { id:'moonlit-arch', name:'Moonlit flight', cat:'Airplanes', file:'daily-ayah-img/moonlit-arch.jpg', thumb:'daily-ayah-img/thumbs/moonlit-arch.jpg', accent:'#c9d8ff', head:0.1, ref:0.13, brand:0.945, ar:[0.16, 0.5], en:[0.78, 0.92], scrim:[[0, 0], [0.15, 0.2], [0.35, 0.2], [0.5, 0], [0.74, 0], [0.78, 0.35], [0.92, 0.55], [1, 0.55]] },
+  { id:'clouds-arch', name:'Above the clouds', cat:'Airplanes', file:'daily-ayah-img/clouds-arch.jpg', thumb:'daily-ayah-img/thumbs/clouds-arch.jpg', accent:'#cfe0ff', head:0.09, ref:0.12, brand:0.93, ar:[0.15, 0.37], en:[0.65, 0.8], scrim:[[0, 0], [0.14, 0.18], [0.37, 0.22], [0.45, 0], [0.6, 0], [0.66, 0.25], [0.8, 0.4], [0.95, 0.5], [1, 0.5]] },
+  { id:'runway-arch', name:'Runway sunset', cat:'Airplanes', file:'daily-ayah-img/runway-arch.jpg', thumb:'daily-ayah-img/thumbs/runway-arch.jpg', accent:'#ffb36b', head:0.075, ref:0.1, brand:0.957, ar:[0.13, 0.38], en:[0.79, 0.925], scrim:[[0, 0], [0.7, 0], [0.8, 0.25], [1, 0.25]] },
+  { id:'air-space', name:'Space flight', cat:'Airplanes', file:'daily-ayah-img/air-space.jpg', thumb:'daily-ayah-img/thumbs/air-space.jpg', accent:'#ffd2a1', head:0.07, ref:0.1, brand:0.94, ar:[0.12, 0.45], en:[0.72, 0.86], scrim:[[0, 0], [0.7, 0], [0.85, 0.2], [1, 0.45]], aw:0.78, ew:0.78 },
+  { id:'air-storm', name:'Storm clouds', cat:'Airplanes', file:'daily-ayah-img/air-storm.jpg', thumb:'daily-ayah-img/thumbs/air-storm.jpg', accent:'#ffe9c8', head:0.045, ref:0.072, brand:0.945, ar:[0.075, 0.3], en:[0.68, 0.86], scrim:[[0, 0.1], [0.15, 0.4], [0.32, 0.35], [0.45, 0], [0.64, 0.1], [0.7, 0.4], [0.9, 0.45], [1, 0.5]], aw:0.76, ew:0.76 },
+  { id:'air-dubai', name:'Dubai take-off', cat:'Airplanes', file:'daily-ayah-img/air-dubai.jpg', thumb:'daily-ayah-img/thumbs/air-dubai.jpg', accent:'#5a2a0c', head:0.04, ref:0.068, brand:0.955, ar:[0.075, 0.25], en:[0.68, 0.82], scrim:[], ink:"#3a1a05", ink2:"#3a1a05", bi:"#fbf1e2", shadow:"rgba(255,240,215,.55)", aw:0.8, ew:0.78 },
+  { id:'air-dusk', name:'Jumbo at dusk', cat:'Airplanes', file:'daily-ayah-img/air-dusk.jpg', thumb:'daily-ayah-img/thumbs/air-dusk.jpg', accent:'#ffd0b8', head:0.04, ref:0.065, brand:0.955, ar:[0.09, 0.42], en:[0.78, 0.92], scrim:[[0, 0.1], [0.1, 0.3], [0.42, 0.25], [0.55, 0], [0.72, 0], [0.78, 0.35], [0.92, 0.5], [1, 0.5]], aw:0.78, ew:0.78 },
+  { id:'desert-town', name:'Desert town', cat:'Desert', file:'daily-ayah-img/desert-town.jpg', thumb:'daily-ayah-img/thumbs/desert-town.jpg', accent:'#4a1a05', head:0.045, ref:0.07, brand:0.975, ar:[0.1, 0.34], en:[0.84, 0.945], scrim:[[0.82, 0], [0.88, 0.3], [1, 0.35]], ink:"#3b1300", ink2:"#fbf1e2", bi:"#fbf1e2", shadow:"rgba(255,225,190,.35)", aw:0.8, ew:0.78 },
+  { id:'desert-walk', name:'Desert walk', cat:'Desert', file:'daily-ayah-img/desert-walk.jpg', thumb:'daily-ayah-img/thumbs/desert-walk.jpg', accent:'#5a1f33', head:0.045, ref:0.07, brand:0.965, ar:[0.09, 0.3], en:[0.33, 0.47], scrim:[], ink:"#4a1a2c", ink2:"#4a1a2c", bi:"#5a1f33", shadow:"rgba(255,240,230,.6)", aw:0.78, ew:0.78 },
+  { id:'desert-camel-sun', name:'Camel at sunset', cat:'Desert', file:'daily-ayah-img/desert-camel-sun.jpg', thumb:'daily-ayah-img/thumbs/desert-camel-sun.jpg', accent:'#4a1f08', head:0.045, ref:0.07, brand:0.965, ar:[0.09, 0.34], en:[0.35, 0.49], scrim:[], ink:"#3a1a05", ink2:"#3a1a05", bi:"#4a1f08", shadow:"rgba(255,225,190,.5)", aw:0.78, ew:0.78 },
+  { id:'desert-caravan', name:'Caravan', cat:'Desert', file:'daily-ayah-img/desert-caravan.jpg', thumb:'daily-ayah-img/thumbs/desert-caravan.jpg', accent:'#ffcf9a', head:0.04, ref:0.065, brand:0.955, ar:[0.09, 0.34], en:[0.74, 0.89], scrim:[[0, 0], [0.1, 0.18], [0.35, 0.15], [0.5, 0], [0.72, 0], [0.78, 0.2], [1, 0.3]], aw:0.8, ew:0.78 },
+  { id:'desert-journey', name:'The journey', cat:'Desert', file:'daily-ayah-img/desert-journey.jpg', thumb:'daily-ayah-img/thumbs/desert-journey.jpg', accent:'#5a3016', head:0.035, ref:0.06, brand:0.965, ar:[0.075, 0.34], en:[0.55, 0.67], scrim:[], ink:"#4a2410", ink2:"#4a2410", bi:"#fff1dc", shadow:"rgba(255,248,235,.65)", aw:0.8, ew:0.8 },
+  { id:'night-palms', name:'Palm night', cat:'Night', file:'daily-ayah-img/night-palms.jpg', thumb:'daily-ayah-img/thumbs/night-palms.jpg', accent:'#ffd9a8', head:0.035, ref:0.06, brand:0.945, ar:[0.08, 0.28], en:[0.72, 0.88], scrim:[[0, 0.2], [0.3, 0.3], [0.45, 0], [0.64, 0], [0.72, 0.4], [0.9, 0.5], [1, 0.5]], aw:0.72, ew:0.74 },
+  { id:'night-alley', name:'Moonlit alley', cat:'Night', file:'daily-ayah-img/night-alley.jpg', thumb:'daily-ayah-img/thumbs/night-alley.jpg', accent:'#cdeee0', head:0.04, ref:0.065, brand:0.95, ar:[0.08, 0.29], en:[0.72, 0.88], scrim:[[0, 0.1], [0.25, 0.2], [0.45, 0], [0.66, 0], [0.72, 0.4], [0.9, 0.5], [1, 0.5]], aw:0.78, ew:0.78 },
+  { id:'night-rider', name:'Night rider', cat:'Night', file:'daily-ayah-img/night-rider.jpg', thumb:'daily-ayah-img/thumbs/night-rider.jpg', accent:'#ffe9b0', head:0.335, ref:0.36, brand:0.965, ar:[0.38, 0.52], en:[0.53, 0.66], scrim:[[0, 0], [0.3, 0.1], [0.4, 0.3], [0.68, 0.3], [0.72, 0]], ink2:"#f3ede4", bi:"#0e1a3a", aw:0.8, ew:0.78 },
+  { id:'night-oasis-arch', name:'Oasis arch', cat:'Night', file:'daily-ayah-img/night-oasis-arch.jpg', thumb:'daily-ayah-img/thumbs/night-oasis-arch.jpg', accent:'#d8d4ff', head:0.125, ref:0.15, brand:0.955, ar:[0.17, 0.38], en:[0.79, 0.9], scrim:[[0.12, 0], [0.25, 0.15], [0.4, 0.15], [0.5, 0], [0.76, 0], [0.8, 0.25], [0.95, 0.3]], aw:0.58, ew:0.7 },
+  { id:'land-golden-arch', name:'Golden meadow', cat:'Landscapes', file:'daily-ayah-img/land-golden-arch.jpg', thumb:'daily-ayah-img/thumbs/land-golden-arch.jpg', accent:'#ffe2b0', head:0.1, ref:0.13, brand:0.93, ar:[0.16, 0.5], en:[0.64, 0.78], scrim:[[0, 0], [0.12, 0.1], [0.5, 0.1], [0.6, 0], [0.64, 0.25], [0.78, 0.35], [0.9, 0.45], [1, 0.5]], aw:0.6, ew:0.68 },
+  { id:'land-castle', name:'Mountain castle', cat:'Landscapes', file:'daily-ayah-img/land-castle.jpg', thumb:'daily-ayah-img/thumbs/land-castle.jpg', accent:'#ffd9c8', head:0.03, ref:0.055, brand:0.955, ar:[0.075, 0.245], en:[0.74, 0.9], scrim:[[0, 0.15], [0.25, 0.25], [0.4, 0], [0.7, 0], [0.76, 0.3], [0.9, 0.4], [1, 0.4]], aw:0.74, ew:0.74 },
 ];
+const AYAH_CATS = ['Classic', 'Airplanes', 'Desert', 'Night', 'Landscapes'];
 const ayahDesignById = (id) => AYAH_DESIGNS.find((d) => d.id === id) || AYAH_DESIGNS[0];
 const _ayahBgCache = {};
 function loadAyahBg(file){
@@ -1335,7 +1343,8 @@ async function ayahImagePhoto(a, d){
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 2;
+  const INK = d.ink || '#fbf7f0', INK2 = d.ink2 || '#f3ede4', BI = d.bi || d.ink2 || '#f3ede4';
+  ctx.shadowColor = d.shadow || 'rgba(0,0,0,.6)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 2;
 
   // header + reference
   ctx.fillStyle = d.accent; ctx.font = '600 24px "Plus Jakarta Sans", sans-serif';
@@ -1350,8 +1359,8 @@ async function ayahImagePhoto(a, d){
   const [az0, az1] = d.ar.map((f) => f * H), azH = az1 - az0;
   let size = 66, lines;
   ctx.direction = 'rtl';
-  for (; size >= 24; size -= 2) { ctx.font = `${size}px Amiri, "Noto Naskh Arabic", serif`; lines = ayahWrap(ctx, a.arabic, W * .68); if (lines.length * size * 1.8 <= azH) break; }
-  ctx.fillStyle = '#fbf7f0';
+  for (; size >= 24; size -= 2) { ctx.font = `${size}px Amiri, "Noto Naskh Arabic", serif`; lines = ayahWrap(ctx, a.arabic, W * (d.aw || .68)); if (lines.length * size * 1.8 <= azH) break; }
+  ctx.fillStyle = INK;
   const lh = size * 1.8;
   let y = az0 + Math.max(0, (azH - lines.length * lh) / 2) + size * 1.1;
   lines.forEach((ln) => { ctx.fillText(ln, W / 2, y); y += lh; });
@@ -1360,19 +1369,19 @@ async function ayahImagePhoto(a, d){
   // translation, shrunk until it fits its zone
   const [ez0, ez1] = d.en.map((f) => f * H), ezH = ez1 - ez0;
   let es = 38, el;
-  for (; es >= 20; es -= 2) { ctx.font = `italic ${es}px "Instrument Serif", Georgia, serif`; el = ayahWrap(ctx, a.english, W * .7); if (el.length * es * 1.38 <= ezH) break; }
-  ctx.fillStyle = '#f3ede4';
+  for (; es >= 20; es -= 2) { ctx.font = `italic ${es}px "Instrument Serif", Georgia, serif`; el = ayahWrap(ctx, a.english, W * (d.ew || .7)); if (el.length * es * 1.38 <= ezH) break; }
+  ctx.fillStyle = INK2;
   const eh = es * 1.38;
   let ey = ez0 + Math.max(0, (ezH - el.length * eh) / 2) + es;
   el.forEach((ln) => { ctx.fillText(ln, W / 2, ey); ey += eh; });
 
   // brand
   ctx.shadowBlur = 8;
-  ctx.fillStyle = 'rgba(251,247,240,.85)'; ctx.font = 'italic 32px "Instrument Serif", Georgia, serif';
+  ctx.fillStyle = BI; ctx.globalAlpha = .9; ctx.font = 'italic 32px "Instrument Serif", Georgia, serif';
   ctx.fillText('Quran Maar', W / 2, H * d.brand - 22);
-  ctx.fillStyle = 'rgba(251,247,240,.6)'; ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
+  ctx.globalAlpha = .7; ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
   ctx.fillText(SITE_HOST_PATH, W / 2, H * d.brand + 4);
-  ctx.shadowColor = 'transparent';
+  ctx.globalAlpha = 1; ctx.shadowColor = 'transparent';
   return new Promise((res) => cv.toBlob(res, 'image/png'));
 }
 
@@ -1396,6 +1405,7 @@ const blobToBase64 = (blob) => new Promise((res, rej) => { const r = new FileRea
 
 function AyahDesignSheet({ ayah, mode, busy, onClose, onSave, onShare }){
   const [designId, setDesignId] = useState(() => ayahDesignById(store.getJSON(AYAH_DESIGN_KEY, 'classic')).id);
+  const [cat, setCat] = useState(() => ayahDesignById(store.getJSON(AYAH_DESIGN_KEY, 'classic')).cat);
   const [prev, setPrev] = useState({ url:'', blob:null, err:'' });
   useEffect(() => {
     let dead = false, made = '';
@@ -1424,10 +1434,13 @@ function AyahDesignSheet({ ayah, mode, busy, onClose, onSave, onShare }){
           ${!prev.url && !prev.err ? html`<div class="spinner"></div>` : null}
           ${prev.err ? html`<p class="ay-prev-err">${prev.err}</p>` : null}
         </div>
-        <div class="ay-thumbs" role="listbox" aria-label="Designs">
-          ${AYAH_DESIGNS.map((d) => html`
+        <div class="ay-cats" role="tablist" aria-label="Design collections">
+          ${AYAH_CATS.map((c) => html`<button key=${c} role="tab" aria-selected=${c === cat} class=${'ay-cat' + (c === cat ? ' on' : '')} onClick=${() => setCat(c)}>${c}</button>`)}
+        </div>
+        <div class="ay-thumbs" role="listbox" aria-label=${cat + ' designs'}>
+          ${AYAH_DESIGNS.filter((d) => d.cat === cat).map((d) => html`
             <button key=${d.id} role="option" aria-selected=${d.id === designId} class=${'ay-thumb' + (d.id === designId ? ' on' : '')} onClick=${() => pick(d.id)}>
-              ${d.file ? html`<img src=${d.file} alt="" loading="lazy" />` : html`<span class="ay-thumb-classic"></span>`}
+              ${d.file ? html`<img src=${d.thumb} alt="" loading="lazy" />` : html`<span class="ay-thumb-classic"></span>`}
               <span>${d.name}</span>
             </button>`)}
         </div>
