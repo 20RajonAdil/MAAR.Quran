@@ -1249,7 +1249,7 @@ function ayahWrap(ctx, text, maxW){
   return lines;
 }
 
-async function ayahImageBlob(a){
+async function ayahImageClassic(a){
   try { await Promise.all([document.fonts.load('60px Amiri'), document.fonts.load('italic 40px "Instrument Serif"'), document.fonts.load('600 28px "Plus Jakarta Sans"')]); } catch {}
   const W = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
@@ -1297,6 +1297,90 @@ async function ayahImageBlob(a){
   return new Promise((res) => cv.toBlob(res, 'image/png'));
 }
 
+/* ---- Download designs: the classic card plus four photo backgrounds kept in /daily-ayah-img/ ----
+   Each photo has its own text zones (fractions of the picture height) so the verse never covers the aeroplane. */
+const AYAH_DESIGN_KEY = 'ayah_design_v1';
+const AYAH_DESIGNS = [
+  { id:'classic', name:'Classic' },
+  { id:'sunset-arch', name:'Sunset flight', file:'daily-ayah-img/sunset-arch.jpg', accent:'#ffd49a',
+    head:.105, ref:.135, brand:.945, ar:[.16,.43], en:[.76,.90],
+    scrim:[[0,0],[.12,.15],[.3,.3],[.45,.1],[.6,0],[.72,0],[.76,.35],[.9,.5],[1,.5]] },
+  { id:'moonlit-arch', name:'Moonlit flight', file:'daily-ayah-img/moonlit-arch.jpg', accent:'#c9d8ff',
+    head:.10, ref:.13, brand:.945, ar:[.16,.50], en:[.78,.92],
+    scrim:[[0,0],[.15,.2],[.35,.2],[.5,0],[.74,0],[.78,.35],[.92,.55],[1,.55]] },
+  { id:'clouds-arch', name:'Above the clouds', file:'daily-ayah-img/clouds-arch.jpg', accent:'#cfe0ff',
+    head:.09, ref:.12, brand:.93, ar:[.15,.37], en:[.65,.80],
+    scrim:[[0,0],[.14,.18],[.37,.22],[.45,0],[.6,0],[.66,.25],[.8,.4],[.95,.5],[1,.5]] },
+  { id:'runway-arch', name:'Runway sunset', file:'daily-ayah-img/runway-arch.jpg', accent:'#ffb36b',
+    head:.075, ref:.10, brand:.957, ar:[.13,.38], en:[.79,.925],
+    scrim:[[0,0],[.7,0],[.8,.25],[1,.25]] },
+];
+const ayahDesignById = (id) => AYAH_DESIGNS.find((d) => d.id === id) || AYAH_DESIGNS[0];
+const _ayahBgCache = {};
+function loadAyahBg(file){
+  if (!_ayahBgCache[file]) _ayahBgCache[file] = new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => { delete _ayahBgCache[file]; rej(new Error('Could not load the design picture.')); }; i.src = file; });
+  return _ayahBgCache[file];
+}
+
+async function ayahImagePhoto(a, d){
+  try { await Promise.all([document.fonts.load('60px Amiri'), document.fonts.load('italic 40px "Instrument Serif"'), document.fonts.load('600 28px "Plus Jakarta Sans"')]); } catch {}
+  const img = await loadAyahBg(d.file);
+  const W = 1080, H = Math.round(W * img.naturalHeight / img.naturalWidth);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(img, 0, 0, W, H);
+  if (d.scrim && d.scrim.length) {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    d.scrim.forEach(([p, al]) => g.addColorStop(p, `rgba(0,0,0,${al})`));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 2;
+
+  // header + reference
+  ctx.fillStyle = d.accent; ctx.font = '600 24px "Plus Jakarta Sans", sans-serif';
+  try { ctx.letterSpacing = '4px'; } catch {}
+  ctx.fillText('AYAH OF THE DAY', W / 2, H * d.head);
+  try { ctx.letterSpacing = '1px'; } catch {}
+  ctx.font = '600 22px "Plus Jakarta Sans", sans-serif';
+  ctx.fillText(`${a.surah} \u00b7 ${a.surahNo}:${a.ayahNo}`, W / 2, H * d.ref);
+  try { ctx.letterSpacing = '0px'; } catch {}
+
+  // Arabic, shrunk until it fits its zone
+  const [az0, az1] = d.ar.map((f) => f * H), azH = az1 - az0;
+  let size = 66, lines;
+  ctx.direction = 'rtl';
+  for (; size >= 24; size -= 2) { ctx.font = `${size}px Amiri, "Noto Naskh Arabic", serif`; lines = ayahWrap(ctx, a.arabic, W * .68); if (lines.length * size * 1.8 <= azH) break; }
+  ctx.fillStyle = '#fbf7f0';
+  const lh = size * 1.8;
+  let y = az0 + Math.max(0, (azH - lines.length * lh) / 2) + size * 1.1;
+  lines.forEach((ln) => { ctx.fillText(ln, W / 2, y); y += lh; });
+  ctx.direction = 'ltr';
+
+  // translation, shrunk until it fits its zone
+  const [ez0, ez1] = d.en.map((f) => f * H), ezH = ez1 - ez0;
+  let es = 38, el;
+  for (; es >= 20; es -= 2) { ctx.font = `italic ${es}px "Instrument Serif", Georgia, serif`; el = ayahWrap(ctx, a.english, W * .7); if (el.length * es * 1.38 <= ezH) break; }
+  ctx.fillStyle = '#f3ede4';
+  const eh = es * 1.38;
+  let ey = ez0 + Math.max(0, (ezH - el.length * eh) / 2) + es;
+  el.forEach((ln) => { ctx.fillText(ln, W / 2, ey); ey += eh; });
+
+  // brand
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = 'rgba(251,247,240,.85)'; ctx.font = 'italic 32px "Instrument Serif", Georgia, serif';
+  ctx.fillText('Quran Maar', W / 2, H * d.brand - 22);
+  ctx.fillStyle = 'rgba(251,247,240,.6)'; ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
+  ctx.fillText(SITE_HOST_PATH, W / 2, H * d.brand + 4);
+  ctx.shadowColor = 'transparent';
+  return new Promise((res) => cv.toBlob(res, 'image/png'));
+}
+
+async function ayahImageBlob(a, designId){
+  const d = ayahDesignById(designId);
+  return d.file ? ayahImagePhoto(a, d) : ayahImageClassic(a);
+}
+
 /* In the Android app the browser's share/download calls do not exist, so these go to the native QuranShare plugin. */
 let _nativeShare;
 function nativeShareP(){
@@ -1310,21 +1394,67 @@ function nativeShareP(){
 }
 const blobToBase64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
 
+function AyahDesignSheet({ ayah, mode, busy, onClose, onSave, onShare }){
+  const [designId, setDesignId] = useState(() => ayahDesignById(store.getJSON(AYAH_DESIGN_KEY, 'classic')).id);
+  const [prev, setPrev] = useState({ url:'', blob:null, err:'' });
+  useEffect(() => {
+    let dead = false, made = '';
+    setPrev({ url:'', blob:null, err:'' });
+    ayahImageBlob(ayah, designId)
+      .then((blob) => { if (dead) return; made = URL.createObjectURL(blob); setPrev({ url:made, blob, err:'' }); })
+      .catch((e) => { if (!dead) setPrev({ url:'', blob:null, err:(e && e.message) || 'Could not make the preview.' }); });
+    return () => { dead = true; if (made) URL.revokeObjectURL(made); };
+  }, [designId, ayah]);
+  useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  }, []);
+  const pick = (id) => { setDesignId(id); store.setJSON(AYAH_DESIGN_KEY, id); };
+  const ready = !!prev.blob && !busy;
+  const primarySave = mode !== 'share';
+  return html`
+    <div class="ay-sheet-bg" onClick=${(e) => { if (e.target === e.currentTarget) onClose(); }} role="dialog" aria-modal="true" aria-label="Choose a design">
+      <div class="ay-sheet">
+        <div class="ay-sheet-head">
+          <div><div class="eyebrow" style=${{ marginBottom: 4 }}>Ayah of the day</div><h3>Choose a design</h3></div>
+          <button class="btn btn-ghost ay-sheet-x" onClick=${onClose} aria-label="Close">Close</button>
+        </div>
+        <div class="ay-prev">
+          ${prev.url ? html`<img src=${prev.url} alt=${`Preview of the ${ayahDesignById(designId).name} design`} />` : null}
+          ${!prev.url && !prev.err ? html`<div class="spinner"></div>` : null}
+          ${prev.err ? html`<p class="ay-prev-err">${prev.err}</p>` : null}
+        </div>
+        <div class="ay-thumbs" role="listbox" aria-label="Designs">
+          ${AYAH_DESIGNS.map((d) => html`
+            <button key=${d.id} role="option" aria-selected=${d.id === designId} class=${'ay-thumb' + (d.id === designId ? ' on' : '')} onClick=${() => pick(d.id)}>
+              ${d.file ? html`<img src=${d.file} alt="" loading="lazy" />` : html`<span class="ay-thumb-classic"></span>`}
+              <span>${d.name}</span>
+            </button>`)}
+        </div>
+        <div class="ay-sheet-actions">
+          <button class=${'btn ' + (primarySave ? 'btn-gold' : 'btn-ghost')} disabled=${!ready} onClick=${() => onSave(prev.blob, designId)}>${busy === 'save' ? 'Saving\u2026' : 'Download image'}</button>
+          <button class=${'btn ' + (primarySave ? 'btn-ghost' : 'btn-gold')} disabled=${!ready} onClick=${() => onShare(prev.blob, designId)}>${busy === 'share' ? 'Opening\u2026' : 'Share image'}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function DailyAyah(){
   const ref = useReveal();
   const { ayah, status, reload } = useDailyAyah();
   const [busy, setBusy] = useState('');
+  const [sheet, setSheet] = useState('');
   const [msg, setMsg] = useState('');
   const flash = (t) => { setMsg(t); clearTimeout(flash._t); flash._t = setTimeout(() => setMsg(''), 4200); };
   const errText = (e) => (e && (e.message || e.errorMessage)) ? String(e.message || e.errorMessage) : '';
+  const fileName = (designId) => `quran-maar-${ayah.surahNo}-${ayah.ayahNo}-${designId}.png`;
 
   /* Download: saves the picture itself. In the app it goes straight into Photos > "Quran Maar"; no other app is opened. */
-  async function downloadImage(){
-    if (!ayah || busy) return;
+  async function downloadImage(blob, designId){
+    if (!ayah || busy || !blob) return;
     setBusy('save');
     try {
-      const blob = await ayahImageBlob(ayah);
-      const name = `quran-maar-${ayah.surahNo}-${ayah.ayahNo}.png`;
+      const name = fileName(designId);
       const NP = nativeShareP();
       if (NP) {
         await NP.saveImage({ base64: await blobToBase64(blob), filename: name });
@@ -1334,34 +1464,34 @@ function DailyAyah(){
         a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Image downloaded.');
       }
+      setSheet('');
     } catch (e) { flash(errText(e) || "Couldn't save the image. Try again."); }
     setBusy('');
   }
 
-  async function shareImage(){
-    if (!ayah || busy) return;
+  async function shareImage(blob, designId){
+    if (!ayah || busy || !blob) return;
     setBusy('share');
     try {
-      const blob = await ayahImageBlob(ayah);
       const NP = nativeShareP();
       if (NP) {
-        await NP.shareImage({ base64: await blobToBase64(blob), filename: `quran-maar-${ayah.surahNo}-${ayah.ayahNo}.png`, text: `${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}` });
-        setBusy(''); return;
+        await NP.shareImage({ base64: await blobToBase64(blob), filename: fileName(designId), text: `${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}` });
+        setBusy(''); setSheet(''); return;
       }
-      const file = new File([blob], `ayah-${ayah.surahNo}-${ayah.ayahNo}.png`, { type:'image/png' });
+      const file = new File([blob], fileName(designId), { type:'image/png' });
       if (navigator.canShare && navigator.canShare({ files:[file] })) {
-        try { await navigator.share({ files:[file], title:'Ayah of the day', text:`${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} — ${SITE_HOST_PATH}` }); setBusy(''); return; }
+        try { await navigator.share({ files:[file], title:'Ayah of the day', text:`${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}` }); setBusy(''); setSheet(''); return; }
         catch (e) { if (e && e.name === 'AbortError') { setBusy(''); return; } }
       }
       const url = URL.createObjectURL(blob), a = document.createElement('a');
       a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Image saved to your device.');
+      setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Image saved to your device.'); setSheet('');
     } catch (e) { flash(errText(e) || "Couldn't make the image. Try again."); }
     setBusy('');
   }
   async function copyText(){
     if (!ayah) return;
-    const t = `${ayah.arabic}\n\n"${ayah.english}"\n— ${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo}\n${SITE_HOST_PATH}`;
+    const t = `${ayah.arabic}\n\n"${ayah.english}"\n\u2014 ${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo}\n${SITE_HOST_PATH}`;
     try { await navigator.clipboard.writeText(t); flash('Copied.'); } catch { flash("Couldn't copy."); }
   }
 
@@ -1370,7 +1500,7 @@ function DailyAyah(){
       <div class="ay-card reveal">
         <div class="ay-top">
           <div class="eyebrow" style=${{ marginBottom: 0 }}>Ayah of the day</div>
-          ${ayah ? html`<div class="ay-ref">${ayah.surah} · ${ayah.surahNo}:${ayah.ayahNo}</div>` : null}
+          ${ayah ? html`<div class="ay-ref">${ayah.surah} \u00b7 ${ayah.surahNo}:${ayah.ayahNo}</div>` : null}
         </div>
         ${!ayah && status === 'loading' ? html`<div class="center-msg" style=${{ padding:'40px 10px' }}><div class="spinner"></div></div>` : null}
         ${!ayah && status === 'error' ? html`<div class="center-msg" style=${{ padding:'30px 10px' }}><p>Couldn't load today's ayah.</p><button class="btn btn-ghost" onClick=${reload}>Try again</button></div>` : null}
@@ -1378,13 +1508,14 @@ function DailyAyah(){
           <p class="ay-ar" lang="ar" dir="rtl">${ayah.arabic}</p>
           <p class="ay-en">${ayah.english}</p>
           <div class="ay-actions">
-            <button class="btn btn-gold" onClick=${shareImage} disabled=${!!busy}>${busy === 'share' ? 'Making image…' : 'Share as image'}</button>
-            <button class="btn btn-ghost" onClick=${downloadImage} disabled=${!!busy}>${busy === 'save' ? 'Saving…' : 'Download image'}</button>
+            <button class="btn btn-gold" onClick=${() => setSheet('share')}>Share as image</button>
+            <button class="btn btn-ghost" onClick=${() => setSheet('save')}>Download image</button>
             <button class="btn btn-ghost" onClick=${copyText}>Copy text</button>
             ${msg ? html`<span class="ay-msg" role="status">${msg}</span>` : null}
           </div>
         ` : null}
       </div>
+      ${sheet && ayah ? html`<${AyahDesignSheet} ayah=${ayah} mode=${sheet} busy=${busy} onClose=${() => { if (!busy) setSheet(''); }} onSave=${downloadImage} onShare=${shareImage} />` : null}
     </section>
   `;
 }

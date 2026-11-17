@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v66';
+const SHELL_VERSION = 'v67';
 const DATA_VERSION  = 'v1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
@@ -39,7 +39,7 @@ const SHELL_ASSETS = [
   './customise.js?v=9',
   './adhan.js?v=10',
   './update.js?v=1',
-  './app.js?v=56',
+  './app.js?v=57',
   './i18n.js?v=3',
   './i18n-data.js?v=2',
   './offline.js?v=3',
@@ -53,6 +53,10 @@ const SHELL_ASSETS = [
   './logo.png',
   './moon-photo.png',
   './cloud-photo.jpg',
+  './daily-ayah-img/sunset-arch.jpg',
+  './daily-ayah-img/moonlit-arch.jpg',
+  './daily-ayah-img/clouds-arch.jpg',
+  './daily-ayah-img/runway-arch.jpg',
   // runtime libraries are self-hosted so the app boots with zero network
   './vendor/react.production.min.js',
   './vendor/react-dom.production.min.js',
