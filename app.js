@@ -1382,7 +1382,7 @@ async function ayahImagePhoto(a, d){
   ctx.globalAlpha = .7; ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
   ctx.fillText(SITE_HOST_PATH, W / 2, H * d.brand + 4);
   ctx.globalAlpha = 1; ctx.shadowColor = 'transparent';
-  return new Promise((res) => cv.toBlob(res, 'image/png'));
+  return new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.93));
 }
 
 async function ayahImageBlob(a, designId){
@@ -1402,6 +1402,17 @@ function nativeShareP(){
   return _nativeShare;
 }
 const blobToBase64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
+
+/* Sends the picture to the Android plugin in small pieces (a multi-megabyte string over the bridge can silently fail).
+   Returns the staged file id, or null when the installed app is an older build without this feature. */
+async function nativeStageImage(NP, blob, filename){
+  let r;
+  try { r = await NP.imgBegin({ filename }); } catch (e) { return null; }
+  const b64 = await blobToBase64(blob), STEP = 196608; /* multiple of 4 */
+  for (let i = 0; i < b64.length; i += STEP) await NP.imgAppend({ id: r.id, chunk: b64.slice(i, i + STEP) });
+  return r.id;
+}
+const imgExt = (blob) => (blob && blob.type === 'image/jpeg') ? 'jpg' : 'png';
 
 function AyahDesignSheet({ ayah, mode, busy, onClose, onSave, onShare }){
   const [designId, setDesignId] = useState(() => ayahDesignById(store.getJSON(AYAH_DESIGN_KEY, 'classic')).id);
@@ -1460,17 +1471,19 @@ function DailyAyah(){
   const [msg, setMsg] = useState('');
   const flash = (t) => { setMsg(t); clearTimeout(flash._t); flash._t = setTimeout(() => setMsg(''), 4200); };
   const errText = (e) => (e && (e.message || e.errorMessage)) ? String(e.message || e.errorMessage) : '';
-  const fileName = (designId) => `quran-maar-${ayah.surahNo}-${ayah.ayahNo}-${designId}.png`;
+  const fileName = (designId, blob) => `quran-maar-${ayah.surahNo}-${ayah.ayahNo}-${designId}.${imgExt(blob)}`;
 
   /* Download: saves the picture itself. In the app it goes straight into Photos > "Quran Maar"; no other app is opened. */
   async function downloadImage(blob, designId){
     if (!ayah || busy || !blob) return;
     setBusy('save');
     try {
-      const name = fileName(designId);
+      const name = fileName(designId, blob);
       const NP = nativeShareP();
       if (NP) {
-        await NP.saveImage({ base64: await blobToBase64(blob), filename: name });
+        const id = await nativeStageImage(NP, blob, name);
+        if (id) await NP.saveImageFile({ id });
+        else await NP.saveImage({ base64: await blobToBase64(blob), filename: name });
         flash('Saved to your Photos, in the \u201cQuran Maar\u201d album.');
       } else {
         const url = URL.createObjectURL(blob), a = document.createElement('a');
@@ -1488,10 +1501,13 @@ function DailyAyah(){
     try {
       const NP = nativeShareP();
       if (NP) {
-        await NP.shareImage({ base64: await blobToBase64(blob), filename: fileName(designId), text: `${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}` });
+        const nm = fileName(designId, blob), txt = `${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}`;
+        const id = await nativeStageImage(NP, blob, nm);
+        if (id) await NP.shareImageFile({ id, text: txt });
+        else await NP.shareImage({ base64: await blobToBase64(blob), filename: nm, text: txt });
         setBusy(''); setSheet(''); return;
       }
-      const file = new File([blob], fileName(designId), { type:'image/png' });
+      const file = new File([blob], fileName(designId, blob), { type: blob.type || 'image/png' });
       if (navigator.canShare && navigator.canShare({ files:[file] })) {
         try { await navigator.share({ files:[file], title:'Ayah of the day', text:`${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}` }); setBusy(''); setSheet(''); return; }
         catch (e) { if (e && e.name === 'AbortError') { setBusy(''); return; } }

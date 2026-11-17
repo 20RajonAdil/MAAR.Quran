@@ -42,8 +42,68 @@ public class QuranSharePlugin extends Plugin {
     private static String safeName(String n) {
         if (n == null || n.trim().isEmpty()) n = "quran-maar.png";
         n = n.replaceAll("[^A-Za-z0-9._-]", "_");
-        if (!n.toLowerCase().endsWith(".png")) n += ".png";
+        String l = n.toLowerCase();
+        if (!l.endsWith(".png") && !l.endsWith(".jpg") && !l.endsWith(".jpeg")) n += ".png";
         return n;
+    }
+
+    private static String mimeOf(String name) {
+        String l = name.toLowerCase();
+        return (l.endsWith(".jpg") || l.endsWith(".jpeg")) ? "image/jpeg" : "image/png";
+    }
+
+    /* ---- chunked upload: big pictures are sent in small pieces so the JS bridge never has to carry one huge string ---- */
+    private File stage(String name) {
+        File dir = new File(getContext().getCacheDir(), "shared");
+        if (!dir.exists()) dir.mkdirs();
+        return new File(dir, name);
+    }
+
+    @PluginMethod
+    public void imgBegin(PluginCall call) {
+        try {
+            String name = safeName(call.getString("filename"));
+            File f = stage(name);
+            if (f.exists()) f.delete();
+            if (!f.createNewFile()) throw new Exception("Could not prepare the image");
+            JSObject o = new JSObject();
+            o.put("id", name);
+            call.resolve(o);
+        } catch (Exception e) { call.reject("Could not start the image: " + e.getMessage()); }
+    }
+
+    @PluginMethod
+    public void imgAppend(PluginCall call) {
+        try {
+            String chunk = call.getString("chunk");
+            if (chunk == null) throw new Exception("No data");
+            File f = stage(safeName(call.getString("id")));
+            try (FileOutputStream os = new FileOutputStream(f, true)) { os.write(Base64.decode(chunk, Base64.DEFAULT)); }
+            call.resolve();
+        } catch (Exception e) { call.reject("Could not receive the image: " + e.getMessage()); }
+    }
+
+    @PluginMethod
+    public void saveImageFile(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && getPermissionState("storage") != PermissionState.GRANTED) {
+            requestPermissionForAlias("storage", call, "storageResult");
+            return;
+        }
+        doSave(call);
+    }
+
+    @PluginMethod
+    public void shareImageFile(PluginCall call) {
+        doShare(call, null);
+    }
+
+    private static byte[] readAll(File f) throws Exception {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[65536]; int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            return out.toByteArray();
+        }
     }
 
     @PluginMethod
@@ -64,17 +124,20 @@ public class QuranSharePlugin extends Plugin {
 
     private void doSave(PluginCall call) {
         String b64 = call.getString("base64");
-        if (b64 == null || b64.isEmpty()) { call.reject("No image data"); return; }
-        String name = safeName(call.getString("filename"));
+        String id = call.getString("id");
+        if ((b64 == null || b64.isEmpty()) && (id == null || id.isEmpty())) { call.reject("No image data"); return; }
+        String name = safeName(id != null && !id.isEmpty() ? id : call.getString("filename"));
+        String mime = mimeOf(name);
         try {
-            byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+            byte[] bytes = (id != null && !id.isEmpty()) ? readAll(stage(name)) : Base64.decode(b64, Base64.DEFAULT);
+            if (bytes.length == 0) throw new Exception("The image was empty");
             Context c = getContext();
             Uri uri;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ContentResolver r = c.getContentResolver();
                 ContentValues v = new ContentValues();
                 v.put(MediaStore.Images.Media.DISPLAY_NAME, name);
-                v.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                v.put(MediaStore.Images.Media.MIME_TYPE, mime);
                 v.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Quran Maar");
                 v.put(MediaStore.Images.Media.IS_PENDING, 1);
                 uri = r.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
@@ -91,7 +154,7 @@ public class QuranSharePlugin extends Plugin {
                 if (!dir.exists() && !dir.mkdirs()) throw new Exception("Could not create the Quran Maar folder");
                 File f = new File(dir, name);
                 try (FileOutputStream os = new FileOutputStream(f)) { os.write(bytes); }
-                MediaScannerConnection.scanFile(c, new String[] { f.getAbsolutePath() }, new String[] { "image/png" }, null);
+                MediaScannerConnection.scanFile(c, new String[] { f.getAbsolutePath() }, new String[] { mime }, null);
                 uri = Uri.fromFile(f);
             }
             JSObject o = new JSObject();
@@ -104,21 +167,23 @@ public class QuranSharePlugin extends Plugin {
     }
 
     @PluginMethod
-    public void shareImage(PluginCall call) {
-        String b64 = call.getString("base64");
-        if (b64 == null || b64.isEmpty()) { call.reject("No image data"); return; }
-        String name = safeName(call.getString("filename"));
+    public void shareImage(PluginCall call) { doShare(call, call.getString("base64")); }
+
+    private void doShare(PluginCall call, String b64) {
+        String id = call.getString("id");
+        if ((b64 == null || b64.isEmpty()) && (id == null || id.isEmpty())) { call.reject("No image data"); return; }
+        String name = safeName(id != null && !id.isEmpty() ? id : call.getString("filename"));
         String text = call.getString("text");
         try {
             Context c = getContext();
-            File dir = new File(c.getCacheDir(), "shared");
-            if (!dir.exists() && !dir.mkdirs()) throw new Exception("Could not prepare the image");
-            File f = new File(dir, name);
-            try (FileOutputStream os = new FileOutputStream(f)) { os.write(Base64.decode(b64, Base64.DEFAULT)); }
+            File f = stage(name);
+            if (id == null || id.isEmpty()) {
+                try (FileOutputStream os = new FileOutputStream(f)) { os.write(Base64.decode(b64, Base64.DEFAULT)); }
+            }
             Uri uri = FileProvider.getUriForFile(c, c.getPackageName() + ".fileprovider", f);
 
             Intent send = new Intent(Intent.ACTION_SEND);
-            send.setType("image/png");
+            send.setType(mimeOf(name));
             send.putExtra(Intent.EXTRA_STREAM, uri);
             if (text != null && !text.isEmpty()) send.putExtra(Intent.EXTRA_TEXT, text);
             send.setClipData(ClipData.newRawUri("Ayah", uri));
