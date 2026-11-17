@@ -23,6 +23,8 @@ public class AdhanReceiver extends BroadcastReceiver {
 
         boolean play = i.getBooleanExtra("play", false);
         boolean notify = i.getBooleanExtra("notify", false);
+        boolean vibrate = i.getBooleanExtra("vibrate", false);
+        String mode = i.getStringExtra("mode");
 
         if (play) {
             try {
@@ -34,6 +36,7 @@ public class AdhanReceiver extends BroadcastReceiver {
                 return;
             }
         }
-        if (notify) AdhanNotifications.postReminder(c, name, time, key);
+        if (vibrate) AdhanNotifications.vibrateNow(c);
+        if (notify || vibrate) AdhanNotifications.postReminder(c, name, time, key, mode);
     }
 }

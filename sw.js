@@ -37,7 +37,7 @@ const SHELL_ASSETS = [
   './404.html',
   './features.js?v=1',
   './customise.js?v=9',
-  './adhan.js?v=10',
+  './adhan.js?v=11',
   './update.js?v=1',
   './app.js?v=57',
   './i18n.js?v=3',

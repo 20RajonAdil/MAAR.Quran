@@ -16,7 +16,7 @@ The website's `adhan.js` still does everything it did before on the web and the 
 | `AdhanService` | A **foreground service** (type `mediaPlayback`) that plays the full `Adan1.mp3` (Fajr) / `Adan2.mp3` (other prayers) straight from the files packaged inside the app on the **alarm** audio stream (so silent mode and a low media volume do not mute it). Keeps playing with the screen locked. Shows a notification with the prayer name and time and a **Stop adhan** button. |
 | `AdhanKeepAliveService` | A quiet foreground service, **"Quran Maar · Adhan is on"** with the next prayer and time. It keeps the app active in the background (it appears in Samsung's *active apps* / "Check background activity" list). Starts when the adhan is switched on, restarts after a reboot or update, stops when the adhan is switched off. If a user taps **Stop** on it in Android's list, the alarms still fire, but the extra protection is gone until the app is opened again. |
 | `BootReceiver` | Re-sets all alarms after a **restart**, an **app update**, and any **clock / time-zone / date change**. |
-| `AdhanPlugin` | The Capacitor bridge: schedule, status, stop, notification permission, exact-alarm settings, battery-optimisation request. |
+| `AdhanPlugin` | The Capacitor bridge: schedule, status, stop, notification permission, exact-alarm settings, battery-optimisation request, **test** (plays now), **preview** (one sound, stops after 25 s), **pickAudio / clearCustom** (own audio file, copied into private app storage, max 30 MB, validated), **diagnostics** (real Android state for the checklist). |
 
 **First launch (inside the app):** after the location question is answered, Android's own notification dialog appears (same style as the location one).
 Tapping **Allow** switches the adhan on for all five prayers, schedules it, and then shows Android's one-tap "run in the background" dialog (battery exemption).
@@ -24,14 +24,19 @@ Tapping **Allow** switches the adhan on for all five prayers, schedules it, and 
 - If notifications are **blocked** (Android shows its dialog only twice, then never again), a pop-up with **Open settings** takes the user straight to Quran Maar's notification settings; when they come back with notifications on, the adhan switches on by itself.
 - To reset a blocked state from scratch, uninstall and reinstall the app.
 
-**Settings > Adhan (inside the app)** has: the master on/off switch, **per-prayer adhan sound** switches, **per-prayer notification**
-switches and volume. Nothing changes on the website.
+**Settings > Adhan (inside the app)** has: the master on/off switch; for **each prayer** a mode: *Full adhan*, *Notification sound*, *Vibration only*,
+*Silent notification* or *Off*; separate **Fajr** and **other-prayer** sound choices (Adhan 1, Adhan 2, or your own file picked with Android's file
+picker) with a **Preview** button; volume; **Play the adhan now** and **Test alarm in 1 minute** buttons; and a **"Why might the adhan not play?"** checklist that
+reads the real state from Android (notifications, exact alarms, alarm volume, Do Not Disturb, battery restrictions, audio files, number of alarms Android is holding, next alarm).
+Nothing changes on the website, except that the same mode choices also work there while the page is open.
 
 **Screen layout:** the app is kept between the phone's status bar and navigation bar (it no longer draws underneath them).
 
 **Stopping the adhan:** the **Stop adhan** button on the playing notification (works from the lock screen), or the **Stop** pill inside the app.
 
-**Choosing a different adhan:** the project has two fixed recordings and, by design, visitors cannot upload or switch recordings, so there is no picker.
+**Choosing a different adhan:** inside the Android app, Settings > Adhan lets each of the two slots use Adhan 1, Adhan 2 or a file from the phone. The website keeps its two fixed recordings.
+
+**Licences:** see `ADHAN-LICENCES.md`. The source and licence of the two bundled recordings are still blank and must be filled in by the project owner.
 
 ## How times, dates, time zones and DST are handled
 
@@ -63,7 +68,7 @@ switches and volume. Nothing changes on the website.
 2. **Swiping the app away from recent apps** is normally fine on stock Android and Pixel phones (alarms survive), but **some manufacturers (Xiaomi / MIUI-HyperOS, Huawei, Oppo / Realme / OnePlus ColorOS, Vivo, some Samsung battery modes) treat it like a force stop.** For those, set Battery to **Unrestricted** and turn on **Autostart** for the app.
 3. **Battery saver / Doze.** Exact alarms are allowed through Doze, but aggressive vendor battery managers can still delay or cancel them.
 4. **Exact alarm permission off** (Android 12 / 12L, or revoked): alarms become inexact and can be late.
-5. **Alarm volume.** The adhan plays on the **alarm** stream, so it plays even in silent / vibrate mode, but it follows the *alarm* volume. If that is turned to zero it is silent. Do Not Disturb allows alarms by default, but a user's own DND rules can block them. (Because it ignores silent mode, users who do not want it somewhere, such as a mosque, should switch that prayer off in Settings.)
+5. **Alarm volume.** The adhan plays on the **alarm** stream, so it plays even in silent / vibrate mode, but it follows the *alarm* volume (the diagnostics checklist shows this level). If that is turned to zero it is silent. Do Not Disturb allows alarms by default, but a user's own DND rules can block them. (Because it ignores silent mode, users who do not want it somewhere, such as a mosque, should switch that prayer off in Settings.)
 6. **Another app holding audio focus** (a call, for example): a call stops the adhan; the adhan does not resume afterwards.
 7. **After a restart**, Android only lets the app run once the phone has been unlocked for the first time. A prayer that passes before the first unlock after a reboot is skipped (anything within 90 seconds is still played).
 8. **Android 15+** blocks media-playback foreground services from starting from a *boot* broadcast, but not from an exact alarm, which is how this app starts it. If Android ever refuses the audio, the app falls back to a normal notification so the prayer is not missed silently.
@@ -73,7 +78,7 @@ switches and volume. Nothing changes on the website.
 
 Use a real phone, install the APK (see `ANDROID-BUILD.md`), open the app, **Settings > Adhan**, turn it on, allow notifications. To avoid waiting for
 a real prayer, use Chrome on a computer: connect the phone by USB with *USB debugging* on, open `chrome://inspect`, inspect the app's WebView, and run
-`QMAdhan.nativeTest(2)` in the console. That schedules a Dhuhr adhan and notification two minutes ahead (there is deliberately no test button in the app).
+`QMAdhan.nativeTest(2)` in the console. That schedules a Dhuhr adhan and notification two minutes ahead (the app now also has test buttons in Settings > Adhan).
 
 | # | Test | Expected | Result |
 | - | --- | --- | --- |
