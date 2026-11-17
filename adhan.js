@@ -405,6 +405,26 @@
     document.body.appendChild(askEl);
   }
   /* What to do each time the app opens (Android app only). */
+  var BATT = 'qm_adhan_batt';
+  /* Explains why, then shows Android's real "allow to run in the background" dialog (like WeMuslim's "Enable App Background"). */
+  function askBattery(force) {
+    var P = NP();
+    if (!P || nstate.batteryUnrestricted) return Promise.resolve();
+    try {
+      if (!force && Date.now() - (+localStorage.getItem(BATT) || 0) < 3 * 864e5) return Promise.resolve();
+      localStorage.setItem(BATT, String(Date.now()));
+    } catch (e) {}
+    if (askEl && askEl._busy) return Promise.resolve();
+    closeAsk(); css();
+    return new Promise(function (res) {
+      askEl = document.createElement('div'); askEl.className = 'qm-ad-ask'; askEl.id = 'qm-ad-ask'; askEl.setAttribute('role', 'dialog');
+      askEl.innerHTML = '<b>Keep the adhan working when the app is closed</b><p>Android must let Quran Maar run in the background so it can sound the adhan at prayer time. On the next screen choose <b>Allow</b>. On Samsung phones also open Settings, Apps, Quran Maar, Battery and choose <b>Unrestricted</b>.</p>' +
+        '<div class="qm-ad-btns"><button type="button" class="qm-ad-btn" data-a="no">Not now</button><button type="button" class="qm-ad-btn primary" data-a="go">Enable</button></div>';
+      askEl.querySelector('[data-a="no"]').addEventListener('click', function () { closeAsk(); res(); });
+      askEl.querySelector('[data-a="go"]').addEventListener('click', function () { closeAsk(); P.requestIgnoreBatteryOptimizations().catch(function () {}); res(); });
+      document.body.appendChild(askEl);
+    });
+  }
   var AUTO = 'qm_adhan_auto';
   function flagGet(k) { try { return !!localStorage.getItem(k); } catch (e) { return false; } }
   function flagSet(k) { try { localStorage.setItem(k, String(Date.now())); } catch (e) {} }
