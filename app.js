@@ -1414,7 +1414,7 @@ async function nativeStageImage(NP, blob, filename){
 }
 const imgExt = (blob) => (blob && blob.type === 'image/jpeg') ? 'jpg' : 'png';
 
-function AyahDesignSheet({ ayah, mode, busy, onClose, onSave, onShare }){
+function AyahDesignSheet({ ayah, mode, busy, msg, onClose, onSave, onShare }){
   const [designId, setDesignId] = useState(() => ayahDesignById(store.getJSON(AYAH_DESIGN_KEY, 'classic')).id);
   const [cat, setCat] = useState(() => ayahDesignById(store.getJSON(AYAH_DESIGN_KEY, 'classic')).cat);
   const [prev, setPrev] = useState({ url:'', blob:null, err:'' });
@@ -1455,6 +1455,8 @@ function AyahDesignSheet({ ayah, mode, busy, onClose, onSave, onShare }){
               <span>${d.name}</span>
             </button>`)}
         </div>
+        ${msg ? html`<p class="ay-sheet-msg" role="status">${msg}</p>` : null}
+        ${!nativeShareP() ? html`<p class="ay-sheet-tip">Tip: press and hold the picture above, then choose \u201cDownload image\u201d or \u201cSave image\u201d, to put it in your Gallery.</p>` : null}
         <div class="ay-sheet-actions">
           <button class=${'btn ' + (primarySave ? 'btn-gold' : 'btn-ghost')} disabled=${!ready} onClick=${() => onSave(prev.blob, designId)}>${busy === 'save' ? 'Saving\u2026' : 'Download image'}</button>
           <button class=${'btn ' + (primarySave ? 'btn-ghost' : 'btn-gold')} disabled=${!ready} onClick=${() => onShare(prev.blob, designId)}>${busy === 'share' ? 'Opening\u2026' : 'Share image'}</button>
@@ -1488,9 +1490,9 @@ function DailyAyah(){
       } else {
         const url = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Image downloaded.');
+        setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Downloaded. Look in your Downloads folder, or press and hold the picture to save it to your Gallery.');
       }
-      setSheet('');
+      if (NP) setSheet('');
     } catch (e) { flash(errText(e) || "Couldn't save the image. Try again."); }
     setBusy('');
   }
@@ -1514,7 +1516,7 @@ function DailyAyah(){
       }
       const url = URL.createObjectURL(blob), a = document.createElement('a');
       a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Image saved to your device.'); setSheet('');
+      setTimeout(() => URL.revokeObjectURL(url), 4000); flash('Downloaded. Look in your Downloads folder, or press and hold the picture to save it to your Gallery.');
     } catch (e) { flash(errText(e) || "Couldn't make the image. Try again."); }
     setBusy('');
   }
@@ -1544,7 +1546,7 @@ function DailyAyah(){
           </div>
         ` : null}
       </div>
-      ${sheet && ayah ? html`<${AyahDesignSheet} ayah=${ayah} mode=${sheet} busy=${busy} onClose=${() => { if (!busy) setSheet(''); }} onSave=${downloadImage} onShare=${shareImage} />` : null}
+      ${sheet && ayah ? html`<${AyahDesignSheet} ayah=${ayah} mode=${sheet} busy=${busy} msg=${msg} onClose=${() => { if (!busy) setSheet(''); }} onSave=${downloadImage} onShare=${shareImage} />` : null}
     </section>
   `;
 }
