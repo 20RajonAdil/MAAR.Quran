@@ -36,7 +36,7 @@ public class AdhanService extends Service {
     private String currentKey;
     private String currentName = "", currentTime = "";
     private boolean pausedByFocus = false;
-    private String overrideSrc = null, overrideSlot = null;
+    private String overrideSlot = null;
     private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable autoStop = this::endPlayback;
     private static final long PREVIEW_MS = 25 * 1000L;
@@ -46,11 +46,11 @@ public class AdhanService extends Service {
                 .putExtra("name", name).putExtra("time", time).putExtra("key", key);
     }
 
-    /** A preview of one sound ("adan1" / "adan2" / "custom") for a slot ("fajr" / "other"). Stops itself after ~25 s. */
-    static Intent previewIntent(Context c, String slot, String src) {
+    /** A preview of the adhan for a slot ("fajr" / "other"). Stops itself after ~25 s. */
+    static Intent previewIntent(Context c, String slot) {
         return new Intent(c, AdhanService.class).setAction(ACTION_PLAY)
                 .putExtra("name", "Preview").putExtra("time", "").putExtra("key", "preview-" + System.currentTimeMillis())
-                .putExtra("slot", slot).putExtra("src", src).putExtra("autostop", true);
+                .putExtra("slot", slot).putExtra("autostop", true);
     }
 
     /** Stops the adhan if it is playing. Safe to call any time. */
@@ -72,7 +72,6 @@ public class AdhanService extends Service {
         String key = intent == null ? null : intent.getStringExtra("key");
         if (name == null) { stopSelf(); return START_NOT_STICKY; }
         if (time == null) time = "";
-        overrideSrc = intent.getStringExtra("src");
         overrideSlot = intent.getStringExtra("slot");
         boolean auto = intent.getBooleanExtra("autostop", false);
 
@@ -82,6 +81,7 @@ public class AdhanService extends Service {
         try {
             ServiceCompat.startForeground(this, AdhanNotifications.ID_PLAYING, n, type);
         } catch (Exception e) {
+            AdhanLog.add(this, name + ": Android would not let the audio service start (" + e.getClass().getSimpleName() + ")");
             AdhanNotifications.postReminder(this, name, time, key == null ? name : key);
             stopSelf();
             return START_NOT_STICKY;
@@ -100,22 +100,15 @@ public class AdhanService extends Service {
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
     }
 
-    /** Points the player at: the chosen sound, else the default for the slot, else the other bundled file. */
+    /** Adhan 1 for Fajr, Adhan 2 for every other prayer (the other file is only a fallback if one is damaged). */
     private void setSource(MediaPlayer m, String slot) throws java.io.IOException {
-        String chosen = overrideSrc != null ? overrideSrc : AdhanScheduler.sound(this, slot);
-        String def = "fajr".equals(slot) ? "adan1" : "adan2";
-        String[] order = {chosen, def, "adan1".equals(def) ? "adan2" : "adan1"};
+        boolean fajr = "fajr".equals(slot);
+        String[] order = fajr ? new String[]{"Adan1.mp3", "Adan2.mp3"} : new String[]{"Adan2.mp3", "Adan1.mp3"};
         java.io.IOException last = null;
-        for (String choice : order) {
+        for (String file : order) {
             try {
-                if ("custom".equals(choice)) {
-                    java.io.File f = AdhanScheduler.customFile(this, slot);
-                    if (!f.isFile() || f.length() == 0) continue;
-                    try (java.io.FileInputStream in = new java.io.FileInputStream(f)) { m.setDataSource(in.getFD()); }
-                } else {
-                    AssetFileDescriptor afd = getAssets().openFd("public/adhan/" + ("adan1".equals(choice) ? "Adan1.mp3" : "Adan2.mp3"));
-                    try { m.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength()); } finally { afd.close(); }
-                }
+                AssetFileDescriptor afd = getAssets().openFd("public/adhan/" + file);
+                try { m.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength()); } finally { afd.close(); }
                 return;
             } catch (java.io.IOException e) { last = e; m.reset(); applyAttrs(m); }   /* reset() forgets the alarm audio attributes */
         }
@@ -134,11 +127,12 @@ public class AdhanService extends Service {
             float v = AdhanScheduler.volume(this) / 100f;
             mp.setVolume(v, v);
             mp.setWakeMode(this, PowerManager.PARTIAL_WAKE_LOCK);   /* keeps the CPU awake while it plays */
-            mp.setOnCompletionListener(m -> endPlayback());
-            mp.setOnErrorListener((m, what, extra) -> { endPlayback(); return true; });
-            mp.setOnPreparedListener(m -> { m.start(); publish(true); });
+            mp.setOnCompletionListener(m -> { AdhanLog.add(this, currentName + " adhan finished playing"); endPlayback(); });
+            mp.setOnErrorListener((m, what, extra) -> { AdhanLog.add(this, currentName + ": audio error " + what + "/" + extra); endPlayback(); return true; });
+            mp.setOnPreparedListener(m -> { m.start(); publish(true); if (!"Preview".equals(currentName)) AdhanLog.add(this, currentName + " adhan started playing"); });
             mp.prepareAsync();
         } catch (Exception e) {
+            AdhanLog.add(this, name + ": could not play the audio (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")");
             AdhanNotifications.postReminder(this, name, time, key == null ? name : key);
             endPlayback();
         }

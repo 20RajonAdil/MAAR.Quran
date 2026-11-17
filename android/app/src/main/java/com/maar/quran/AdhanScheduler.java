@@ -39,27 +39,14 @@ public final class AdhanScheduler {
 
     static void saveConfig(Context c, boolean enabled, int volume, JSONArray events, String fajrSound, String otherSound) {
         prefs(c).edit()
-                .putString("snd_fajr", cleanSound(fajrSound, "adan1"))
-                .putString("snd_other", cleanSound(otherSound, "adan2"))
                 .putBoolean("enabled", enabled)
                 .putInt("volume", Math.max(5, Math.min(100, volume)))
                 .putString("events", events == null ? "[]" : events.toString())
                 .apply();
     }
 
-    /** "adan1" / "adan2" (bundled) or "custom" (a file the user picked, copied into the app's private storage). */
-    static String cleanSound(String v, String def) {
-        return ("adan1".equals(v) || "adan2".equals(v) || "custom".equals(v)) ? v : def;
-    }
-
-    /** slot is "fajr" or "other". */
-    static String sound(Context c, String slot) {
-        return prefs(c).getString("snd_" + slot, "fajr".equals(slot) ? "adan1" : "adan2");
-    }
-
-    static java.io.File customFile(Context c, String slot) {
-        return new java.io.File(c.getFilesDir(), "adhan_custom_" + slot);
-    }
+    /** Adhan 1 is always Fajr; Adhan 2 is every other prayer. */
+    static String sound(Context c, String slot) { return "fajr".equals(slot) ? "adan1" : "adan2"; }
 
     static boolean isEnabled(Context c) { return prefs(c).getBoolean("enabled", false); }
 
@@ -148,6 +135,13 @@ public final class AdhanScheduler {
             }
             scheduled++;
         }
+        String summary = scheduled + "|" + exact;
+        if (!summary.equals(prefs(c).getString("lastSched", ""))) {      /* log only when something changed, not on every app open */
+            prefs(c).edit().putString("lastSched", summary).apply();
+            long next = nextAlarmAt(c);
+            AdhanLog.add(c, "Alarms set with Android: " + scheduled + (exact ? " (exact)" : " (NOT exact: exact-alarm access is off)")
+                    + (next > 0 ? ", next at " + new java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault()).format(new java.util.Date(next)) : ""));
+        }
         return scheduled;
     }
 
@@ -177,16 +171,10 @@ public final class AdhanScheduler {
         return best;
     }
 
-    /** What the adhan for this slot will actually play: a label, or null if the file is missing. */
+    /** The bundled recording this slot plays, or null if the file is missing from the app. */
     static String soundLabel(Context c, String slot) {
-        String s = sound(c, slot);
-        if ("custom".equals(s)) {
-            java.io.File f = customFile(c, slot);
-            if (f.isFile() && f.length() > 0) return "Your file: " + prefs(c).getString("custom_name_" + slot, "custom audio");
-            s = "fajr".equals(slot) ? "adan1" : "adan2";   /* the service falls back to the bundled one */
-        }
-        String asset = "adan1".equals(s) ? "Adan1.mp3" : "Adan2.mp3";
-        try { c.getAssets().openFd("public/adhan/" + asset).close(); return "adan1".equals(s) ? "Adhan 1" : "Adhan 2"; }
+        boolean fajr = "fajr".equals(slot);
+        try { c.getAssets().openFd("public/adhan/" + (fajr ? "Adan1.mp3" : "Adan2.mp3")).close(); return fajr ? "Adhan 1" : "Adhan 2"; }
         catch (Exception e) { return null; }
     }
 

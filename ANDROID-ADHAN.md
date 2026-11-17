@@ -16,7 +16,7 @@ The website's `adhan.js` still does everything it did before on the web and the 
 | `AdhanService` | A **foreground service** (type `mediaPlayback`) that plays the full `Adan1.mp3` (Fajr) / `Adan2.mp3` (other prayers) straight from the files packaged inside the app on the **alarm** audio stream (so silent mode and a low media volume do not mute it). Keeps playing with the screen locked. Shows a notification with the prayer name and time and a **Stop adhan** button. |
 | `AdhanKeepAliveService` | A quiet foreground service, **"Quran Maar · Adhan is on"** with the next prayer and time. It keeps the app active in the background (it appears in Samsung's *active apps* / "Check background activity" list). Starts when the adhan is switched on, restarts after a reboot or update, stops when the adhan is switched off. If a user taps **Stop** on it in Android's list, the alarms still fire, but the extra protection is gone until the app is opened again. |
 | `BootReceiver` | Re-sets all alarms after a **restart**, an **app update**, and any **clock / time-zone / date change**. |
-| `AdhanPlugin` | The Capacitor bridge: schedule, status, stop, notification permission, exact-alarm settings, battery-optimisation request, **test** (plays now), **preview** (one sound, stops after 25 s), **pickAudio / clearCustom** (own audio file, copied into private app storage, max 30 MB, validated), **diagnostics** (real Android state for the checklist). |
+| `AdhanPlugin` | The Capacitor bridge: schedule, status, stop, notification permission, exact-alarm settings, battery-optimisation request, **test** (plays now), **preview** (one sound, stops after 25 s), **diagnostics** (real Android state for the checklist). |
 
 **First launch (inside the app):** after the location question is answered, Android's own notification dialog appears (same style as the location one).
 Tapping **Allow** switches the adhan on for all five prayers, schedules it, and then shows Android's one-tap "run in the background" dialog (battery exemption).
@@ -25,8 +25,7 @@ Tapping **Allow** switches the adhan on for all five prayers, schedules it, and 
 - To reset a blocked state from scratch, uninstall and reinstall the app.
 
 **Settings > Adhan (inside the app)** has: the master on/off switch; for **each prayer** a mode: *Full adhan*, *Notification sound*, *Vibration only*,
-*Silent notification* or *Off*; separate **Fajr** and **other-prayer** sound choices (Adhan 1, Adhan 2, or your own file picked with Android's file
-picker) with a **Preview** button; volume; **Play the adhan now** and **Test alarm in 1 minute** buttons; and a **"Why might the adhan not play?"** checklist that
+*Silent notification* or *Off*; the two bundled recordings with **Preview** buttons (Adhan 1 is always Fajr, Adhan 2 is every other prayer; there is nothing to choose); volume; **Play the adhan now** and **Test alarm in 1 minute** buttons; and a **"Why might the adhan not play?"** checklist that
 reads the real state from Android (notifications, exact alarms, alarm volume, Do Not Disturb, battery restrictions, audio files, number of alarms Android is holding, next alarm).
 Nothing changes on the website, except that the same mode choices also work there while the page is open.
 
@@ -34,7 +33,7 @@ Nothing changes on the website, except that the same mode choices also work ther
 
 **Stopping the adhan:** the **Stop adhan** button on the playing notification (works from the lock screen), or the **Stop** pill inside the app.
 
-**Choosing a different adhan:** inside the Android app, Settings > Adhan lets each of the two slots use Adhan 1, Adhan 2 or a file from the phone. The website keeps its two fixed recordings.
+**Which adhan:** Adhan 1 is always Fajr and Adhan 2 is every other prayer. There is no sound picker and no file picker.
 
 **Licences:** see `ADHAN-LICENCES.md`. The source and licence of the two bundled recordings are still blank and must be filled in by the project owner.
 
@@ -107,3 +106,14 @@ LocalNotifications and no `AdhanNative` plugin.
 - Fajr used the "Adhan (Fajr)" channel with `adan1.mp3`; the other prayers used the "Adhan" channel with `adan2.mp3`.
 - On Android 12 and later, the user may need to allow "Alarms & reminders" for the app.
 - Battery saver can delay alarms on some phones. Ask users to set the app to "Unrestricted".
+
+## First launch and "app fully closed"
+
+- On first launch (after the location question) the app shows Android's own notification pop-up straight away, switches the adhan on, then explains and
+  shows Android's real "allow background use" dialog. On Samsung also set Settings > Apps > Quran Maar > Battery > **Unrestricted**.
+- While the adhan is on, a quiet "Adhan is on" foreground service runs (it appears in Samsung's *Check background activity* list, like other prayer apps). It also
+  re-sets the alarms if a phone's battery manager removed them.
+- **Settings > Adhan > Check my phone now** now ends with *What the adhan did recently*: a log kept on the phone (alarms set, alarm fired and how late, audio
+  started or refused, app swiped away). After a prayer passes with the app closed, open that list. If the alarm shows as "fired" and "started playing" the
+  system worked; if nothing is logged at the prayer time, Android never delivered the alarm (usually a battery manager or a force-stop).
+- Force-stopping the app (Settings > Apps > Force stop, or a phone's cleaner) deletes every alarm until the app is opened again. That is Android, not the app.

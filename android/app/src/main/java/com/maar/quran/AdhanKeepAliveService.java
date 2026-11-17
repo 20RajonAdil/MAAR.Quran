@@ -25,6 +25,7 @@ import org.json.JSONObject;
  */
 public class AdhanKeepAliveService extends Service {
     static final int ID = 7002;
+    static volatile boolean running = false;
     static final String CH = "adhan_background";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -54,20 +55,25 @@ public class AdhanKeepAliveService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
+        running = true;
         handler.removeCallbacks(tick);
         handler.postDelayed(tick, 60_000L);
+        AdhanLog.add(this, "Background service running (" + (intent == null ? "restarted by Android" : "started") + ")");
+        try { if (AdhanScheduler.countPending(this) == 0) AdhanScheduler.rescheduleAll(this); } catch (Exception ignored) {}
         return START_STICKY;
     }
 
     /** Swiped away from recent apps: make sure the alarms are still set. */
     @Override
     public void onTaskRemoved(Intent rootIntent) {
+        AdhanLog.add(this, "App swiped away from recent apps; alarms and the background service stay on");
         if (AdhanScheduler.isEnabled(this)) AdhanScheduler.rescheduleAll(this);
         super.onTaskRemoved(rootIntent);
     }
 
     @Override
     public void onDestroy() {
+        running = false;
         handler.removeCallbacks(tick);
         super.onDestroy();
     }
@@ -121,6 +127,13 @@ public class AdhanKeepAliveService extends Service {
 
     private void refresh() {
         if (!AdhanScheduler.isEnabled(this)) { stopSelf(); return; }
+        /* Self-repair: if a phone's battery manager silently removed our alarms, put them back (the background service is the thing that notices). */
+        try {
+            if (AdhanScheduler.countPending(this) == 0 && AdhanScheduler.nextAlarmAt(this) > 0) {
+                AdhanLog.add(this, "Alarms had disappeared (a battery manager removed them?). Set them again.");
+                AdhanScheduler.rescheduleAll(this);
+            }
+        } catch (Exception ignored) {}
         try {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) nm.notify(ID, build());

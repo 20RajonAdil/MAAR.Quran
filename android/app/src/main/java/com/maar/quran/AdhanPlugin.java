@@ -10,7 +10,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
-import androidx.activity.result.ActivityResult;
 
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
@@ -21,7 +20,6 @@ import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
-import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
@@ -85,10 +83,7 @@ public class AdhanPlugin extends Plugin {
         boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
         Integer vol = call.getInt("volume", 85);
         JSArray events = call.getArray("events");
-        String fajrSound = null, otherSound = null;
-        com.getcapacitor.JSObject snd = call.getObject("sounds");
-        if (snd != null) { fajrSound = snd.getString("fajr"); otherSound = snd.getString("other"); }
-        AdhanScheduler.saveConfig(getContext(), enabled, vol == null ? 85 : vol, events, fajrSound, otherSound);
+        AdhanScheduler.saveConfig(getContext(), enabled, vol == null ? 85 : vol, events, null, null);
         int n;
         if (enabled) { n = AdhanScheduler.rescheduleAll(getContext()); AdhanKeepAliveService.start(getContext()); }
         else { AdhanScheduler.cancelAlarms(getContext()); AdhanService.stopNow(); AdhanKeepAliveService.stop(getContext()); n = 0; }
@@ -173,87 +168,16 @@ public class AdhanPlugin extends Plugin {
         }
     }
 
-    /** Preview one sound ("adan1" / "adan2" / "custom") for a slot ("fajr" / "other"). */
+    /** Preview the adhan for a slot ("fajr" = Adhan 1, "other" = Adhan 2). */
     @PluginMethod
     public void preview(PluginCall call) {
         String slot = slotOf(call);
-        String src = AdhanScheduler.cleanSound(call.getString("src"), "fajr".equals(slot) ? "adan1" : "adan2");
         try {
-            ContextCompat.startForegroundService(getContext(), AdhanService.previewIntent(getContext(), slot, src));
+            ContextCompat.startForegroundService(getContext(), AdhanService.previewIntent(getContext(), slot));
             call.resolve();
         } catch (Exception e) {
             call.reject("Could not start the preview: " + e.getMessage());
         }
-    }
-
-    /** Opens Android's own file picker for an audio file and copies it into the app's private storage. */
-    @PluginMethod
-    public void pickAudio(PluginCall call) {
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType("audio/*");
-        startActivityForResult(call, i, "pickResult");
-    }
-
-    @ActivityCallback
-    private void pickResult(PluginCall call, ActivityResult result) {
-        if (call == null) return;
-        if (result == null || result.getResultCode() != android.app.Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
-            JSObject o = new JSObject(); o.put("cancelled", true); call.resolve(o); return;
-        }
-        String slot = slotOf(call);
-        Uri uri = result.getData().getData();
-        java.io.File tmp = new java.io.File(getContext().getFilesDir(), "adhan_custom_" + slot + ".tmp");
-        try {
-            long max = 30L * 1024 * 1024, total = 0;
-            try (java.io.InputStream in = getContext().getContentResolver().openInputStream(uri);
-                 java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
-                if (in == null) throw new java.io.IOException("Could not open the file");
-                byte[] buf = new byte[64 * 1024]; int n;
-                while ((n = in.read(buf)) > 0) {
-                    total += n;
-                    if (total > max) throw new java.io.IOException("That file is larger than 30 MB");
-                    out.write(buf, 0, n);
-                }
-            }
-            long dur = 0;
-            android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
-            try {
-                r.setDataSource(tmp.getAbsolutePath());
-                String d = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
-                dur = d == null ? 0 : Long.parseLong(d);
-                if (dur <= 0 || !"yes".equals(r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)))
-                    throw new java.io.IOException("That does not look like an audio file Android can play");
-            } finally { try { r.release(); } catch (Exception ignored) {} }
-
-            String label = "audio file";
-            try (android.database.Cursor c = getContext().getContentResolver().query(uri, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
-                if (c != null && c.moveToFirst() && c.getString(0) != null) label = c.getString(0);
-            } catch (Exception ignored) {}
-
-            java.io.File dest = AdhanScheduler.customFile(getContext(), slot);
-            if (dest.exists() && !dest.delete()) throw new java.io.IOException("Could not replace the old file");
-            if (!tmp.renameTo(dest)) throw new java.io.IOException("Could not save the file");
-            AdhanScheduler.prefs(getContext()).edit().putString("snd_" + slot, "custom").putString("custom_name_" + slot, label).apply();
-            JSObject o = new JSObject();
-            o.put("name", label); o.put("durationMs", dur); o.put("slot", slot);
-            call.resolve(o);
-        } catch (Exception e) {
-            //noinspection ResultOfMethodCallIgnored
-            tmp.delete();
-            call.reject(e.getMessage() == null ? "Could not use that file" : e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void clearCustom(PluginCall call) {
-        String slot = slotOf(call);
-        //noinspection ResultOfMethodCallIgnored
-        AdhanScheduler.customFile(getContext(), slot).delete();
-        android.content.SharedPreferences.Editor ed = AdhanScheduler.prefs(getContext()).edit().remove("custom_name_" + slot);
-        if ("custom".equals(AdhanScheduler.sound(getContext(), slot))) ed.putString("snd_" + slot, "fajr".equals(slot) ? "adan1" : "adan2");
-        ed.apply();
-        call.resolve();
     }
 
     /** Everything the "Why isn't my adhan playing?" checklist needs, read straight from Android. */
@@ -266,10 +190,8 @@ public class AdhanPlugin extends Plugin {
         o.put("nextAlarmAt", AdhanScheduler.nextAlarmAt(c));
         o.put("soundFajr", AdhanScheduler.soundLabel(c, "fajr"));
         o.put("soundOther", AdhanScheduler.soundLabel(c, "other"));
-        o.put("choiceFajr", AdhanScheduler.sound(c, "fajr"));
-        o.put("choiceOther", AdhanScheduler.sound(c, "other"));
-        o.put("customFajr", AdhanScheduler.prefs(c).getString("custom_name_fajr", ""));
-        o.put("customOther", AdhanScheduler.prefs(c).getString("custom_name_other", ""));
+        o.put("keepAlive", AdhanKeepAliveService.running);
+        try { o.put("log", AdhanLog.read(c)); } catch (Exception ignored) {}
         try {
             android.media.AudioManager am = (android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
             o.put("alarmVolume", am.getStreamVolume(android.media.AudioManager.STREAM_ALARM));

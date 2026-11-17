@@ -10,7 +10,7 @@ import androidx.core.content.ContextCompat;
 public class AdhanReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent i) {
-        if (!AdhanScheduler.isEnabled(c)) return;
+        if (!AdhanScheduler.isEnabled(c)) { AdhanLog.add(c, "Alarm arrived but the adhan is switched off, ignored"); return; }
         String key = i.getStringExtra("key");
         String name = i.getStringExtra("name");
         String time = i.getStringExtra("time");
@@ -18,8 +18,13 @@ public class AdhanReceiver extends BroadcastReceiver {
         if (time == null) time = "";
 
         long at = i.getLongExtra("at", 0L);
-        if (at > 0 && System.currentTimeMillis() - at > AdhanScheduler.STALE_MS) return;   /* far too late to be useful */
+        long lateMs = at > 0 ? System.currentTimeMillis() - at : 0;
+        if (at > 0 && lateMs > AdhanScheduler.STALE_MS) {                                  /* far too late to be useful */
+            AdhanLog.add(c, name + " alarm arrived " + (lateMs / 60000) + " min late, skipped");
+            return;
+        }
         if (!AdhanScheduler.markHandled(c, key)) return;                                  /* already played: no duplicates */
+        AdhanLog.add(c, name + " alarm fired (" + AdhanLog.delay(lateMs) + " after " + time + ")");
 
         boolean play = i.getBooleanExtra("play", false);
         boolean notify = i.getBooleanExtra("notify", false);
@@ -32,6 +37,7 @@ public class AdhanReceiver extends BroadcastReceiver {
                 return;
             } catch (Exception e) {
                 /* Android refused to start audio from the background: show a normal notification instead. */
+                AdhanLog.add(c, name + ": Android refused to start the audio service (" + e.getClass().getSimpleName() + "), showed a notification instead");
                 AdhanNotifications.postReminder(c, name, time, key);
                 return;
             }

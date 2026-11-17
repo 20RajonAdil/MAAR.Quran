@@ -38,14 +38,10 @@
     var r = { on: !!o.on, prayers: {}, notifyPrayers: {}, volume: typeof o.volume === 'number' ? Math.max(5, Math.min(100, o.volume)) : 85, notify: o.notify !== false };
     PRAYERS.forEach(function (p) { r.prayers[p] = !(o.prayers && o.prayers[p] === false); r.notifyPrayers[p] = !(o.notifyPrayers && o.notifyPrayers[p] === false); });
     var MODES = ['off', 'adhan', 'notify', 'vibrate', 'silent'];
-    r.pm = {}; r.sounds = { fajr: 'adan1', other: 'adan2' }; r.custom = { fajr: '', other: '' };
+    r.pm = {}; r.sounds = { fajr: 'adan1', other: 'adan2' };   /* Adhan 1 is always Fajr, Adhan 2 is every other prayer */
     PRAYERS.forEach(function (p) {
       var m = o.pm && o.pm[p];
       r.pm[p] = MODES.indexOf(m) > -1 ? m : (r.prayers[p] ? 'adhan' : (r.notifyPrayers[p] ? 'notify' : 'off'));
-    });
-    ['fajr', 'other'].forEach(function (k) {
-      var v = o.sounds && o.sounds[k]; if (v === 'adan1' || v === 'adan2' || v === 'custom') r.sounds[k] = v;
-      if (o.custom && typeof o.custom[k] === 'string') r.custom[k] = o.custom[k];
     });
     derive(r);
     return r;
@@ -349,7 +345,7 @@
   }
   function syncNative() {
     var P = NP(); if (!P) return;
-    var now = Date.now(), payload = { enabled: !!S.on, volume: S.volume, sounds: { fajr: S.sounds.fajr, other: S.sounds.other }, events: S.on ? nativeList(now) : [] };
+    var now = Date.now(), payload = { enabled: !!S.on, volume: S.volume, events: S.on ? nativeList(now) : [] };
     var sig = JSON.stringify(payload);
     if (sig === lastSig && now - lastSyncAt < 6 * 3600e3) return;
     lastSig = sig; lastSyncAt = now;
@@ -387,7 +383,7 @@
     askEl = document.createElement('div'); askEl.className = 'qm-ad-ask'; askEl.id = 'qm-ad-ask'; askEl.setAttribute('role', 'status');
     askEl.innerHTML = '<b>' + title + '</b><p>' + text + '</p>';
     document.body.appendChild(askEl);
-    setTimeout(closeAsk, ms || 3500);
+    clearTimeout(flashT); flashT = setTimeout(closeAsk, ms || 3500);
   }
   function resultCard(p) {
     if (p === 'granted') flashCard('\u2713 The adhan is on', 'It will play at every prayer time, even with the app closed.');
@@ -409,32 +405,33 @@
     document.body.appendChild(askEl);
   }
   /* What to do each time the app opens (Android app only). */
+  var AUTO = 'qm_adhan_auto';
+  function flagGet(k) { try { return !!localStorage.getItem(k); } catch (e) { return false; } }
+  function flagSet(k) { try { localStorage.setItem(k, String(Date.now())); } catch (e) {} }
+  /* Like the location pop-up: on launch, Android's own notification pop-up appears right away, the adhan is switched
+     on, then the "run in the background" step follows. Nothing is hidden behind a delay. */
   function nativeLaunchFlow() {
     var P = NP(); if (!P) return;
     afterLocation(function () {
       refreshNative(function () {
         if (askEl) return;
-        var st = String(nstate.notifState), recent = false;
-        try { recent = Date.now() - (+localStorage.getItem(ASK) || 0) < 2 * 864e5; } catch (e) {}
-        if (nstate.notifications) { if (!S.on && !recent) maybeAsk(0); return; }       /* allowed but the adhan is off: friendly pop-up */
-        if (recent) return;
-        if (st === 'prompt' && !S.on) {                                                    /* never asked: show Android's own dialog now */
-          try { localStorage.setItem(ASK, String(Date.now())); } catch (e) {}
-          nativeEnable(function (p) { resultCard(p); });
-        } else if (st === 'denied') { showBlocked(); }                                     /* blocked: needs the settings page */
-        else if (!S.on) { maybeAsk(0); }                                                   /* denied once: explain, then ask again */
+        var st = String(nstate.notifState), first = !flagGet(AUTO), allowed = !!nstate.notifications;
+        if (!allowed && (st === 'prompt' || st === 'prompt-with-rationale')) {
+          flagSet(AUTO);
+          nativeEnable(function (p) { if (nstate.batteryUnrestricted) resultCard(p); });
+          return;
+        }
+        if (!allowed) {                                                   /* blocked in Android settings */
+          if (first) { flagSet(AUTO); S.on = true; S.notify = true; save(); start(); forceSync(); syncNative(); refreshCard(); }
+          var recent = false;
+          try { recent = Date.now() - (+localStorage.getItem(ASK) || 0) < 864e5; } catch (e) {}
+          if (!recent) showBlocked();
+          return;
+        }
+        if (first && !S.on) { flagSet(AUTO); nativeEnable(function (p) { if (nstate.batteryUnrestricted) resultCard(p); }); return; }
+        if (S.on) { forceSync(); if (!nstate.batteryUnrestricted) askBattery(false); }
       });
     });
-  }
-  var BATT = 'qm_adhan_batt';
-  function askBattery(force) {
-    var P = NP();
-    if (!P || nstate.batteryUnrestricted) return Promise.resolve();
-    try {
-      if (!force && Date.now() - (+localStorage.getItem(BATT) || 0) < 14 * 864e5) return Promise.resolve();
-      localStorage.setItem(BATT, String(Date.now()));
-    } catch (e) {}
-    return P.requestIgnoreBatteryOptimizations().catch(function () {});
   }
   function nativeEnable(done) {
     var P = NP();
@@ -573,15 +570,8 @@
     var master = q('[data-ad="on"]'); if (master) master.setAttribute('aria-checked', String(S.on));
     var notif = q('[data-ad="notify"]'); if (notif) notif.setAttribute('aria-checked', String(S.notify));
     Array.prototype.forEach.call(cardEl.querySelectorAll('[data-pm]'), function (el) { el.value = S.pm[el.getAttribute('data-pm')]; });
-    ['fajr', 'other'].forEach(function (slot) {
-      var sel = q('[data-snd="' + slot + '"]'); if (!sel) return;
-      var opts = [['adan1', 'Adhan 1'], ['adan2', 'Adhan 2']], has = !!S.custom[slot];
-      if (has) opts.push(['custom', 'Your file: ' + S.custom[slot]]);
-      var sig = opts.map(function (o) { return o.join('=') }).join('|');
-      if (sel._sig !== sig) { fill(sel, opts); sel._sig = sig; }
-      sel.value = (S.sounds[slot] === 'custom' && !has) ? (slot === 'fajr' ? 'adan1' : 'adan2') : S.sounds[slot];
-      var rm = q('[data-rm="' + slot + '"]'); if (rm) rm.hidden = !has;
-      var pv = q('[data-prev="' + slot + '"]'); if (pv) pv.textContent = (nstate.playing && nstate.name === 'Preview') ? 'Stop preview' : 'Preview';
+    Array.prototype.forEach.call(cardEl.querySelectorAll('[data-prev]'), function (pv) {
+      pv.textContent = (nstate.playing && nstate.name === 'Preview') ? 'Stop preview' : pv.getAttribute('data-label');
     });
     var vol = q('[data-ad="vol"]'); if (vol) { vol.value = S.volume; vol.style.setProperty('--p', ((S.volume - vol.min) / (vol.max - vol.min) * 100) + '%'); }
     var vo = q('[data-ad="volout"]'); if (vo) vo.textContent = S.volume + '%';
@@ -635,7 +625,7 @@
     var P = NP();
     if (!P) { unlock(); play(slot === 'fajr' ? 'Fajr' : 'Dhuhr'); return; }
     if (nstate.playing && nstate.name === 'Preview') { P.stop().then(applyStatus, function () {}); return; }
-    P.preview({ slot: slot, src: S.sounds[slot] }).then(function () {}, function (e) { api.toast((e && e.message) || 'Could not play the preview'); });
+    P.preview({ slot: slot }).then(function () {}, function (e) { api.toast((e && e.message) || 'Could not play the preview'); });
   }
 
   /* Reads the real state from Android and explains anything that would stop the adhan. */
@@ -648,12 +638,12 @@
       function add(state, title, detail, fixLabel, fix) { items.push({ s: state, t: title, d: detail, fl: fixLabel, fx: fix }); }
       var openNotif = function () { P.openNotificationSettings().catch(function () {}); };
       add(S.on && r.enabledNative ? 'ok' : 'bad', S.on ? (r.enabledNative ? 'The adhan is switched on' : 'The phone has not received your schedule yet') : 'The adhan is switched off',
-        S.on ? (r.enabledNative ? '' : 'Open the Home page once so your prayer times load, then check again.') : 'Turn on \\u201cPlay the adhan at prayer time\\u201d above.');
+        S.on ? (r.enabledNative ? '' : 'Open the Home page once so your prayer times load, then check again.') : 'Turn on \u201cPlay the adhan at prayer time\u201d above.');
       add(r.notifications ? 'ok' : 'bad', r.notifications ? 'Notifications are allowed' : 'Notifications are blocked',
         r.notifications ? '' : 'The adhan can still play, but Android may stop the audio service and you will not see the Stop button.', r.notifications ? '' : 'Open notification settings', openNotif);
-      if (r.playingChannelBlocked) add('bad', 'The \\u201cAdhan playing\\u201d notification type is switched off', 'Android will not let the adhan play without it.', 'Open notification settings', openNotif);
+      if (r.playingChannelBlocked) add('bad', 'The \u201cAdhan playing\u201d notification type is switched off', 'Android will not let the adhan play without it.', 'Open notification settings', openNotif);
       add(r.exactAlarms ? 'ok' : 'bad', r.exactAlarms ? 'Exact alarms are allowed' : 'Exact alarms are not allowed',
-        r.exactAlarms ? (r.sdk >= 33 ? 'Granted automatically on Android 13 and newer.' : '') : 'Alarms can be late by several minutes. Turn on \\u201cAlarms & reminders\\u201d for Quran Maar.',
+        r.exactAlarms ? (r.sdk >= 33 ? 'Granted automatically on Android 13 and newer.' : '') : 'Alarms can be late by several minutes. Turn on \u201cAlarms & reminders\u201d for Quran Maar.',
         r.exactAlarms ? '' : 'Open alarm settings', function () { P.openExactAlarmSettings().catch(function () {}); });
       if (S.on) {
         var nx = r.nextAlarmAt ? new Date(r.nextAlarmAt) : null;
@@ -662,26 +652,38 @@
       }
       if (typeof r.alarmVolume === 'number') add(r.alarmVolume > 0 ? 'ok' : 'bad', 'Alarm volume: ' + r.alarmVolume + ' of ' + r.alarmVolumeMax,
         r.alarmVolume > 0 ? 'The adhan plays on the alarm volume (not the media or ringer volume).' : 'The alarm volume is zero, so the adhan would be silent. Press a volume key and raise the Alarm slider.');
-      if (r.dndFilter === 3) add('bad', 'Do Not Disturb is set to \\u201cTotal silence\\u201d', 'That blocks alarms too. Change it to allow alarms, or turn Do Not Disturb off.');
+      if (r.dndFilter === 3) add('bad', 'Do Not Disturb is set to \u201cTotal silence\u201d', 'That blocks alarms too. Change it to allow alarms, or turn Do Not Disturb off.');
       else if (r.dndFilter === 2) add('warn', 'Do Not Disturb is on (priority only)', 'Alarms are normally allowed, but check that Alarms is ticked in your Do Not Disturb settings.');
       add(r.batteryUnrestricted ? 'ok' : 'warn', r.batteryUnrestricted ? 'Battery use is unrestricted' : 'Battery optimisation may delay the adhan',
-        r.batteryUnrestricted ? '' : 'Choose \\u201cUnrestricted\\u201d for Quran Maar so Android does not stop it in the background.', r.batteryUnrestricted ? '' : 'Allow background use', function () { P.requestIgnoreBatteryOptimizations().catch(function () {}); });
+        r.batteryUnrestricted ? '' : 'Choose \u201cUnrestricted\u201d for Quran Maar so Android does not stop it in the background.', r.batteryUnrestricted ? '' : 'Allow background use', function () { P.requestIgnoreBatteryOptimizations().catch(function () {}); });
       if (r.backgroundRestricted) add('bad', 'Background activity is restricted for this app', 'Settings, Apps, Quran Maar, Battery: choose Unrestricted.');
       if (r.standbyBucket >= 45) add('bad', 'Android has put the app in its most restricted standby group', 'Open the app regularly and set Battery to Unrestricted.');
+      if (S.on) add(r.keepAlive ? 'ok' : 'warn', r.keepAlive ? 'The \u201cAdhan is on\u201d background service is running' : 'The \u201cAdhan is on\u201d background service is not running right now',
+        r.keepAlive ? 'It shows in Samsung\u2019s \u201cCheck background activity\u201d list and helps the alarms survive.' : 'Open the app once more, and make sure the adhan is switched on. If you have just opened the app, wait a moment and check again.');
       add(r.soundFajr ? 'ok' : 'bad', 'Fajr sound: ' + (r.soundFajr || 'file missing'), r.soundFajr ? '' : 'The adhan audio file could not be found inside the app. Reinstall the app.');
       add(r.soundOther ? 'ok' : 'bad', 'Other prayers sound: ' + (r.soundOther || 'file missing'), r.soundOther ? '' : 'The adhan audio file could not be found inside the app. Reinstall the app.');
       var mf = String(r.manufacturer || '').toLowerCase();
       if (/xiaomi|redmi|poco|huawei|honor|oppo|realme|oneplus|vivo|samsung/.test(mf)) add('warn', 'Your phone brand (' + r.manufacturer + ') is known for stopping background apps',
-        'Also look for \\u201cAutostart\\u201d or \\u201cApp launch\\u201d in the phone\\u2019s settings and allow Quran Maar, and do not swipe the app away if alarms stop.');
+        'Also look for \u201cAutostart\u201d or \u201cApp launch\u201d in the phone\u2019s settings and allow Quran Maar, and do not swipe the app away if alarms stop.');
+      var logs = Array.isArray(r.log) ? r.log : [];
       items.forEach(function (it) {
         var box = document.createElement('div'); box.className = 'qm-ad-di ' + it.s;
-        var mark = document.createElement('i'); mark.textContent = it.s === 'ok' ? '\\u2713' : it.s === 'bad' ? '\\u2715' : '!';
+        var mark = document.createElement('i'); mark.textContent = it.s === 'ok' ? '\u2713' : it.s === 'bad' ? '\u2715' : '!';
         var body = document.createElement('div'); var b = document.createElement('b'); b.textContent = it.t; body.appendChild(b);
         if (it.d) { var sm = document.createElement('small'); sm.textContent = it.d; body.appendChild(sm); }
         if (it.fl && it.fx) { var bt = document.createElement('button'); bt.type = 'button'; bt.className = 'qm-ad-btn'; bt.textContent = it.fl; bt.addEventListener('click', it.fx); body.appendChild(bt); }
         box.appendChild(mark); box.appendChild(body); listEl.appendChild(box);
       });
-    }, function () { listEl.textContent = 'Could not read the phone\\u2019s state.'; });
+      var lg = document.createElement('div'); lg.className = 'qm-ad-di warn'; lg.style.display = 'block';
+      var lb = document.createElement('b'); lb.textContent = 'What the adhan did recently (newest first)'; lg.appendChild(lb);
+      if (!logs.length) { var em = document.createElement('small'); em.textContent = 'Nothing yet. After a prayer time passes with the app closed, come back and check: you will see whether Android fired the alarm.'; lg.appendChild(em); }
+      logs.forEach(function (e) {
+        var d = new Date(e.t), ln = document.createElement('small');
+        ln.textContent = pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '  ' + e.m;
+        lg.appendChild(ln);
+      });
+      listEl.appendChild(lg);
+    }, function () { listEl.textContent = 'Could not read the phone\u2019s state.'; });
   }
 
   function buildCard(api) {
@@ -738,39 +740,21 @@
       fill(sel, MODE_OPTS);
       modeRows.push(h('div', { class: 'qm-ad-prow' }, [h('span', { text: p }), sel]));
     });
-    modeRows.push(h('p', { class: 'qm-ad-note', text: 'Full adhan plays the recording (alarm volume, works when the phone is locked). The other choices only show a notification: with the phone\\u2019s notification sound, a vibration, or nothing audible.' }));
+    modeRows.push(h('p', { class: 'qm-ad-note', text: 'Full adhan plays the recording (alarm volume, works when the phone is locked). The other choices only show a notification: with the phone\u2019s notification sound, a vibration, or nothing audible.' }));
     var which = h('div', { class: 'qm-block' }, modeRows);
     var nwhich = null;
 
-    /* sound choice (Android app only: the website uses its two fixed recordings) */
+    /* the two recordings (Android app only): Adhan 1 = Fajr, Adhan 2 = the other four. Preview only, nothing to choose. */
     var sounds = null;
     if (isNative()) {
-      var rows = [h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-ic', html: api.icn('volume') }), h('span', { class: 'qm-t', text: 'Adhan sound' })])];
-      [['fajr', 'Fajr adhan'], ['other', 'Dhuhr, Asr, Maghrib and Isha adhan']].forEach(function (pair) {
-        var slot = pair[0];
-        var sel = mkSel({ 'data-snd': slot, 'aria-label': pair[1] }, function (v) {
-          S.sounds[slot] = v; save(); forceSync(); syncNative(); refreshCard();
-        });
-        var prev = btn('Preview', '', function () { previewSlot(slot, api); }, { 'data-prev': slot });
-        var pick = btn('Choose a file from this phone\\u2026', '', function () {
-          var P = NP(); if (!P) return;
-          P.pickAudio({ slot: slot }).then(function (r) {
-            if (r && r.cancelled) return;
-            S.sounds[slot] = 'custom'; S.custom[slot] = (r && r.name) || 'your file'; save(); forceSync(); syncNative(); refreshCard();
-            api.toast('Using ' + S.custom[slot]);
-          }, function (e) { api.toast((e && e.message) || 'Could not use that file'); });
-        });
-        var rm = btn('Remove my file', '', function () {
-          var P = NP(); if (!P) return;
-          P.clearCustom({ slot: slot }).then(function () {
-            if (S.sounds[slot] === 'custom') S.sounds[slot] = slot === 'fajr' ? 'adan1' : 'adan2';
-            S.custom[slot] = ''; save(); forceSync(); syncNative(); refreshCard();
-          }, function () {});
-        }, { 'data-rm': slot, hidden: '' });
-        rows.push(h('div', { class: 'qm-ad-srow' }, [h('div', { class: 't', text: pair[1] }), sel, h('div', { class: 'qm-ad-btns' }, [prev, pick, rm])]));
-      });
-      rows.push(h('p', { class: 'qm-ad-note', text: 'A file you choose is copied onto this phone (up to 30 MB), so it plays with no internet. Only use recordings you have the right to use.' }));
-      sounds = h('div', { class: 'qm-block' }, rows);
+      sounds = h('div', { class: 'qm-block' }, [
+        h('div', { class: 'qm-lab' }, [h('span', { class: 'qm-ic', html: api.icn('volume') }), h('span', { class: 'qm-t', text: 'Adhan recordings' })]),
+        h('p', { class: 'qm-ad-note', text: 'Adhan 1 plays at Fajr. Adhan 2 plays at Dhuhr, Asr, Maghrib and Isha.' }),
+        h('div', { class: 'qm-ad-btns' }, [
+          btn('Preview Adhan 1 (Fajr)', '', function () { previewSlot('fajr', api); }, { 'data-prev': 'fajr', 'data-label': 'Preview Adhan 1 (Fajr)' }),
+          btn('Preview Adhan 2 (other prayers)', '', function () { previewSlot('other', api); }, { 'data-prev': 'other', 'data-label': 'Preview Adhan 2 (other prayers)' })
+        ])
+      ]);
     }
 
     var nat = null;   /* (the old Android settings box was removed: one "Allow" pop-up does the setup) */
@@ -822,7 +806,7 @@
 
     var licence = h('div', { class: 'qm-block' }, [h('p', { class: 'qm-ad-note', text: 'Adhan recordings: Adan1.mp3 (Fajr) and Adan2.mp3 (other prayers) are bundled with the app. Their source, licence and attribution are listed in ADHAN-LICENCES.md in the project. Files you choose yourself stay on your phone only.' })]);
 
-    cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [permBox, master, next, which].concat(sounds ? [sounds] : [], [volume, notifRow, warn, testBlock], diagBox ? [diagBox] : [], nat ? [nat] : [], [note, licence]));
+    cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [permBox, master, next, which].concat(sounds ? [sounds] : [], [volume], isNative() ? [] : [notifRow], [warn, testBlock], diagBox ? [diagBox] : [], nat ? [nat] : [], [note, licence]));
     setTimeout(refreshCard, 0);   /* the card is not in the page yet at this moment */
     var iv = setInterval(function () { if (!document.body.contains(cardEl)) { clearInterval(iv); return; } refreshCard(); }, 30000);
     return cardEl;
@@ -879,7 +863,8 @@
     try { if (Date.now() - (+localStorage.getItem(ASK) || 0) < (isNative() ? 2 : 14) * 864e5) return false; } catch (e) {}
     return true;
   }
-  function closeAsk() { if (askEl && askEl.parentNode) askEl.parentNode.removeChild(askEl); askEl = null; }
+  var flashT = 0;
+  function closeAsk() { clearTimeout(flashT); if (askEl && askEl.parentNode) askEl.parentNode.removeChild(askEl); askEl = null; }
   function maybeAsk(tries) {
     if (!canAsk() || askEl || document.getElementById('qm-s-adhan')) return;
     if (document.querySelector('.qm-intro') && tries < 30) { setTimeout(function () { maybeAsk(tries + 1); }, 1000); return; }
