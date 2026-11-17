@@ -20,8 +20,8 @@
   var APK = 'https://github.com/20RajonAdil/MAAR.Quran/releases/latest/download/Quran.MAAR.apk';
 
   /* Not the Android app (website / home-screen shortcut): still show the card, so nobody is left wondering where it is. */
-  if (!isNative()) {
-    if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(function (api) {
+  function webCard(api) {
+    {
       var h = api.h, plat = 'web';
       try { if (window.Capacitor && window.Capacitor.getPlatform) plat = window.Capacitor.getPlatform(); } catch (e) {}
       return api.card('spark', 'Daily Quran Wallpaper', 'A new verse of the Qur\u2019an on your wallpaper, every day.', 'qm-s-wallpaper', [
@@ -31,12 +31,10 @@
           h('p', { style: 'margin:12px 0 0;font-size:12px;opacity:.7;', text: 'Detected: ' + plat + ' (no Android app bridge)' })
         ])
       ]);
-    });
-    return;
+    }
   }
 
-  var P = null;
-  try { P = window.Capacitor.registerPlugin('DailyWallpaper'); } catch (e) { P = null; }
+  var P = null, inited = false;
   var lastErr = '';
   function errText(e) { return (e && (e.message || e.errorMessage)) || String(e || 'unknown error'); }
 
@@ -288,21 +286,13 @@
     return cardEl;
   }
 
-  if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(buildCard);
-
   /* the app language changed (by the person, or by country detection): the wallpaper follows it */
-  if (P && window.QMI18n && window.QMI18n.onChange) window.QMI18n.onChange(function () {
+  function onLang() {
     P.configure(payload()).then(function (r) { st = r; return loadCurrent(); }, function () {});
-  });
-
-  /* coming back to the app (for example from Android's settings): ask Android again what is really set */
-  document.addEventListener('visibilitychange', function () {
-    if (P && document.visibilityState === 'visible' && cardEl && cardEl.isConnected && !busy) loadStatus().then(loadCurrent);
-  });
+  }
 
   /* app start: keep the native side in step with the app language, then see where we stand */
   function boot() {
-    if (!P) return;
     P.configure(payload()).then(function (r) {
       st = r;
       if (r && r.supported === false) return;
@@ -310,5 +300,31 @@
       else if (!(r && r.enabled)) setTimeout(function () { maybeAsk(false); }, 9000);
     }, function () {});
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+  /* The Android bridge is not always ready the instant this file loads, so this runs the first time it IS ready
+     (when Settings is opened, or shortly after start), never just once at load. */
+  function ensureNative() {
+    if (inited) return !!P;
+    if (!isNative()) return false;
+    inited = true;
+    try { P = window.Capacitor.registerPlugin('DailyWallpaper'); } catch (e) { P = null; }
+    if (!P) return false;
+    if (window.QMI18n && window.QMI18n.onChange) window.QMI18n.onChange(onLang);
+    /* coming back to the app (for example from Android's settings): ask Android again what is really set */
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible' && cardEl && cardEl.isConnected && !busy) loadStatus().then(loadCurrent);
+    });
+    boot();
+    return true;
+  }
+
+  if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(function (api) {
+    return ensureNative() ? buildCard(api) : webCard(api);
+  });
+
+  var waits = 0;
+  (function waitForBridge() {
+    if (ensureNative()) return;
+    if (waits++ < 15) setTimeout(waitForBridge, 1000);
+  })();
 })();
