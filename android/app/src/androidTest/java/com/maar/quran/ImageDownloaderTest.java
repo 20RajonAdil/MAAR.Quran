@@ -61,14 +61,7 @@ public class ImageDownloaderTest {
     @Before
     public void setUp() throws Exception {
         ctx = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            // Android 9 and older ask the user for storage access; the test grants it the same way a user would.
-            try (java.io.InputStream sh = new android.os.ParcelFileDescriptor.AutoCloseInputStream(
-                    InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                            .executeShellCommand("pm grant " + ctx.getPackageName() + " android.permission.WRITE_EXTERNAL_STORAGE"))) {
-                readAll(sh);   // wait for the command to finish
-            }
-        }
+        // On Android 9 and older the CI script grants storage access before the app starts, like a user tapping Allow.
         dl = new ImageDownloader(ctx);
         dl.backoffScale = 0;                       // no waiting between retries in tests
         png = makeImage(321, 179, Bitmap.CompressFormat.PNG, 100);

@@ -3,6 +3,13 @@
 # (so the failure can be read without downloading logs).
 cd "$(dirname "$0")/.." || exit 1
 set -o pipefail
+SDK=$(adb shell getprop ro.build.version.sdk | tr -d '\r')
+if [ "${SDK:-99}" -lt 29 ]; then
+  # Android 9 and older ask for storage access at run time: install, then tap "Allow" (pm grant) before the tests start.
+  ./gradlew :app:installDebug :app:installDebugAndroidTest --stacktrace || exit 1
+  adb shell pm grant com.maar.quran android.permission.WRITE_EXTERNAL_STORAGE
+  adb shell pm grant com.maar.quran android.permission.READ_EXTERNAL_STORAGE
+fi
 ./gradlew :app:connectedDebugAndroidTest --stacktrace 2>&1 | tee /tmp/gradle.log
 code=${PIPESTATUS[0]}
 if [ "$code" -ne 0 ]; then

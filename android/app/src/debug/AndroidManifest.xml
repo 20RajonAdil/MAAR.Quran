@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Debug builds only: lets the automated tests download from a tiny server on the test device itself. -->
+    <!-- Debug builds only: lets the automated tests (a) download from a tiny server on the test device itself and
+         (b) look the saved picture up in the Gallery database on Android 9 and older. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <application android:networkSecurityConfig="@xml/qm_debug_network" />
 </manifest>
