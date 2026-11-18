@@ -83,7 +83,7 @@ final class AdhanNotifications {
         PendingIntent stop = PendingIntent.getService(c, 1,
                 new Intent(c, AdhanService.class).setAction(AdhanService.ACTION_STOP),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        return new NotificationCompat.Builder(c, CH_PLAYING)
+        NotificationCompat.Builder nb = new NotificationCompat.Builder(c, CH_PLAYING)
                 .setSmallIcon(R.drawable.ic_stat_adhan)
                 .setContentTitle(time == null || time.isEmpty() ? name : name + " \u00b7 " + time)
                 .setContentText("The adhan is playing")
@@ -94,8 +94,16 @@ final class AdhanNotifications {
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-                .build();
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE);
+        if (!"Preview".equals(name)) {
+            /* Over the lock screen (when the phone is locked or the screen is off) show the call-to-prayer screen with a Stop button. */
+            PendingIntent full = PendingIntent.getActivity(c, 2,
+                    new Intent(c, AdhanActivity.class).putExtra("name", name).putExtra("time", time == null ? "" : time)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            nb.setFullScreenIntent(full, true);
+        }
+        return nb.build();
     }
 
     static void postReminder(Context c, String name, String time, String key) { postReminder(c, name, time, key, null); }

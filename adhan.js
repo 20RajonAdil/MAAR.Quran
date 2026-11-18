@@ -665,6 +665,7 @@
       add(r.exactAlarms ? 'ok' : 'bad', r.exactAlarms ? 'Exact alarms are allowed' : 'Exact alarms are not allowed',
         r.exactAlarms ? (r.sdk >= 33 ? 'Granted automatically on Android 13 and newer.' : '') : 'Alarms can be late by several minutes. Turn on \u201cAlarms & reminders\u201d for Quran Maar.',
         r.exactAlarms ? '' : 'Open alarm settings', function () { P.openExactAlarmSettings().catch(function () {}); });
+      if (r.fullScreenAllowed === false) add('warn', 'The lock-screen adhan screen is not allowed', 'Without it the adhan still plays, but the Stop screen will not appear over the lock screen.', 'Allow full-screen alerts', function () { P.openFullScreenSettings().catch(function () {}); });
       if (S.on) {
         var nx = r.nextAlarmAt ? new Date(r.nextAlarmAt) : null;
         add(r.pendingAlarms > 0 ? 'ok' : 'bad', r.pendingAlarms > 0 ? r.pendingAlarms + ' prayer alarms are set with Android' : 'No prayer alarms are set',

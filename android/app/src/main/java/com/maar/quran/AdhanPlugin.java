@@ -138,6 +138,13 @@ public class AdhanPlugin extends Plugin {
         launch(call, new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getContext().getPackageName())));
     }
 
+    /** Android 14+: lets the call-to-prayer screen appear over the lock screen. */
+    @PluginMethod
+    public void openFullScreenSettings(PluginCall call) {
+        if (Build.VERSION.SDK_INT < 34) { call.resolve(); return; }
+        launch(call, new Intent("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT", Uri.parse("package:" + getContext().getPackageName())));
+    }
+
     @PluginMethod
     public void requestIgnoreBatteryOptimizations(PluginCall call) {
         try {
@@ -200,6 +207,7 @@ public class AdhanPlugin extends Plugin {
         try {
             NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
             o.put("dndFilter", nm.getCurrentInterruptionFilter());   /* 1 all, 2 priority, 3 none, 4 alarms only */
+            if (Build.VERSION.SDK_INT >= 34) o.put("fullScreenAllowed", nm.canUseFullScreenIntent());
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 android.app.NotificationChannel ch = nm.getNotificationChannel(AdhanNotifications.CH_PLAYING);
                 o.put("playingChannelBlocked", ch != null && ch.getImportance() == NotificationManager.IMPORTANCE_NONE);
