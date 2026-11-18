@@ -1482,6 +1482,11 @@ function DailyAyah(){
     try {
       const name = fileName(designId, blob);
       const NP = nativeShareP();
+      if (NP && window.QMImg && await window.QMImg.ready()) {
+        setSheet(''); setBusy('');
+        window.QMImg.download({ blob, name: name.replace(/\.[a-z]+$/i, ''), shareText: `${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}` });
+        return;
+      }
       if (NP) {
         const id = await nativeStageImage(NP, blob, name);
         if (id) await NP.saveImageFile({ id });
@@ -3679,6 +3684,7 @@ function YtPlayer({ video, channelName, onClose, onNext }){
             ${dl && dl.error ? html`<div class="yt-dl-note">Couldn't download. Check your connection and try again.</div>` : null}
           </div>
           <div class="yt-modal-actions">
+            ${video.thumb ? html`<button class="btn btn-ghost" onClick=${() => window.QMImg && window.QMImg.download({ src: video.thumb, name: video.title })}>Save thumbnail</button>` : null}
             ${video.pulse ? html`<a class="btn btn-ghost" href=${video.pulse} target="_blank" rel="noopener">MAAR Pulse</a>` : null}
             <a class="btn btn-ghost" href=${`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener">YouTube</a>
             ${onNext ? html`<button class="btn btn-gold" onClick=${onNext}>Next part</button>` : null}
@@ -3690,6 +3696,13 @@ function YtPlayer({ video, channelName, onClose, onNext }){
   `;
 }
 
+/* One-tap "download this picture" button. Saves the original file (see imagedl.js). */
+function ImgDlBtn({ src, name }){
+  return html`<button type="button" class="img-dl" aria-label="Download image" title="Download image"
+    onClick=${(e) => { e.stopPropagation(); e.preventDefault(); if (window.QMImg) window.QMImg.download({ src, name }); }}
+    onKeyDown=${(e) => e.stopPropagation()}><${Icon} name="download" size=${16} /></button>`;
+}
+
 function YtCard({ video, channelName, onPlay, index, saved, media }){
   const open = () => onPlay(video);
   return html`
@@ -3697,6 +3710,7 @@ function YtCard({ video, channelName, onPlay, index, saved, media }){
       onClick=${open} onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }} title=${video.title}>
       <span class="yt-thumb">
         <img src=${video.thumb} alt="" loading="lazy" decoding="async" />
+        <${ImgDlBtn} src=${video.thumb} name=${video.title} />
         <span class="yt-play"><span><${Icon} name="play" size=${20} filled=${true} /></span></span>
         ${ytIsNew(video.publishedAt) ? html`<span class="yt-new">New</span>` : null}
         ${saved ? html`<span class="yt-saved">Saved</span>` : null}

@@ -1,0 +1,73 @@
+name: Android tests (picture download)
+
+# Runs the picture-download tests on real Android emulators: Android 7 (API 24), 10 (API 29) and 14 (API 34).
+# They download from a tiny server on the emulator, save into the Gallery through MediaStore and compare the
+# saved file with the original byte for byte.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'imagedl.js'
+      - 'tests/**'
+      - '.github/workflows/android-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  unit-and-web:
+    name: Unit tests + page logic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - name: Page logic (fake phone browser)
+        run: npm i --no-save jsdom && node tests/imagedl.test.cjs
+      - run: npm run prepare:www
+      - run: npx cap sync android
+      - name: JVM unit tests
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+  emulator:
+    name: Android ${{ matrix.api }} emulator
+    runs-on: ubuntu-latest
+    needs: unit-and-web
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [24, 29, 34]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: npm run prepare:www
+      - run: npx cap sync android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run picture-download tests on the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: default
+          arch: x86_64
+          disable-animations: true
+          script: cd android && ./gradlew connectedDebugAndroidTest --stacktrace
+      - name: Keep the test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.api }}-test-report
+          path: android/app/build/reports/androidTests/
+          if-no-files-found: ignore
