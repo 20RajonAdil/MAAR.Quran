@@ -1482,7 +1482,7 @@ function DailyAyah(){
     try {
       const name = fileName(designId, blob);
       const NP = nativeShareP();
-      if (NP && window.QMImg && await window.QMImg.ready()) {
+      if (window.QMImg && (!NP || await window.QMImg.ready())) {
         setSheet(''); setBusy('');
         window.QMImg.download({ blob, name: name.replace(/\.[a-z]+$/i, ''), shareText: `${ayah.surah} ${ayah.surahNo}:${ayah.ayahNo} \u2014 ${SITE_HOST_PATH}` });
         return;
@@ -1500,6 +1500,18 @@ function DailyAyah(){
       if (NP) setSheet('');
     } catch (e) { flash(errText(e) || "Couldn't save the image. Try again."); }
     setBusy('');
+  }
+
+  /* One tap on the corner icon: make the picture in the design picked last time and save it, no sheet. */
+  async function quickSave(){
+    if (!ayah || busy) return;
+    setBusy('quick');
+    try {
+      const id = ayahDesignById(store.getJSON(AYAH_DESIGN_KEY, 'classic')).id;
+      const blob = await ayahImageBlob(ayah, id);
+      setBusy('');
+      await downloadImage(blob, id);
+    } catch (e) { setBusy(''); flash(errText(e) || "Couldn't make the image. Try again."); }
   }
 
   async function shareImage(blob, designId){
@@ -1534,6 +1546,7 @@ function DailyAyah(){
   return html`
     <section class="section shell" ref=${ref} style=${{ paddingBottom: 0 }}>
       <div class="ay-card reveal">
+        ${ayah ? html`<button type="button" class="img-dl" aria-label="Download today's ayah as a picture" title="Download image" disabled=${!!busy} style=${busy === 'quick' ? { opacity: .55, cursor: 'wait' } : null} onClick=${quickSave}><${Icon} name="download" size=${16} /></button>` : null}
         <div class="ay-top">
           <div class="eyebrow" style=${{ marginBottom: 0 }}>Ayah of the day</div>
           ${ayah ? html`<div class="ay-ref">${ayah.surah} \u00b7 ${ayah.surahNo}:${ayah.ayahNo}</div>` : null}

@@ -706,7 +706,8 @@ html.os-on .nav{top:var(--os-h);}
 .ay-actions{position:relative;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;}
 .ay-actions .btn:disabled{opacity:.6;cursor:wait}
 .ay-msg{font-size:12.5px;color:var(--muted);}
-@media (max-width:640px){.ay-card{border-radius:44px 44px 22px 22px / 70px 70px 22px 22px;padding-top:26px}}
+.ay-card>.img-dl{top:16px;right:16px}
+@media (max-width:640px){.ay-card{border-radius:44px 44px 22px 22px / 70px 70px 22px 22px;padding-top:26px}.ay-card>.img-dl{top:30px;right:26px}}
 
 /* ---------- one-tap picture download (imagedl.js) ---------- */
 .dl-stack{position:fixed;left:0;right:0;z-index:1300;display:flex;flex-direction:column;gap:8px;align-items:center;padding:0 12px;bottom:calc(var(--tab-h,64px) + env(safe-area-inset-bottom,0px) + 14px);pointer-events:none;}
@@ -1049,7 +1050,7 @@ html.os-on .nav{top:var(--os-h);}
 <script src="offline.js?v=3"></script>
 <script src="imagedl.js?v=1"></script>
 <script src="features.js?v=1"></script>
-<script src="app.js?v=61"></script>
+<script src="app.js?v=62"></script>
 
 <script>
 /* ---- Service worker registration + automatic updates ---------------
