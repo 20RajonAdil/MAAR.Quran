@@ -18,8 +18,13 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v71';
+const SHELL_VERSION = 'v72';
 const DATA_VERSION  = 'v1';
+
+/* Inside the Android app (served from https://localhost) every page and script is already packaged in the APK and is
+   always the installed version. Serving those from this worker's cache instead showed the OLD screens after an app
+   update, so in the app the worker steps aside for the app's own files (audio, data and fonts still use it). */
+const IS_APP = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
 
 const SHELL_CACHE = `qm-shell-${SHELL_VERSION}`;
 const DATA_CACHE  = `qm-data-${DATA_VERSION}`;
@@ -235,6 +240,7 @@ function blobResponse(blob, request) {
    INSTALL
    ============================================================ */
 self.addEventListener('install', (event) => {
+  if (IS_APP) self.skipWaiting();   /* an updated app takes over straight away */
   event.waitUntil(
     (async () => {
       const cache = await caches.open(SHELL_CACHE);
@@ -434,6 +440,7 @@ self.addEventListener('fetch', (event) => {
 
   /* 2. NAVIGATION */
   if (request.mode === 'navigate') {
+    if (IS_APP) return;   /* the APK's own index.html, always current */
     event.respondWith(handleNavigation(event));
     return;
   }
@@ -452,6 +459,7 @@ self.addEventListener('fetch', (event) => {
 
   /* 5. OWN ASSETS */
   if (url.origin === self.location.origin) {
+    if (IS_APP) return;   /* the APK's own files, always current */
     event.respondWith(cacheFirst(request, SHELL_CACHE));
     return;
   }
