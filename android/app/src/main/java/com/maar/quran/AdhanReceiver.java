@@ -34,6 +34,14 @@ public class AdhanReceiver extends BroadcastReceiver {
         if (play) {
             try {
                 ContextCompat.startForegroundService(c, AdhanService.playIntent(c, name, time, key));
+                /* With "Appear on top" allowed, Android lets us open the call-to-prayer screen straight from the background. */
+                try {
+                    if (android.provider.Settings.canDrawOverlays(c)) {
+                        c.startActivity(new Intent(c, AdhanActivity.class).putExtra("name", name).putExtra("time", time)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
+                        AdhanLog.add(c, name + ": opened the call-to-prayer screen");
+                    }
+                } catch (Exception e) { AdhanLog.add(c, name + ": could not open the call-to-prayer screen (" + e.getClass().getSimpleName() + ")"); }
                 return;
             } catch (Exception e) {
                 /* Android refused to start audio from the background: show a normal notification instead. */

@@ -73,6 +73,7 @@ public class AdhanPlugin extends Plugin {
                 : (notificationsAllowed() ? "granted" : "denied"));
         o.put("exactAlarms", AdhanScheduler.canScheduleExact(getContext()));
         o.put("batteryUnrestricted", batteryUnrestricted());
+        o.put("overlay", android.provider.Settings.canDrawOverlays(getContext()));
         o.put("sdk", Build.VERSION.SDK_INT);
         return o;
     }
@@ -143,6 +144,12 @@ public class AdhanPlugin extends Plugin {
     public void openFullScreenSettings(PluginCall call) {
         if (Build.VERSION.SDK_INT < 34) { call.resolve(); return; }
         launch(call, new Intent("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT", Uri.parse("package:" + getContext().getPackageName())));
+    }
+
+    /** Opens Android's real "Appear on top" screen for this app (Display over other apps). */
+    @PluginMethod
+    public void openOverlaySettings(PluginCall call) {
+        launch(call, new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getContext().getPackageName())));
     }
 
     @PluginMethod

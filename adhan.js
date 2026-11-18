@@ -101,7 +101,7 @@
   var nstate = { known: false, notifications: false, notifState: 'prompt', exactAlarms: true, batteryUnrestricted: false, playing: false, name: '', sdk: 0 };
   function applyStatus(r) {
     if (!r) return;
-    ['notifications', 'notifState', 'exactAlarms', 'batteryUnrestricted', 'playing', 'name', 'sdk'].forEach(function (k) { if (r[k] !== undefined && r[k] !== null) nstate[k] = r[k]; });
+    ['notifications', 'notifState', 'exactAlarms', 'batteryUnrestricted', 'overlay', 'playing', 'name', 'sdk'].forEach(function (k) { if (r[k] !== undefined && r[k] !== null) nstate[k] = r[k]; });
     nstate.known = true;
   }
   function refreshNative(cb) {
@@ -282,7 +282,7 @@
     tick();
   }
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { if (isNative()) { forceSync(); refreshNative(); ensureCal(); } tick(); } });
-  window.addEventListener('focus', function () { if (isNative()) refreshNative(function () { if (awaitingSettings && nstate.notifications) { awaitingSettings = false; if (!S.on) nativeEnable(function (p) { resultCard(p); }); else resultCard('granted'); } }); tick(); });
+  window.addEventListener('focus', function () { if (isNative()) refreshNative(function () { if (awaitingSettings && nstate.notifications) { awaitingSettings = false; if (!S.on) nativeEnable(function (p) { resultCard(p); }); else resultCard('granted'); } else nextStep(); }); tick(); });
   window.addEventListener('online', tick);
   window.addEventListener('qm-prayer', tick);
 
@@ -425,6 +425,32 @@
       document.body.appendChild(askEl);
     });
   }
+  var OVL = 'qm_adhan_ovl';
+  /* Explains "Appear on top", then opens Android's real settings screen for it (as WeMuslim does). */
+  function askOverlay(force) {
+    var P = NP();
+    if (!P || nstate.overlay !== false) return Promise.resolve();
+    try {
+      if (!force && Date.now() - (+localStorage.getItem(OVL) || 0) < 3 * 864e5) return Promise.resolve();
+      localStorage.setItem(OVL, String(Date.now()));
+    } catch (e) {}
+    if (askEl && askEl._busy) return Promise.resolve();
+    closeAsk(); css();
+    return new Promise(function (res) {
+      askEl = document.createElement('div'); askEl.className = 'qm-ad-ask'; askEl.id = 'qm-ad-ask'; askEl.setAttribute('role', 'dialog');
+      askEl.innerHTML = '<b>Show the adhan over the lock screen</b><p>Turn on <b>Appear on top</b> for Quran Maar. It lets Android open the adhan screen (with a Stop button) at prayer time even when the app is closed and the phone is locked. On the next screen switch it on, then come back.</p>' +
+        '<div class="qm-ad-btns"><button type="button" class="qm-ad-btn" data-a="no">Not now</button><button type="button" class="qm-ad-btn primary" data-a="go">Open settings</button></div>';
+      askEl.querySelector('[data-a="no"]').addEventListener('click', function () { closeAsk(); res(); });
+      askEl.querySelector('[data-a="go"]').addEventListener('click', function () { closeAsk(); P.openOverlaySettings().catch(function () {}); res(); });
+      document.body.appendChild(askEl);
+    });
+  }
+  /* After the notification and background steps, the "Appear on top" step; run on launch and each time the app returns. */
+  function nextStep() {
+    if (!isNative() || !S.on || askEl) return;
+    if (!nstate.batteryUnrestricted) { askBattery(false); return; }
+    if (nstate.overlay === false) askOverlay(false);
+  }
   var AUTO = 'qm_adhan_auto';
   function flagGet(k) { try { return !!localStorage.getItem(k); } catch (e) { return false; } }
   function flagSet(k) { try { localStorage.setItem(k, String(Date.now())); } catch (e) {} }
@@ -449,7 +475,7 @@
           return;
         }
         if (first && !S.on) { flagSet(AUTO); nativeEnable(function (p) { if (nstate.batteryUnrestricted) resultCard(p); }); return; }
-        if (S.on) { forceSync(); if (!nstate.batteryUnrestricted) askBattery(false); }
+        if (S.on) { forceSync(); nextStep(); }
       });
     });
   }
@@ -466,7 +492,7 @@
         if (done) done(granted ? 'granted' : 'denied');
         return askBattery(true);
       })
-      .then(function () { setTimeout(refreshNative, 1500); });
+      .then(function () { setTimeout(function () { refreshNative(function () { nextStep(); }); }, 1500); });
   }
   function bindNative() {
     var P = NP(); if (!P || bound) return; bound = true;
@@ -666,6 +692,9 @@
         r.exactAlarms ? (r.sdk >= 33 ? 'Granted automatically on Android 13 and newer.' : '') : 'Alarms can be late by several minutes. Turn on \u201cAlarms & reminders\u201d for Quran Maar.',
         r.exactAlarms ? '' : 'Open alarm settings', function () { P.openExactAlarmSettings().catch(function () {}); });
       if (r.fullScreenAllowed === false) add('warn', 'The lock-screen adhan screen is not allowed', 'Without it the adhan still plays, but the Stop screen will not appear over the lock screen.', 'Allow full-screen alerts', function () { P.openFullScreenSettings().catch(function () {}); });
+      add(r.overlay ? 'ok' : 'warn', r.overlay ? '\u201cAppear on top\u201d is allowed' : '\u201cAppear on top\u201d is off',
+        r.overlay ? 'Android can open the adhan screen over the lock screen even when the app is closed.' : 'Turn it on so the adhan screen can open over the lock screen when the app is closed.',
+        r.overlay ? '' : 'Open Appear on top settings', function () { P.openOverlaySettings().catch(function () {}); });
       if (S.on) {
         var nx = r.nextAlarmAt ? new Date(r.nextAlarmAt) : null;
         add(r.pendingAlarms > 0 ? 'ok' : 'bad', r.pendingAlarms > 0 ? r.pendingAlarms + ' prayer alarms are set with Android' : 'No prayer alarms are set',
