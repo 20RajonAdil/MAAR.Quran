@@ -20,8 +20,8 @@ The app id is `com.maar.quran`. If you have the older `Quran.MAAR.apk` from rele
 - `capacitor.config.json` — app id, name, `webDir: www`, `androidScheme: https`.
 - `scripts/prepare-www.mjs` — copies the website into `www/` (generated, git-ignored). It leaves out what the app does not need
   (old `v1`–`v6` pages, the 3 big PDFs, the Vercel function, the dropped `assistant/` folder…). **Nothing in the repo is moved or deleted.** It stops with an error if a required file is missing.
-- `android/` — the native Android project (committed), including the native adhan code in `android/app/src/main/java/com/maar/quran/`.
-- `.github/workflows/android-apk.yml` — installs Node 22 + Java 21, runs `npm ci`, `prepare:www`, `cap sync android`, `./gradlew assembleDebug`, checks the APK contains the adhan audio, and uploads it.
+- `android/` — the native Android project (committed).
+- `.github/workflows/android-apk.yml` — installs Node 22 + Java 21, runs `npm ci`, `prepare:www`, `cap sync android`, `./gradlew assembleDebug`, and uploads it.
 
 **GitHub Pages is untouched.** There was no Pages workflow in the repo (it deploys straight from the branch), and this workflow neither deploys nor changes Pages.
 No secrets, passwords or signing keys are used or stored. The workflow only has `contents: read`.
@@ -37,7 +37,6 @@ To refresh the app's offline cache for installed copies, bump `SHELL_VERSION` in
 - Qur'an text, hadith, prayer times, audio, maps and fonts use the same online APIs as the website. They work from the app's `https://localhost` origin.
 - The **video feed** is a Vercel function that does not exist inside the app, so the app calls the hosted copy at `https://quranmaar.vercel.app/api/videos`
   (the same thing the GitHub Pages site already does). This needs a connection; the last good list is cached offline as before.
-- Adhan: see `ANDROID-ADHAN.md`.
 
 ## Update notice (Android app only)
 

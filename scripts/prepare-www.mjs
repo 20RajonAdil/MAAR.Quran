@@ -22,7 +22,7 @@ const EXCLUDE = new Set([
   'vercel.json', 'sitemap.xml', 'robots.txt', 'google1cf38d53a5ba1eb1.html',
   'tools',             /* SEO build script */
   'assistant', 'assistant-src',   /* the dropped on-device AI assistant (~51 MB) */
-  'README.md', 'LICENSE', 'ANDROID-ADHAN.md', 'ANDROID-BUILD.md',
+  'README.md', 'LICENSE', 'ANDROID-BUILD.md',
   'v1.html', 'v2.html', 'v3.html', 'v4.html', 'v5.html', 'v6.html',
   'old.Adil.MAAR.html', 'MAAR.TAST.html', 'tast.html', 'add-videos.html',
   'Quran.Arabic.pdf', 'Quran.Bangla.pdf', 'Quran.English.pdf',   /* only linked from the old site (~31 MB) */
@@ -31,10 +31,9 @@ const EXCLUDE = new Set([
 
 /* Files the app cannot start without. */
 const REQUIRED = [
-  'index.html', 'app.js', 'adhan.js', 'update.js', 'customise.js', 'features.js', 'i18n.js', 'i18n-data.js', 'offline.js',
+  'index.html', 'app.js', 'update.js', 'customise.js', 'features.js', 'i18n.js', 'i18n-data.js', 'offline.js',
   'sw.js', 'manifest.json', 'offline.html', 'icon-192.png', 'icon-512.png',
   'vendor/react.production.min.js', 'vendor/react-dom.production.min.js', 'vendor/htm.js', 'vendor/leaflet.js',
-  'adhan/Adan1.mp3', 'adhan/Adan2.mp3',
 ];
 
 rmSync(out, { recursive: true, force: true });

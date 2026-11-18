@@ -9,17 +9,6 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <!-- The full-screen call-to-prayer screen shown over the lock screen while the adhan plays -->
-        <activity
-            android:name=".AdhanActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:launchMode="singleInstance"
-            android:taskAffinity=""
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
-
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
@@ -38,38 +27,6 @@
 
         </activity>
 
-        <!-- Native adhan: exact alarm -> foreground audio service. Not exported: only this app can trigger them. -->
-        <receiver android:name=".AdhanReceiver" android:exported="false" />
-
-        <!-- Re-sets the alarms after a restart, app update, or a clock / time-zone / date change. -->
-        <receiver android:name=".BootReceiver" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="android.intent.action.TIME_SET" />
-                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-                <action android:name="android.intent.action.DATE_CHANGED" />
-                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
-            </intent-filter>
-        </receiver>
-
-        <service
-            android:name=".AdhanKeepAliveService"
-            android:exported="false"
-            android:stopWithTask="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps prayer-time alarms and the adhan reliable while the app is closed" />
-        </service>
-
-        <service
-            android:name=".AdhanService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -85,27 +42,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Prayer notifications (Android 13+ asks the user at run time) -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Exact prayer-time alarms. Android 12/12L: user-grantable. Android 13+: USE_EXACT_ALARM is granted automatically. -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-    <!-- Play the adhan with the screen locked / app closed -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- Quiet "Adhan is on" service that keeps the app active in the background -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- "Appear on top": lets the call-to-prayer screen open over the lock screen even when the app is closed -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Saving the Ayah image to Photos on Android 9 and older only (Android 10+ needs no permission) -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-    <!-- Re-schedule after the phone restarts -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Lets the app ask to be exempt from battery optimisation (improves reliability) -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Prayer times for the user's location (the site also works from IP / a typed city) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

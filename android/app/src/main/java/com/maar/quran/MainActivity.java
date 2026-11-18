@@ -20,7 +20,6 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(AdhanPlugin.class);   /* native adhan: alarms + background audio */
         registerPlugin(AppUpdatePlugin.class);   /* "update available" card */
         registerPlugin(QMImagePlugin.class);   /* one-tap picture download to the Gallery */
         registerPlugin(QuranSharePlugin.class);   /* save / share the Ayah-of-the-day image */

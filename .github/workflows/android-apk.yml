@@ -15,7 +15,6 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/**'
-      - 'adhan/**'
       - '*.js'
       - '*.html'
       - 'manifest.json'
@@ -76,11 +75,10 @@ jobs:
           MSG=$(grep -nE "error:|\.java:[0-9]+|^e: |What went wrong|Execution failed|not found|Could not|AAPT|Manifest merger|> " "$RUNNER_TEMP/gradle.log" | head -60 | cut -c1-400 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
           echo "::error title=Gradle build failed::${MSG}"
 
-      - name: Check the APK exists and contains the adhan audio
+      - name: Check the APK exists
         run: |
           APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -n1)
           echo "APK: $APK ($(du -h "$APK" | cut -f1))"
-          unzip -l "$APK" | grep -E "assets/public/adhan/Adan[12]\.mp3" 
           unzip -l "$APK" | grep -E "assets/public/index.html"
           cp "$APK" Quran-MAAR-debug.apk
 

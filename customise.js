@@ -784,7 +784,7 @@
         var t = document.getElementById(id); if (t) t.scrollIntoView({ behavior: motionLevel() === 'off' ? 'auto' : 'smooth', block: 'start' }); } });
     }
     host.appendChild(h('div', { class: 'qm-chips', role: 'navigation', 'aria-label': 'Jump to a settings group' }, [
-      chip('palette', 'Colours', 'qm-s-colours'), chip('sun', 'Prayer colours', 'qm-s-prayer')].concat(sectionBuilders.length ? [chip('bell', 'Adhan', 'qm-s-adhan')] : [], [chip('wave', 'Motion', 'qm-s-motion'), chip('eye', 'Access', 'qm-s-access')])));
+      chip('palette', 'Colours', 'qm-s-colours'), chip('sun', 'Prayer colours', 'qm-s-prayer')].concat([chip('wave', 'Motion', 'qm-s-motion'), chip('eye', 'Access', 'qm-s-access')])));
 
     /* colours */
     var sw = h('div', { class: 'qm-sw', role: 'group', 'aria-label': 'Accent colour' });
