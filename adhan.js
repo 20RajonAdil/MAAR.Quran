@@ -451,6 +451,24 @@
     if (!nstate.batteryUnrestricted) { askBattery(false); return; }
     if (nstate.overlay === false) askOverlay(false);
   }
+  var notifAsking = false;
+  /* Android's own notification pop-up, the moment the app opens (before the location pop-up and the intro), then the adhan is
+     switched on. The background and "Appear on top" steps follow once the intro and location question are done. */
+  function nativeFirstPrompt() {
+    var P = NP(); if (!P) return;
+    refreshNative(function () {
+      var st = String(nstate.notifState);
+      if (nstate.notifications || !(st === 'prompt' || st === 'prompt-with-rationale')) return;
+      notifAsking = true; flagSet(AUTO);
+      P.requestNotificationPermission().then(function () {}, function () {}).then(function () {
+        notifAsking = false;
+        refreshNative(function () {
+          S.on = true; S.notify = true; save(); start(); forceSync(); syncNative(); refreshCard();
+          afterLocation(function () { refreshNative(function () { nextStep(); }); });
+        });
+      });
+    });
+  }
   var AUTO = 'qm_adhan_auto';
   function flagGet(k) { try { return !!localStorage.getItem(k); } catch (e) { return false; } }
   function flagSet(k) { try { localStorage.setItem(k, String(Date.now())); } catch (e) {} }
@@ -460,7 +478,7 @@
     var P = NP(); if (!P) return;
     afterLocation(function () {
       refreshNative(function () {
-        if (askEl) return;
+        if (askEl || notifAsking) return;
         var st = String(nstate.notifState), first = !flagGet(AUTO), allowed = !!nstate.notifications;
         if (!allowed && (st === 'prompt' || st === 'prompt-with-rationale')) {
           flagSet(AUTO);
@@ -947,7 +965,7 @@
   if (window.QMCustomise && window.QMCustomise.addSection) window.QMCustomise.addSection(buildCard);
 
   /* run the scheduler whenever the adhan is on */
-  function boot() { if (isNative()) { bindNative(); if (S.on) start(); nativeLaunchFlow(); return; } if (S.on) start(); setTimeout(function () { maybeAsk(0); }, 6000); }
+  function boot() { if (isNative()) { bindNative(); if (S.on) start(); nativeFirstPrompt(); nativeLaunchFlow(); return; } if (S.on) start(); setTimeout(function () { maybeAsk(0); }, 6000); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
   window.QMAdhan = { play: function (l) { unlock(); return play(l || 'Dhuhr'); }, state: function () { return audio ? { paused: audio.paused, src: audio.getAttribute('data-src'), error: !!audio.error, t: audio.currentTime } : null; }, stop: stop, get: function () { return JSON.parse(JSON.stringify(S)); }, next: function () { return nextEvent(Date.now()); }, native: function () { return isNative() ? JSON.parse(JSON.stringify(nstate)) : null; }, nativeTest: nativeTest };
