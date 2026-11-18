@@ -33,6 +33,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Long-press the app icon: Quran / Prayer times / Qibla / Hadith -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+
         </activity>
 
         <!-- Native adhan: exact alarm -> foreground audio service. Not exported: only this app can trigger them. -->

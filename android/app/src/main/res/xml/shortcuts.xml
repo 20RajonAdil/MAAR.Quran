@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="quran" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_quran">
+        <intent android:action="android.intent.action.MAIN" android:targetPackage="com.maar.quran" android:targetClass="com.maar.quran.MainActivity">
+            <extra android:name="qm_path" android:value="/surah/" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="prayer" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_prayer">
+        <intent android:action="android.intent.action.MAIN" android:targetPackage="com.maar.quran" android:targetClass="com.maar.quran.MainActivity">
+            <extra android:name="qm_path" android:value="/prayer-times/" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="qibla" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_qibla">
+        <intent android:action="android.intent.action.MAIN" android:targetPackage="com.maar.quran" android:targetClass="com.maar.quran.MainActivity">
+            <extra android:name="qm_path" android:value="/qibla/" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="hadith" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_hadith">
+        <intent android:action="android.intent.action.MAIN" android:targetPackage="com.maar.quran" android:targetClass="com.maar.quran.MainActivity">
+            <extra android:name="qm_path" android:value="/hadith/" />
+        </intent>
+    </shortcut>
+</shortcuts>

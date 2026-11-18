@@ -1,5 +1,6 @@
 package com.maar.quran;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
@@ -42,5 +43,24 @@ public class MainActivity extends BridgeActivity {
             return WindowInsetsCompat.CONSUMED;
         });
         ViewCompat.requestApplyInsets(content);
+
+        openShortcutPage(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        openShortcutPage(intent);
+    }
+
+    /** Long-press shortcuts (Quran, Prayer times, Qibla, Hadith) carry a page path; open that page inside the app. */
+    private void openShortcutPage(Intent intent) {
+        try {
+            String path = intent == null ? null : intent.getStringExtra("qm_path");
+            if (path == null || !path.startsWith("/") || getBridge() == null) return;
+            intent.removeExtra("qm_path");
+            final String url = getBridge().getLocalUrl() + path;
+            getBridge().getWebView().post(() -> getBridge().getWebView().loadUrl(url));
+        } catch (Exception ignored) {}
     }
 }
