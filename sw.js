@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v75';
+const SHELL_VERSION = 'v76';
 const DATA_VERSION  = 'v1';
 
 /* Inside the Android app (served from https://localhost) every page and script is already packaged in the APK and is
@@ -42,7 +42,7 @@ const SHELL_ASSETS = [
   './404.html',
   './features.js?v=1',
   './customise.js?v=9',
-  './adhan.js?v=17',
+  './adhan.js?v=18',
   './update.js?v=1',
   './app.js?v=60',
   './i18n.js?v=3',

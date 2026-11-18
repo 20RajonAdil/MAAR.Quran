@@ -101,7 +101,7 @@
   var nstate = { known: false, notifications: false, notifState: 'prompt', exactAlarms: true, batteryUnrestricted: false, playing: false, name: '', sdk: 0 };
   function applyStatus(r) {
     if (!r) return;
-    ['notifications', 'notifState', 'exactAlarms', 'batteryUnrestricted', 'overlay', 'playing', 'name', 'sdk'].forEach(function (k) { if (r[k] !== undefined && r[k] !== null) nstate[k] = r[k]; });
+    ['notifications', 'notifState', 'exactAlarms', 'batteryUnrestricted', 'bgEnabled', 'keepAlive', 'overlay', 'playing', 'name', 'sdk'].forEach(function (k) { if (r[k] !== undefined && r[k] !== null) nstate[k] = r[k]; });
     nstate.known = true;
   }
   function refreshNative(cb) {
@@ -633,6 +633,7 @@
     var q = function (s) { return cardEl.querySelector(s); };
     var master = q('[data-ad="on"]'); if (master) master.setAttribute('aria-checked', String(S.on));
     var notif = q('[data-ad="notify"]'); if (notif) notif.setAttribute('aria-checked', String(S.notify));
+    var bgs = q('[data-ad="bg"]'); if (bgs) bgs.setAttribute('aria-checked', String(nstate.bgEnabled !== false && !!S.on));
     Array.prototype.forEach.call(cardEl.querySelectorAll('[data-pm]'), function (el) { el.value = S.pm[el.getAttribute('data-pm')]; });
     Array.prototype.forEach.call(cardEl.querySelectorAll('[data-prev]'), function (pv) {
       pv.textContent = (nstate.playing && nstate.name === 'Preview') ? 'Stop preview' : pv.getAttribute('data-label');
@@ -685,6 +686,18 @@
     opts.forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; el.appendChild(op); });
     el.value = cur;
   }
+  /* "Enable App Background": starts / stops the user-visible background service (shown in the phone's Active apps list). */
+  function toggleBg(api) {
+    var P = NP(); if (!P) return;
+    var on = nstate.bgEnabled === false;            /* currently off, so this tap turns it on */
+    if (on && !S.on) { api.toast('Turn on the adhan first'); return; }
+    P.setBackground({ enabled: on }).then(function (r) {
+      applyStatus(r); refreshCard();
+      api.toast(on ? 'Background on. Quran Maar now shows in Active apps.' : 'Background off');
+      if (on && !nstate.batteryUnrestricted) askBattery(true);
+      setTimeout(refreshNative, 1200);
+    }, function () { api.toast('Could not change it'); });
+  }
   function previewSlot(slot, api) {
     var P = NP();
     if (!P) { unlock(); play(slot === 'fajr' ? 'Fajr' : 'Dhuhr'); return; }
@@ -726,13 +739,16 @@
         r.batteryUnrestricted ? '' : 'Choose \u201cUnrestricted\u201d for Quran Maar so Android does not stop it in the background.', r.batteryUnrestricted ? '' : 'Allow background use', function () { P.requestIgnoreBatteryOptimizations().catch(function () {}); });
       if (r.backgroundRestricted) add('bad', 'Background activity is restricted for this app', 'Settings, Apps, Quran Maar, Battery: choose Unrestricted.');
       if (r.standbyBucket >= 45) add('bad', 'Android has put the app in its most restricted standby group', 'Open the app regularly and set Battery to Unrestricted.');
-      if (S.on) add(r.keepAlive ? 'ok' : 'warn', r.keepAlive ? 'The \u201cAdhan is on\u201d background service is running' : 'The \u201cAdhan is on\u201d background service is not running right now',
-        r.keepAlive ? 'It shows in Samsung\u2019s \u201cCheck background activity\u201d list and helps the alarms survive.' : 'Open the app once more, and make sure the adhan is switched on. If you have just opened the app, wait a moment and check again.');
+      if (S.on) {
+        if (r.bgEnabled === false) add('warn', '\u201cEnable App Background\u201d is off', 'The adhan alarms still work, but the app can be put to sleep more easily. Turn it on to show Quran Maar in Active apps.', 'Turn on', function () { P.setBackground({ enabled: true }).then(function () { runDiagnostics(listEl, api); }, function () {}); });
+        else add(r.keepAlive ? 'ok' : 'warn', r.keepAlive ? 'Quran Maar is running in the background (shown in Active apps)' : 'The background service is not running right now',
+          r.keepAlive ? 'You can see it in the phone\u2019s notification panel under Active apps, with a countdown to the next prayer.' : 'Open the app once more. If you pressed Stop in Active apps, switch \u201cEnable App Background\u201d on again.');
+      }
       add(r.soundFajr ? 'ok' : 'bad', 'Fajr sound: ' + (r.soundFajr || 'file missing'), r.soundFajr ? '' : 'The adhan audio file could not be found inside the app. Reinstall the app.');
       add(r.soundOther ? 'ok' : 'bad', 'Other prayers sound: ' + (r.soundOther || 'file missing'), r.soundOther ? '' : 'The adhan audio file could not be found inside the app. Reinstall the app.');
       var mf = String(r.manufacturer || '').toLowerCase();
       if (/xiaomi|redmi|poco|huawei|honor|oppo|realme|oneplus|vivo|samsung/.test(mf)) add('warn', 'Your phone brand (' + r.manufacturer + ') is known for stopping background apps',
-        'Also look for \u201cAutostart\u201d or \u201cApp launch\u201d in the phone\u2019s settings and allow Quran Maar, and do not swipe the app away if alarms stop.');
+        'Open Battery for Quran Maar and choose Unrestricted. Also check Settings, Battery, Background usage limits: remove Quran Maar from Sleeping apps and Deep sleeping apps.', 'Open app settings', function () { P.openAppDetails().catch(function () {}); });
       var logs = Array.isArray(r.log) ? r.log : [];
       items.forEach(function (it) {
         var box = document.createElement('div'); box.className = 'qm-ad-di ' + it.s;
@@ -770,6 +786,8 @@
       if (supported() && perm() === 'default' && S.notify) { enableAll(function (p) { api.toast(p === 'granted' ? 'Notifications are on' : 'Notifications were not allowed'); if (p === 'granted') showKeepTip(); }); return; }
       S.on = true; save(); unlock(); start(); api.toast('Adhan is on'); refreshCard(); showKeepTip();
     });
+
+    var bgRow = isNative() ? row('bell', 'Enable App Background', 'Keeps Quran Maar running in the background so the adhan sounds when the app is closed. It shows in your phone\u2019s Active apps list with a countdown to the next prayer.', sw('bg', 'Enable App Background'), function () { toggleBg(api); }) : null;
 
     var permBox = h('div', { class: 'qm-block', 'data-ad': 'perm' }, [
       h('div', { class: 'qm-ad-permt', 'data-ad': 'permtitle' }),
@@ -874,7 +892,7 @@
 
     var licence = h('div', { class: 'qm-block' }, [h('p', { class: 'qm-ad-note', text: 'Adhan recordings: Adan1.mp3 (Fajr) and Adan2.mp3 (other prayers) are bundled with the app. Their source, licence and attribution are listed in ADHAN-LICENCES.md in the project. Files you choose yourself stay on your phone only.' })]);
 
-    cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [permBox, master, next, which].concat(sounds ? [sounds] : [], [volume], isNative() ? [] : [notifRow], [warn, testBlock], diagBox ? [diagBox] : [], nat ? [nat] : [], [note, licence]));
+    cardEl = api.card('bell', 'Adhan', 'The call to prayer at each prayer time.', 'qm-s-adhan', [permBox, master].concat(bgRow ? [bgRow] : [], [next, which], sounds ? [sounds] : [], [volume], isNative() ? [] : [notifRow], [warn, testBlock], diagBox ? [diagBox] : [], nat ? [nat] : [], [note, licence]));
     setTimeout(refreshCard, 0);   /* the card is not in the page yet at this moment */
     var iv = setInterval(function () { if (!document.body.contains(cardEl)) { clearInterval(iv); return; } refreshCard(); }, 30000);
     return cardEl;

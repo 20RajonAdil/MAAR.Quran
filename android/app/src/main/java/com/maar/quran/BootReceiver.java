@@ -18,6 +18,7 @@ public class BootReceiver extends BroadcastReceiver {
         if (a == null) return;
         if (Intent.ACTION_TIMEZONE_CHANGED.equals(a)) TimeZone.setDefault(null);   /* re-read the phone's zone */
         AdhanScheduler.rescheduleAll(c);
-        if (AdhanScheduler.isEnabled(c)) AdhanKeepAliveService.start(c);   /* bring the "Adhan is on" background service back after a restart / update */
+        AdhanMaintenanceWorker.schedule(c, AdhanScheduler.isEnabled(c));
+        AdhanKeepAliveService.start(c);   /* only starts when the adhan and "Enable App Background" are both on */
     }
 }

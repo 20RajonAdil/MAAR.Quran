@@ -25,6 +25,7 @@ public class AdhanReceiver extends BroadcastReceiver {
         }
         if (!AdhanScheduler.markHandled(c, key)) return;                                  /* already played: no duplicates */
         AdhanLog.add(c, name + " alarm fired (" + AdhanLog.delay(lateMs) + " after " + time + ")");
+        AdhanKeepAliveService.refreshNow(c);
 
         boolean play = i.getBooleanExtra("play", false);
         boolean notify = i.getBooleanExtra("notify", false);

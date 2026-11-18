@@ -73,6 +73,8 @@ public class AdhanPlugin extends Plugin {
                 : (notificationsAllowed() ? "granted" : "denied"));
         o.put("exactAlarms", AdhanScheduler.canScheduleExact(getContext()));
         o.put("batteryUnrestricted", batteryUnrestricted());
+        o.put("bgEnabled", AdhanScheduler.bgEnabled(getContext()));
+        o.put("keepAlive", AdhanKeepAliveService.running);
         o.put("overlay", android.provider.Settings.canDrawOverlays(getContext()));
         o.put("sdk", Build.VERSION.SDK_INT);
         return o;
@@ -86,8 +88,8 @@ public class AdhanPlugin extends Plugin {
         JSArray events = call.getArray("events");
         AdhanScheduler.saveConfig(getContext(), enabled, vol == null ? 85 : vol, events, null, null);
         int n;
-        if (enabled) { n = AdhanScheduler.rescheduleAll(getContext()); AdhanKeepAliveService.start(getContext()); }
-        else { AdhanScheduler.cancelAlarms(getContext()); AdhanService.stopNow(); AdhanKeepAliveService.stop(getContext()); n = 0; }
+        if (enabled) { n = AdhanScheduler.rescheduleAll(getContext()); AdhanKeepAliveService.start(getContext()); AdhanKeepAliveService.refreshNow(getContext()); AdhanMaintenanceWorker.schedule(getContext(), true); }
+        else { AdhanScheduler.cancelAlarms(getContext()); AdhanService.stopNow(); AdhanKeepAliveService.stop(getContext()); AdhanMaintenanceWorker.schedule(getContext(), false); n = 0; }
         JSObject o = statusObject();
         o.put("scheduled", n);
         call.resolve(o);
@@ -152,6 +154,22 @@ public class AdhanPlugin extends Plugin {
         launch(call, new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getContext().getPackageName())));
     }
 
+    /** The "Enable App Background" switch: starts / stops the user-visible background foreground service. */
+    @PluginMethod
+    public void setBackground(PluginCall call) {
+        boolean on = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        AdhanScheduler.setBg(getContext(), on);
+        if (on) { AdhanLog.add(getContext(), "Enable App Background switched on"); AdhanKeepAliveService.start(getContext()); }
+        else { AdhanLog.add(getContext(), "Enable App Background switched off"); AdhanKeepAliveService.stop(getContext()); }
+        call.resolve(statusObject());
+    }
+
+    /** Android's App info page for this app (battery, notifications, "Unrestricted" and so on). */
+    @PluginMethod
+    public void openAppDetails(PluginCall call) {
+        launch(call, new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName())));
+    }
+
     @PluginMethod
     public void requestIgnoreBatteryOptimizations(PluginCall call) {
         try {
@@ -204,7 +222,6 @@ public class AdhanPlugin extends Plugin {
         o.put("nextAlarmAt", AdhanScheduler.nextAlarmAt(c));
         o.put("soundFajr", AdhanScheduler.soundLabel(c, "fajr"));
         o.put("soundOther", AdhanScheduler.soundLabel(c, "other"));
-        o.put("keepAlive", AdhanKeepAliveService.running);
         try { o.put("log", AdhanLog.read(c)); } catch (Exception ignored) {}
         try {
             android.media.AudioManager am = (android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE);

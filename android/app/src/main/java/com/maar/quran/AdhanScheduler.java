@@ -48,6 +48,10 @@ public final class AdhanScheduler {
     /** Adhan 1 is always Fajr; Adhan 2 is every other prayer. */
     static String sound(Context c, String slot) { return "fajr".equals(slot) ? "adan1" : "adan2"; }
 
+    /** The user's "Enable App Background" switch. Default on. */
+    static boolean bgEnabled(Context c) { return prefs(c).getBoolean("bg", true); }
+    static void setBg(Context c, boolean on) { prefs(c).edit().putBoolean("bg", on).apply(); }
+
     static boolean isEnabled(Context c) { return prefs(c).getBoolean("enabled", false); }
 
     static int volume(Context c) { return prefs(c).getInt("volume", 85); }

@@ -117,3 +117,19 @@ LocalNotifications and no `AdhanNative` plugin.
   started or refused, app swiped away). After a prayer passes with the app closed, open that list. If the alarm shows as "fired" and "started playing" the
   system worked; if nothing is logged at the prayer time, Android never delivered the alarm (usually a battery manager or a force-stop).
 - Force-stopping the app (Settings > Apps > Force stop, or a phone's cleaner) deletes every alarm until the app is opened again. That is Android, not the app.
+
+## Background service, alarms and WorkManager (how the pieces fit)
+
+| Piece | Job | Runs when |
+| --- | --- | --- |
+| `AlarmManager.setAlarmClock` (AdhanScheduler) | Exact prayer-time alarms. This is what wakes the app for each prayer. | Always set while the adhan is on |
+| `AdhanKeepAliveService` (foreground, type `specialUse`, `stopWithTask=false`) | The **"Enable App Background"** service. Shows in Android's Active apps / Check background activity with the app name, running time and Stop. Its notification is a live countdown to the next prayer and has a Turn off button. **No polling loop.** | Only while the adhan and the "Enable App Background" switch are both on |
+| `AdhanService` (foreground, type `mediaPlayback`) | Plays the adhan audio, with a Stop button and the lock-screen screen. | Only while audio is actually playing |
+| `AdhanMaintenanceWorker` (WorkManager, ~every 6 h) | Deferrable housekeeping: checks the alarms are still registered and re-sets them if a battery manager removed them. Not used for timing. | Android chooses the moment |
+| `BootReceiver` | Re-sets alarms, the worker and the service after restart, app update, clock or time-zone change. | On those events |
+
+Notes
+- The Stop button in the phone's Active apps list stops the service and the app is told through `onDestroy`; the app then switches "Enable App Background" off and logs it. Alarms stay set.
+- "Appear on top" (`SYSTEM_ALERT_WINDOW`) is optional and only helps the lock-screen adhan screen open from the background. Nothing depends on it; the foreground service and alarms work without it.
+- Android 15+ does not allow media-playback services to start from `BOOT_COMPLETED`; that is why audio is always started from an alarm, never from boot.
+- Samsung: Settings > Apps > Quran Maar > Battery > Unrestricted, and make sure Quran Maar is not in Sleeping apps / Deep sleeping apps (Settings > Battery > Background usage limits).

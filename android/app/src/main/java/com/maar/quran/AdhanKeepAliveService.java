@@ -2,16 +2,16 @@ package com.maar.quran;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 
@@ -19,62 +19,106 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * "Adhan is on" background activity. While the adhan is switched on, this quiet foreground service keeps the app
- * alive in the background (it shows in Android's active-apps list), so the prayer alarms and the adhan are as
- * reliable as Android allows. It shows the next prayer and its time. It stops when the adhan is switched off.
+ * "Enable App Background": a user-visible foreground service (type specialUse) that exists only while the user has the
+ * adhan AND the "Enable App Background" switch on. Android lists it under Active apps / Check background activity with
+ * the app name, running time and a Stop button, and it keeps the app's process in a protected state so prayer alarms
+ * and the adhan are delivered reliably.
+ *
+ * It does real, visible work: the notification is a live countdown to the next prayer. It does NOT poll or loop. The
+ * countdown is drawn by Android itself; the text is refreshed only when something changes (an alarm fired, the
+ * schedule changed, WorkManager's periodic check). The adhan audio itself is a separate mediaPlayback foreground
+ * service (AdhanService) that exists only while the adhan is actually playing.
  */
 public class AdhanKeepAliveService extends Service {
     static final int ID = 7002;
-    static volatile boolean running = false;
     static final String CH = "adhan_background";
+    static final String ACTION_TURN_OFF = "com.maar.quran.ADHAN_BG_OFF";
 
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Runnable tick = new Runnable() {
-        @Override public void run() { refresh(); handler.postDelayed(this, 60_000L); }
-    };
+    static volatile boolean running = false;
+    private static volatile AdhanKeepAliveService instance;
+    private boolean stoppingOnPurpose = false;
+
+    /** True when this service should exist: adhan on and the user's background switch on. */
+    static boolean shouldRun(Context c) { return AdhanScheduler.isEnabled(c) && AdhanScheduler.bgEnabled(c); }
 
     static void start(Context c) {
-        try { ContextCompat.startForegroundService(c, new Intent(c, AdhanKeepAliveService.class)); }
-        catch (Exception ignored) { /* Android refused a background start; the alarms still work */ }
+        if (!shouldRun(c)) return;
+        try {
+            ContextCompat.startForegroundService(c, new Intent(c, AdhanKeepAliveService.class));
+        } catch (Exception e) {
+            /* e.g. ForegroundServiceStartNotAllowedException when the app is in the background: the alarms still work */
+            AdhanLog.add(c, "Android did not allow the background service to start now (" + e.getClass().getSimpleName() + ")");
+        }
     }
 
     static void stop(Context c) {
+        AdhanKeepAliveService s = instance;
+        if (s != null) s.stoppingOnPurpose = true;
         try { c.stopService(new Intent(c, AdhanKeepAliveService.class)); } catch (Exception ignored) {}
+    }
+
+    /** Refreshes the countdown text if the service is running (no-op otherwise; never starts it). */
+    static void refreshNow(Context c) {
+        AdhanKeepAliveService s = instance;
+        if (s != null) s.postNotification();
     }
 
     @Override public IBinder onBind(Intent intent) { return null; }
 
     @Override
+    public void onCreate() {
+        super.onCreate();
+        instance = this;
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (!AdhanScheduler.isEnabled(this)) { stopSelf(); return START_NOT_STICKY; }
+        if (intent != null && ACTION_TURN_OFF.equals(intent.getAction())) {
+            /* The "Turn off" button in the notification */
+            AdhanScheduler.setBg(this, false);
+            AdhanLog.add(this, "Enable App Background turned off from its notification");
+            stoppingOnPurpose = true;
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+        if (!shouldRun(this)) { stoppingOnPurpose = true; stopSelf(); return START_NOT_STICKY; }
+
         ensureChannel();
+        /* Promote to a foreground service within 10 s of the start (the declared type is mandatory on Android 14+). */
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE : 0;
         try {
             ServiceCompat.startForeground(this, ID, build(), type);
         } catch (Exception e) {
+            AdhanLog.add(this, "Background service could not enter the foreground (" + e.getClass().getSimpleName() + ")");
+            stoppingOnPurpose = true;
             stopSelf();
             return START_NOT_STICKY;
         }
         running = true;
-        handler.removeCallbacks(tick);
-        handler.postDelayed(tick, 60_000L);
-        AdhanLog.add(this, "Background service running (" + (intent == null ? "restarted by Android" : "started") + ")");
+        boolean notifOk = NotificationManagerCompat.from(this).areNotificationsEnabled();
+        AdhanLog.add(this, "Background service running" + (intent == null ? " (restarted by Android)" : "") + (notifOk ? "" : " (notifications are blocked, so its notification is hidden)"));
         try { if (AdhanScheduler.countPending(this) == 0) AdhanScheduler.rescheduleAll(this); } catch (Exception ignored) {}
         return START_STICKY;
     }
 
-    /** Swiped away from recent apps: make sure the alarms are still set. */
+    /** Swiped away from Recent apps: the service and the alarms stay (stopWithTask=false). Just make sure the alarms are set. */
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        AdhanLog.add(this, "App swiped away from recent apps; alarms and the background service stay on");
-        if (AdhanScheduler.isEnabled(this)) AdhanScheduler.rescheduleAll(this);
+        AdhanLog.add(this, "App removed from Recent apps; the background service stays on");
+        try { if (AdhanScheduler.isEnabled(this)) AdhanScheduler.rescheduleAll(this); } catch (Exception ignored) {}
         super.onTaskRemoved(rootIntent);
     }
 
     @Override
     public void onDestroy() {
         running = false;
-        handler.removeCallbacks(tick);
+        instance = null;
+        /* Stopped by something other than us (for example the Stop button in the phone's Active apps list). Respect it. */
+        if (!stoppingOnPurpose && AdhanScheduler.bgEnabled(this)) {
+            AdhanScheduler.setBg(this, false);
+            AdhanLog.add(this, "Background service was stopped from outside the app (for example Active apps > Stop). Alarms stay set.");
+        }
         super.onDestroy();
     }
 
@@ -82,19 +126,18 @@ public class AdhanKeepAliveService extends Service {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
-        NotificationChannel ch = new NotificationChannel(CH, "Adhan running in background", NotificationManager.IMPORTANCE_LOW);
-        ch.setDescription("A quiet notification that keeps the adhan reliable while the app is closed");
+        NotificationChannel ch = new NotificationChannel(CH, "App background (adhan)", NotificationManager.IMPORTANCE_LOW);
+        ch.setDescription("Shows that Quran Maar is running in the background so the adhan sounds at prayer time");
         ch.setSound(null, null);
         ch.enableVibration(false);
         ch.setShowBadge(false);
         nm.createNotificationChannel(ch);
     }
 
-    private String nextPrayerText() {
+    private long[] nextPrayer(String[] labelOut) {
+        long now = System.currentTimeMillis(), best = Long.MAX_VALUE;
         try {
             JSONArray ev = AdhanScheduler.loadEvents(this);
-            long now = System.currentTimeMillis(), best = Long.MAX_VALUE;
-            String label = null;
             for (int i = 0; i < ev.length(); i++) {
                 JSONObject e = ev.optJSONObject(i);
                 if (e == null) continue;
@@ -102,38 +145,40 @@ public class AdhanKeepAliveService extends Service {
                 if (date.isEmpty() || time.isEmpty() || name.isEmpty()) continue;
                 long at;
                 try { at = AdhanScheduler.toEpoch(date, time); } catch (Exception ex) { continue; }
-                if (at > now && at < best) { best = at; label = name + " \u00b7 " + time; }
+                if (at > now && at < best) { best = at; labelOut[0] = name + " \u00b7 " + time; }
             }
-            if (label != null) return "Next prayer: " + label;
         } catch (Exception ignored) {}
-        return "Open the app to refresh prayer times";
+        return new long[]{best == Long.MAX_VALUE ? 0 : best};
     }
 
     private android.app.Notification build() {
-        return new NotificationCompat.Builder(this, CH)
+        String[] label = new String[1];
+        long next = nextPrayer(label)[0];
+        PendingIntent off = PendingIntent.getService(this, 3,
+                new Intent(this, AdhanKeepAliveService.class).setAction(ACTION_TURN_OFF),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Builder b = new NotificationCompat.Builder(this, CH)
                 .setSmallIcon(R.drawable.ic_stat_adhan)
-                .setContentTitle("Quran Maar \u00b7 Adhan is on")
-                .setContentText(nextPrayerText())
+                .setContentTitle("Quran Maar")
+                .setContentText(label[0] != null ? "Next prayer: " + label[0] : "Open the app to refresh prayer times")
                 .setContentIntent(AdhanNotifications.openApp(this))
+                .addAction(0, "Turn off", off)
                 .setOngoing(true)
                 .setSilent(true)
-                .setShowWhen(false)
                 .setOnlyAlertOnce(true)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-                .build();
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE);
+        if (next > 0) {
+            /* A live countdown drawn by Android itself, so nothing here has to tick. */
+            b.setShowWhen(true).setWhen(next).setUsesChronometer(true).setChronometerCountDown(true);
+        } else {
+            b.setShowWhen(false);
+        }
+        return b.build();
     }
 
-    private void refresh() {
-        if (!AdhanScheduler.isEnabled(this)) { stopSelf(); return; }
-        /* Self-repair: if a phone's battery manager silently removed our alarms, put them back (the background service is the thing that notices). */
-        try {
-            if (AdhanScheduler.countPending(this) == 0 && AdhanScheduler.nextAlarmAt(this) > 0) {
-                AdhanLog.add(this, "Alarms had disappeared (a battery manager removed them?). Set them again.");
-                AdhanScheduler.rescheduleAll(this);
-            }
-        } catch (Exception ignored) {}
+    private void postNotification() {
         try {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) nm.notify(ID, build());
