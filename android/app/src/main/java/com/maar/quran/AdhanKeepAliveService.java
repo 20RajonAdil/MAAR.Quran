@@ -82,11 +82,18 @@ public class AdhanKeepAliveService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        if (!shouldRun(this)) { stoppingOnPurpose = true; stopSelf(); return START_NOT_STICKY; }
-
         ensureChannel();
         /* Promote to a foreground service within 10 s of the start (the declared type is mandatory on Android 14+). */
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE : 0;
+        if (!shouldRun(this)) {
+            /* Started with startForegroundService() but the switch is off by now: Android still requires startForeground()
+               first, otherwise it crashes the app. Show the notification for an instant, then stop. */
+            stoppingOnPurpose = true;
+            try { ServiceCompat.startForeground(this, ID, build(), type); } catch (Exception ignored) {}
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         try {
             ServiceCompat.startForeground(this, ID, build(), type);
         } catch (Exception e) {
