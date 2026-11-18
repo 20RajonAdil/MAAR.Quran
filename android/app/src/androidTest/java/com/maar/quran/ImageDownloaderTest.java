@@ -63,8 +63,11 @@ public class ImageDownloaderTest {
         ctx = InstrumentationRegistry.getInstrumentation().getTargetContext();
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             // Android 9 and older ask the user for storage access; the test grants it the same way a user would.
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .grantRuntimePermission(ctx.getPackageName(), "android.permission.WRITE_EXTERNAL_STORAGE");
+            try (java.io.InputStream sh = new android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                    InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                            .executeShellCommand("pm grant " + ctx.getPackageName() + " android.permission.WRITE_EXTERNAL_STORAGE"))) {
+                readAll(sh);   // wait for the command to finish
+            }
         }
         dl = new ImageDownloader(ctx);
         dl.backoffScale = 0;                       // no waiting between retries in tests
