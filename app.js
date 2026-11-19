@@ -775,6 +775,7 @@ const ICONS = {
   android: 'M5 17a7 7 0 0 1 14 0H5ZM8 9.5 6.5 7M16 9.5 17.5 7M9.5 13.5h.01M14.5 13.5h.01M9 20.5v-3.5M15 20.5v-3.5',
   phone: 'M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3ZM11 18h2',
   share: 'M12 15V4M8 8l4-4 4 4M7 11H6v9h12v-9h-1',
+  speak: 'M4 9h3l4-3.5v13L7 15H4V9ZM15 9.5a3.5 3.5 0 0 1 0 5M17.5 7a7 7 0 0 1 0 10',
   mic: 'M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm-6-3a6 6 0 0 0 12 0M12 18v3M9 21h6',
   settings: 'M4 7h9m4 0h3M4 12h3m4 0h9M4 17h11m4 0h1M15 5v4M9 10v4M17 15v4',
 };
@@ -1960,11 +1961,96 @@ async function qmFetchJson(url, tries = 3){
   throw last;
 }
 
+
+/* ---------------------------------------------------------------
+   Translation read-aloud. The Arabic recitation comes from recorded
+   audio; translations in 20 languages have no recordings, so they are
+   read by the device's own text-to-speech voices (Web Speech API).
+   Which languages sound good depends on the voices installed on the
+   phone / computer, so the player says so when a language has none.
+--------------------------------------------------------------- */
+const QM_TTS_LANG = {
+  en:'en-GB', bn:'bn-BD', zh:'zh-CN', hi:'hi-IN', ur:'ur-PK', es:'es-ES', fr:'fr-FR', id:'id-ID',
+  tr:'tr-TR', ru:'ru-RU', ms:'ms-MY', fa:'fa-IR', it:'it-IT', ja:'ja-JP', ko:'ko-KR', th:'th-TH',
+  sw:'sw-KE', ta:'ta-IN', ml:'ml-IN', de:'de-DE',
+};
+let _qmSpeakToken = 0;
+function qmTtsSupported(){ return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window; }
+function qmPickVoice(code){
+  if (!qmTtsSupported()) return null;
+  const want = (QM_TTS_LANG[code] || code).toLowerCase();
+  const base = want.split('-')[0];
+  const voices = window.speechSynthesis.getVoices() || [];
+  if (!voices.length) return undefined; /* list not loaded yet: just try */
+  const same = voices.filter((v) => (v.lang || '').toLowerCase().replace('_', '-') === want);
+  const near = voices.filter((v) => (v.lang || '').toLowerCase().replace('_', '-').split('-')[0] === base);
+  const pool = same.length ? same : near;
+  if (!pool.length) return null;
+  return pool.find((v) => v.default) || pool.find((v) => v.localService) || pool[0];
+}
+/* Long text is cut into sentence-sized pieces: Chrome silently stops a single long utterance after ~15 seconds. */
+function qmSpeechChunks(text){
+  const clean = String(text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!clean) return [];
+  const sentences = (clean.match(/[^.!?\u061F\u06D4\u0964\u3002\uFF01\uFF1F;:]+[.!?\u061F\u06D4\u0964\u3002\uFF01\uFF1F;:]*\s*/g) || [clean]).map((t) => t.trim()).filter(Boolean);
+  const out = [];
+  let cur = '';
+  const push = (t) => { if (t) out.push(t); };
+  for (const sen of sentences) {
+    if (sen.length > 190) {
+      push(cur); cur = '';
+      let rest = sen;
+      while (rest.length > 190) {
+        let cut = rest.lastIndexOf(',', 190); if (cut < 60) cut = rest.lastIndexOf(' ', 190); if (cut < 60) cut = 190;
+        push(rest.slice(0, cut + 1).trim()); rest = rest.slice(cut + 1).trim();
+      }
+      cur = rest;
+    } else if ((cur + ' ' + sen).trim().length > 190) { push(cur); cur = sen; }
+    else cur = (cur + ' ' + sen).trim();
+  }
+  push(cur);
+  return out;
+}
+function qmStopSpeech(){
+  _qmSpeakToken++;
+  try { if (qmTtsSupported()) window.speechSynthesis.cancel(); } catch (e) {}
+}
+/* done(status): 'ended' | 'novoice' | 'unsupported' — never called after qmStopSpeech(). */
+function qmSpeak(text, code, done){
+  const token = ++_qmSpeakToken;
+  try { if (qmTtsSupported()) window.speechSynthesis.cancel(); } catch (e) {}
+  if (!qmTtsSupported()) { done && done('unsupported'); return; }
+  const chunks = qmSpeechChunks(text);
+  if (!chunks.length) { done && done('ended'); return; }
+  const voice = qmPickVoice(code);
+  const status = voice === null ? 'novoice' : 'ended';
+  let i = 0;
+  const next = () => {
+    if (token !== _qmSpeakToken) return;
+    if (i >= chunks.length) { done && done(status); return; }
+    const u = new SpeechSynthesisUtterance(chunks[i++]);
+    u.lang = (voice && voice.lang) || QM_TTS_LANG[code] || code;
+    if (voice) u.voice = voice;
+    u.rate = 0.95;
+    u.onend = next;
+    u.onerror = (e) => { if (token !== _qmSpeakToken) return; if (e && (e.error === 'canceled' || e.error === 'interrupted')) return; done && done(voice === null ? 'novoice' : 'error'); };
+    try { window.speechSynthesis.speak(u); } catch (e) { done && done('error'); }
+  };
+  /* some browsers need the voice list to be primed before the first call */
+  next();
+}
+
 function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, toggleBookmark }){
   const [ayahs, setAyahs] = useState(null);
   const [status, setStatus] = useState('loading');
   const [playingId, setPlayingId] = useState(null);
   const [playingWhole, setPlayingWhole] = useState(false);
+  /* translation read-aloud: which verse's translation is being spoken, the 'read it after the Arabic' switch, and a short note */
+  const [speakId, setSpeakId] = useState(null);
+  const [trAfter, setTrAfter] = useState(() => store.get('tr_after') === '1');
+  const trAfterRef = useRef(trAfter); trAfterRef.current = trAfter;
+  const [voiceNote, setVoiceNote] = useState('');
+  const langInfo = LANGUAGES.find((l) => l.edition === langEdition) || LANGUAGES[0];
   /* Full-screen reading mode: real Fullscreen API where the browser allows it (desktop, Android),
      otherwise a CSS full-viewport layout (iPhone Safari). Works for every surah. */
   const [full, setFull] = useState(false);
@@ -2037,7 +2123,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     }).catch(() => { if (!cancelled) setStatus('error'); })
       .finally(() => { window.__qmReaderBusy = false; });
 
-    return () => { cancelled = true; window.__qmReaderBusy = false; audioRef.current && audioRef.current.pause(); chainRef.current.active = false; };
+    return () => { cancelled = true; window.__qmReaderBusy = false; audioRef.current && audioRef.current.pause(); chainRef.current.active = false; qmStopSpeech(); };
   }, [surah.number, langEdition, reloadTick]);
 
   useEffect(() => {
@@ -2050,8 +2136,28 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   function stopAudio(){
     chainRef.current.active = false;
     if (audioRef.current) { audioRef.current.onended = null; audioRef.current.onerror = null; audioRef.current.pause(); audioRef.current = null; }
+    qmStopSpeech(); setSpeakId(null);
     setPlayingId(null); setPlayingWhole(false);
   }
+
+  /* Reads one verse's translation in the chosen language; then(…) runs when it has finished. */
+  function speakTranslation(a, then){
+    setSpeakId(a.numberInSurah);
+    qmSpeak(a.translation, langInfo.code, (st) => {
+      setSpeakId(null);
+      if (st === 'novoice') setVoiceNote(`No ${langInfo.label} voice found on this device. Add one in your phone or computer's text-to-speech settings.`);
+      else if (st === 'unsupported') setVoiceNote('This browser cannot read text aloud.');
+      else if (st === 'error') setVoiceNote('The translation voice could not start. Try again.');
+      if (then) then();
+    });
+  }
+  function toggleTranslationVoice(a){
+    if (speakId === a.numberInSurah) { stopAudio(); return; }
+    stopAudio(); setVoiceNote('');
+    speakTranslation(a, null);
+  }
+  function setTrAfterSaved(v){ setTrAfter(v); store.set('tr_after', v ? '1' : ''); setVoiceNote(''); }
+  useEffect(() => { if (!voiceNote) return; const t = setTimeout(() => setVoiceNote(''), 7000); return () => clearTimeout(t); }, [voiceNote]);
 
   function playAyah(a){
     stopAudio();
@@ -2060,7 +2166,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     audioRef.current = audio;
     setPlayingId(a.numberInSurah);
     audio.play().catch(() => {});
-    audio.onended = () => setPlayingId(null);
+    audio.onended = () => { setPlayingId(null); if (trAfterRef.current) speakTranslation(a, null); };
     audio.onerror = () => {
       if (url !== audioUrl(a.number)) { audio.src = audioUrl(a.number); audio.play().catch(()=>{}); }
       else setPlayingId(null);
@@ -2084,7 +2190,10 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     const el = rowRefs.current[a.numberInSurah];
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     audio.play().catch(() => {});
-    audio.onended = () => { if (chainRef.current.active) playChainFrom(index + 1); };
+    audio.onended = () => {
+      const go = () => { if (chainRef.current.active) playChainFrom(index + 1); };
+      if (chainRef.current.active && trAfterRef.current) speakTranslation(a, go); else go();
+    };
     audio.onerror = () => {
       const fallback = audioUrl(a.number);
       if (audio.src !== fallback) { audio.src = fallback; audio.play().catch(() => { if (chainRef.current.active) playChainFrom(index + 1); }); }
@@ -2154,11 +2263,14 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
             </div>
           ` : null}
           ${status === 'ready' ? ayahs.map((a) => html`
-            <div key=${a.numberInSurah} ref=${(el) => { rowRefs.current[a.numberInSurah] = el; }} class=${'ayah-row' + (playingId === a.numberInSurah ? ' is-playing' : '')}>
+            <div key=${a.numberInSurah} ref=${(el) => { rowRefs.current[a.numberInSurah] = el; }} class=${'ayah-row' + (playingId === a.numberInSurah ? ' is-playing' : '') + (speakId === a.numberInSurah ? ' is-speaking' : '')}>
               <div class="ayah-top">
                 <div class="ayah-actions">
                   <button class=${'mini-btn' + (playingId === a.numberInSurah ? ' active' : '')} onClick=${() => playingId === a.numberInSurah ? stopAudio() : playAyah(a)} aria-label="Play this ayah">
                     <${Icon} name=${playingId === a.numberInSurah ? 'pause' : 'play'} size=${13} filled=${true} />
+                  </button>
+                  <button class=${'mini-btn' + (speakId === a.numberInSurah ? ' active' : '')} onClick=${() => toggleTranslationVoice(a)} aria-label=${'Listen to the ' + langInfo.label + ' translation'} title=${'Listen to the ' + langInfo.label + ' translation'}>
+                    <${Icon} name=${speakId === a.numberInSurah ? 'pause' : 'speak'} size=${13} filled=${speakId === a.numberInSurah} />
                   </button>
                   <button class=${'mini-btn' + (isBookmarked(a) ? ' active' : '')} onClick=${() => toggleBookmark(surah, a)} aria-label="Bookmark this ayah">
                     <${Icon} name="bookmark" size=${13} filled=${isBookmarked(a)} />
@@ -2177,12 +2289,15 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
             </div>
           `) : null}
         </div>
-        <${QMXC('CalligraphyWave')} active=${!!playingId || playingWhole} />
+        <${QMXC('CalligraphyWave')} active=${!!playingId || playingWhole || !!speakId} />
         <div class="reader-player">
           <button class="player-play" onClick=${() => playingWhole ? stopAudio() : playWholeSurah()} aria-label="Play full surah">
             <${Icon} name=${playingWhole ? 'pause' : 'play'} size=${16} filled=${true} />
           </button>
-          <div class="player-info">${reciter.name} — ${playingWhole ? 'playing full surah\u2026' : 'play full surah'}</div>
+          <div class="player-info">${voiceNote || (speakId ? `Reading the ${langInfo.label} translation\u2026` : `${reciter.name} — ${playingWhole ? 'playing full surah\u2026' : 'play full surah'}`)}</div>
+          <button class=${'tr-toggle' + (trAfter ? ' on' : '')} onClick=${() => setTrAfterSaved(!trAfter)} aria-pressed=${trAfter} title=${'Read the ' + langInfo.label + ' translation aloud after each Arabic verse'}>
+            <${Icon} name="speak" size=${14} /><span>${langInfo.label}</span><b>${trAfter ? 'On' : 'Off'}</b>
+          </button>
           <${DownloadButton} reciter=${reciter} surah=${surah} isDone=${rdIsDone} />
         </div>
       </div>
