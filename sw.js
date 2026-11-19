@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v79';
+const SHELL_VERSION = 'v80';
 const DATA_VERSION  = 'v1';
 
 /* Inside the Android app (served from https://localhost) every page and script is already packaged in the APK and is
@@ -43,7 +43,7 @@ const SHELL_ASSETS = [
   './features.js?v=1',
   './customise.js?v=9',
   './update.js?v=1',
-  './app.js?v=63',
+  './app.js?v=64',
   './imagedl.js?v=1',
   './i18n.js?v=3',
   './i18n-data.js?v=2',
@@ -120,6 +120,24 @@ const SHELL_ASSETS = [
   './daily-ayah-img/thumbs/pw-lufthansa-sunset.jpg',
   './daily-ayah-img/pw-la-palms.jpg',
   './daily-ayah-img/thumbs/pw-la-palms.jpg',
+  './daily-ayah-img/pc-lighthouse.jpg',
+  './daily-ayah-img/thumbs/pc-lighthouse.jpg',
+  './daily-ayah-img/pc-hillside-walk.jpg',
+  './daily-ayah-img/thumbs/pc-hillside-walk.jpg',
+  './daily-ayah-img/pc-kaaba-sepia.jpg',
+  './daily-ayah-img/thumbs/pc-kaaba-sepia.jpg',
+  './daily-ayah-img/pc-mosque-sunset.jpg',
+  './daily-ayah-img/thumbs/pc-mosque-sunset.jpg',
+  './daily-ayah-img/pc-nile-dawn.jpg',
+  './daily-ayah-img/thumbs/pc-nile-dawn.jpg',
+  './daily-ayah-img/pc-desert-staff.jpg',
+  './daily-ayah-img/thumbs/pc-desert-staff.jpg',
+  './daily-ayah-img/pc-camel-haze.jpg',
+  './daily-ayah-img/thumbs/pc-camel-haze.jpg',
+  './daily-ayah-img/pc-madinah-morning.jpg',
+  './daily-ayah-img/thumbs/pc-madinah-morning.jpg',
+  './daily-ayah-img/pc-prison-light.jpg',
+  './daily-ayah-img/thumbs/pc-prison-light.jpg',
   // runtime libraries are self-hosted so the app boots with zero network
   './vendor/react.production.min.js',
   './vendor/react-dom.production.min.js',

@@ -3,7 +3,7 @@
 Background pictures for the "Ayah of the day" download/share cards (website and Android app).
 Home > Ayah of the day > Download image / Share as image, then pick a collection and a design.
 
-Collections: Classic (drawn in code), Airplanes, Desert, Night, Landscapes, Phone wallpaper.
+Collections: Classic (drawn in code), Airplanes, Desert, Night, Landscapes, Phone wallpaper, PC wallpaper.
 
 "Phone wallpaper" holds tall, phone-shaped pictures (about 9:16 to 1:2). Their entries have `nobrand:true`, so the
 "Quran Maar" name and site address are NOT drawn on them. Put any new phone-sized picture in that collection.
@@ -15,3 +15,7 @@ Every design is listed in `AYAH_DESIGNS` in `app.js`: its collection, name, and 
 text sits (fractions of the picture height) so the verse never covers the main subject.
 To add one: drop `<id>.jpg` and `thumbs/<id>.jpg` here, add an entry in `AYAH_DESIGNS`, list both files in
 `SHELL_ASSETS` in `sw.js`, then bump `SHELL_VERSION` (sw.js) and the `app.js?v=` number (index.html + sw.js).
+
+"PC wallpaper" holds wide 16:9 pictures saved at 1920x1080 for PC, laptop and Mac screens (`wide:true`, `w:1920`, `lw:1440`;
+`cx` moves the text sideways so it can sit beside the subject). Like the phone ones they have `nobrand:true`, which also drops the
+"AYAH OF THE DAY" title: no watermark, no title.

@@ -1278,7 +1278,7 @@ async function ayahImageClassic(a){
   ctx.fillStyle = '#f5f2ed';
   let y = 290; const lh = size * 1.85;
   const blockH = lines.length * lh; y = 250 + Math.max(0, (560 - blockH) / 2) + size;
-  lines.forEach((ln) => { ctx.fillText(ln, W / 2, y); y += lh; });
+  lines.forEach((ln) => { ctx.fillText(ln, CX, y); y += lh; });
   ctx.direction = 'ltr';
 
   y = Math.max(y + 10, 860);
@@ -1333,8 +1333,17 @@ const AYAH_DESIGNS = [
   { id:'pw-crescent-skyline', name:'Crescent skyline', cat:'Phone wallpaper', file:'daily-ayah-img/pw-crescent-skyline.jpg', thumb:'daily-ayah-img/thumbs/pw-crescent-skyline.jpg', accent:'#ffd9c0', head:0.06, ref:0.085, nobrand:true, ar:[0.22, 0.36], en:[0.57, 0.71], scrim:[[0, 0.1], [0.4, 0.15], [0.55, 0.25], [0.72, 0.1], [0.73, 0]], aw:0.7, ew:0.66 },
   { id:'pw-lufthansa-sunset', name:'Sunset runway', cat:'Phone wallpaper', file:'daily-ayah-img/pw-lufthansa-sunset.jpg', thumb:'daily-ayah-img/thumbs/pw-lufthansa-sunset.jpg', accent:'#0e2a4a', head:0.05, ref:0.075, nobrand:true, ar:[0.1, 0.26], en:[0.28, 0.4], scrim:[], aw:0.7, ew:0.66, ink:"#0e2a4a", ink2:"#0e2a4a", shadow:"rgba(255,255,255,.55)" },
   { id:'pw-la-palms', name:'Palms at twilight', cat:'Phone wallpaper', file:'daily-ayah-img/pw-la-palms.jpg', thumb:'daily-ayah-img/thumbs/pw-la-palms.jpg', accent:'#ffe0f0', head:0.04, ref:0.065, nobrand:true, ar:[0.09, 0.24], en:[0.26, 0.37], scrim:[[0, 0.12], [0.4, 0.15], [0.45, 0]], aw:0.7, ew:0.66 },
+  { id:'pc-lighthouse', name:'Lighthouse coast', cat:'PC wallpaper', file:'daily-ayah-img/pc-lighthouse.jpg', thumb:'daily-ayah-img/thumbs/pc-lighthouse.jpg', accent:'#ffffff', ref:0.07, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.1, 0.27], en:[0.29, 0.38], scrim:[[0, 0.28], [0.45, 0.2], [0.55, 0]], aw:0.55, ew:0.55 },
+  { id:'pc-hillside-walk', name:'Hillside walk', cat:'PC wallpaper', file:'daily-ayah-img/pc-hillside-walk.jpg', thumb:'daily-ayah-img/thumbs/pc-hillside-walk.jpg', accent:'#ffffff', ref:0.07, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.1, 0.28], en:[0.3, 0.4], scrim:[[0, 0.45], [0.45, 0.4], [0.6, 0]], aw:0.5, ew:0.5 },
+  { id:'pc-kaaba-sepia', name:'The Kaaba', cat:'PC wallpaper', file:'daily-ayah-img/pc-kaaba-sepia.jpg', thumb:'daily-ayah-img/thumbs/pc-kaaba-sepia.jpg', accent:'#ffffff', ref:0.065, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.08, 0.22], en:[0.8, 0.94], scrim:[[0, 0.3], [0.28, 0.2], [0.4, 0], [0.7, 0], [0.78, 0.35], [1, 0.45]], aw:0.55, ew:0.55 },
+  { id:'pc-mosque-sunset', name:'Mosque at sunset', cat:'PC wallpaper', file:'daily-ayah-img/pc-mosque-sunset.jpg', thumb:'daily-ayah-img/thumbs/pc-mosque-sunset.jpg', accent:'#ffffff', ref:0.05, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.06, 0.19], en:[0.21, 0.32], scrim:[[0, 0.4], [0.32, 0.3], [0.42, 0]], aw:0.6, ew:0.55 },
+  { id:'pc-nile-dawn', name:'River city dawn', cat:'PC wallpaper', file:'daily-ayah-img/pc-nile-dawn.jpg', thumb:'daily-ayah-img/thumbs/pc-nile-dawn.jpg', accent:'#4a1f08', ref:0.065, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.08, 0.22], en:[0.24, 0.34], scrim:[], aw:0.5, ew:0.5, ink:"#4a1f08", ink2:"#4a1f08", shadow:"rgba(255,225,190,.5)" },
+  { id:'pc-desert-staff', name:'Desert traveller', cat:'PC wallpaper', file:'daily-ayah-img/pc-desert-staff.jpg', thumb:'daily-ayah-img/thumbs/pc-desert-staff.jpg', accent:'#3a1a05', ref:0.12, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.16, 0.36], en:[0.38, 0.5], scrim:[], aw:0.4, ew:0.4, cx:0.73, ink:"#3a1a05", ink2:"#3a1a05", shadow:"rgba(255,235,200,.55)" },
+  { id:'pc-camel-haze', name:'Camel in the haze', cat:'PC wallpaper', file:'daily-ayah-img/pc-camel-haze.jpg', thumb:'daily-ayah-img/thumbs/pc-camel-haze.jpg', accent:'#ffe9c0', ref:0.28, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.31, 0.5], en:[0.52, 0.64], scrim:[], aw:0.42, ew:0.42, cx:0.73 },
+  { id:'pc-madinah-morning', name:'Madinah morning', cat:'PC wallpaper', file:'daily-ayah-img/pc-madinah-morning.jpg', thumb:'daily-ayah-img/thumbs/pc-madinah-morning.jpg', accent:'#3b1f10', ref:0.07, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.1, 0.25], en:[0.27, 0.35], scrim:[], aw:0.38, ew:0.38, cx:0.25, ink:"#3b1f10", ink2:"#3b1f10", shadow:"rgba(255,245,230,.6)" },
+  { id:'pc-prison-light', name:'Light in the dark', cat:'PC wallpaper', file:'daily-ayah-img/pc-prison-light.jpg', thumb:'daily-ayah-img/thumbs/pc-prison-light.jpg', accent:'#ffe9a8', ref:0.09, nobrand:true, wide:true, w:1920, lw:1440, ar:[0.12, 0.3], en:[0.32, 0.46], scrim:[], aw:0.45, ew:0.45, cx:0.73 },
 ];
-const AYAH_CATS = ['Classic', 'Airplanes', 'Desert', 'Night', 'Landscapes', 'Phone wallpaper'];
+const AYAH_CATS = ['Classic', 'Airplanes', 'Desert', 'Night', 'Landscapes', 'Phone wallpaper', 'PC wallpaper'];
 const ayahDesignById = (id) => AYAH_DESIGNS.find((d) => d.id === id) || AYAH_DESIGNS[0];
 const _ayahBgCache = {};
 function loadAyahBg(file){
@@ -1345,9 +1354,11 @@ function loadAyahBg(file){
 async function ayahImagePhoto(a, d){
   try { await Promise.all([document.fonts.load('60px Amiri'), document.fonts.load('italic 40px "Instrument Serif"'), document.fonts.load('600 28px "Plus Jakarta Sans"')]); } catch {}
   const img = await loadAyahBg(d.file);
-  const W = 1080, H = Math.round(W * img.naturalHeight / img.naturalWidth);
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const OW = d.w || 1080, W = d.lw || 1080, K = OW / W, H = Math.round(W * img.naturalHeight / img.naturalWidth);
+  const CX = (d.cx || 0.5) * W;
+  const cv = document.createElement('canvas'); cv.width = OW; cv.height = Math.round(H * K);
   const ctx = cv.getContext('2d');
+  ctx.scale(K, K);
   ctx.drawImage(img, 0, 0, W, H);
   if (d.scrim && d.scrim.length) {
     const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -1361,10 +1372,10 @@ async function ayahImagePhoto(a, d){
   // header + reference
   ctx.fillStyle = d.accent; ctx.font = '600 24px "Plus Jakarta Sans", sans-serif';
   try { ctx.letterSpacing = '4px'; } catch {}
-  ctx.fillText('AYAH OF THE DAY', W / 2, H * d.head);
+  if (!d.nobrand) ctx.fillText('AYAH OF THE DAY', CX, H * d.head); /* wallpapers carry no title */
   try { ctx.letterSpacing = '1px'; } catch {}
   ctx.font = '600 22px "Plus Jakarta Sans", sans-serif';
-  ctx.fillText(`${a.surah} \u00b7 ${a.surahNo}:${a.ayahNo}`, W / 2, H * d.ref);
+  ctx.fillText(`${a.surah} \u00b7 ${a.surahNo}:${a.ayahNo}`, CX, H * d.ref);
   try { ctx.letterSpacing = '0px'; } catch {}
 
   // Arabic, shrunk until it fits its zone
@@ -1385,7 +1396,7 @@ async function ayahImagePhoto(a, d){
   ctx.fillStyle = INK2;
   const eh = es * 1.38;
   let ey = ez0 + Math.max(0, (ezH - el.length * eh) / 2) + es;
-  el.forEach((ln) => { ctx.fillText(ln, W / 2, ey); ey += eh; });
+  el.forEach((ln) => { ctx.fillText(ln, CX, ey); ey += eh; });
 
   // brand (left off the Phone wallpaper designs: they are clean wallpapers with no watermark)
   if (!d.nobrand) {
@@ -1464,7 +1475,7 @@ function AyahDesignSheet({ ayah, mode, busy, msg, onClose, onSave, onShare }){
         </div>
         <div class="ay-thumbs" role="listbox" aria-label=${cat + ' designs'}>
           ${AYAH_DESIGNS.filter((d) => d.cat === cat).map((d) => html`
-            <button key=${d.id} role="option" aria-selected=${d.id === designId} class=${'ay-thumb' + (d.id === designId ? ' on' : '')} onClick=${() => pick(d.id)}>
+            <button key=${d.id} role="option" aria-selected=${d.id === designId} class=${'ay-thumb' + (d.wide ? ' wide' : '') + (d.id === designId ? ' on' : '')} onClick=${() => pick(d.id)}>
               ${d.file ? html`<img src=${d.thumb} alt="" loading="lazy" />` : html`<span class="ay-thumb-classic"></span>`}
               <span>${d.name}</span>
             </button>`)}
