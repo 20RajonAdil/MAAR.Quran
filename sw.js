@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v78';
+const SHELL_VERSION = 'v79';
 const DATA_VERSION  = 'v1';
 
 /* Inside the Android app (served from https://localhost) every page and script is already packaged in the APK and is
@@ -43,7 +43,7 @@ const SHELL_ASSETS = [
   './features.js?v=1',
   './customise.js?v=9',
   './update.js?v=1',
-  './app.js?v=62',
+  './app.js?v=63',
   './imagedl.js?v=1',
   './i18n.js?v=3',
   './i18n-data.js?v=2',
@@ -96,6 +96,30 @@ const SHELL_ASSETS = [
   './daily-ayah-img/thumbs/runway-arch.jpg',
   './daily-ayah-img/sunset-arch.jpg',
   './daily-ayah-img/thumbs/sunset-arch.jpg',
+  './daily-ayah-img/pw-makkah-dusk.jpg',
+  './daily-ayah-img/thumbs/pw-makkah-dusk.jpg',
+  './daily-ayah-img/pw-moon-arch.jpg',
+  './daily-ayah-img/thumbs/pw-moon-arch.jpg',
+  './daily-ayah-img/pw-palm-alley.jpg',
+  './daily-ayah-img/thumbs/pw-palm-alley.jpg',
+  './daily-ayah-img/pw-mountain-lake.jpg',
+  './daily-ayah-img/thumbs/pw-mountain-lake.jpg',
+  './daily-ayah-img/pw-golden-mosque.jpg',
+  './daily-ayah-img/thumbs/pw-golden-mosque.jpg',
+  './daily-ayah-img/pw-porsche-snow.jpg',
+  './daily-ayah-img/thumbs/pw-porsche-snow.jpg',
+  './daily-ayah-img/pw-gt3rs-sunset.jpg',
+  './daily-ayah-img/thumbs/pw-gt3rs-sunset.jpg',
+  './daily-ayah-img/pw-city-dusk.jpg',
+  './daily-ayah-img/thumbs/pw-city-dusk.jpg',
+  './daily-ayah-img/pw-plane-moon.jpg',
+  './daily-ayah-img/thumbs/pw-plane-moon.jpg',
+  './daily-ayah-img/pw-crescent-skyline.jpg',
+  './daily-ayah-img/thumbs/pw-crescent-skyline.jpg',
+  './daily-ayah-img/pw-lufthansa-sunset.jpg',
+  './daily-ayah-img/thumbs/pw-lufthansa-sunset.jpg',
+  './daily-ayah-img/pw-la-palms.jpg',
+  './daily-ayah-img/thumbs/pw-la-palms.jpg',
   // runtime libraries are self-hosted so the app boots with zero network
   './vendor/react.production.min.js',
   './vendor/react-dom.production.min.js',

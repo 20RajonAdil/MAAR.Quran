@@ -3,7 +3,10 @@
 Background pictures for the "Ayah of the day" download/share cards (website and Android app).
 Home > Ayah of the day > Download image / Share as image, then pick a collection and a design.
 
-Collections: Classic (drawn in code), Airplanes, Desert, Night, Landscapes.
+Collections: Classic (drawn in code), Airplanes, Desert, Night, Landscapes, Phone wallpaper.
+
+"Phone wallpaper" holds tall, phone-shaped pictures (about 9:16 to 1:2). Their entries have `nobrand:true`, so the
+"Quran Maar" name and site address are NOT drawn on them. Put any new phone-sized picture in that collection.
 
 - `<id>.jpg` full-size background (1080 px wide; height follows the picture)
 - `thumbs/<id>.jpg` small preview used in the picker

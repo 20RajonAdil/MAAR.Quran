@@ -1321,8 +1321,20 @@ const AYAH_DESIGNS = [
   { id:'night-oasis-arch', name:'Oasis arch', cat:'Night', file:'daily-ayah-img/night-oasis-arch.jpg', thumb:'daily-ayah-img/thumbs/night-oasis-arch.jpg', accent:'#d8d4ff', head:0.125, ref:0.15, brand:0.955, ar:[0.17, 0.38], en:[0.79, 0.9], scrim:[[0.12, 0], [0.25, 0.15], [0.4, 0.15], [0.5, 0], [0.76, 0], [0.8, 0.25], [0.95, 0.3]], aw:0.58, ew:0.7 },
   { id:'land-golden-arch', name:'Golden meadow', cat:'Landscapes', file:'daily-ayah-img/land-golden-arch.jpg', thumb:'daily-ayah-img/thumbs/land-golden-arch.jpg', accent:'#ffe2b0', head:0.1, ref:0.13, brand:0.93, ar:[0.16, 0.5], en:[0.64, 0.78], scrim:[[0, 0], [0.12, 0.1], [0.5, 0.1], [0.6, 0], [0.64, 0.25], [0.78, 0.35], [0.9, 0.45], [1, 0.5]], aw:0.6, ew:0.68 },
   { id:'land-castle', name:'Mountain castle', cat:'Landscapes', file:'daily-ayah-img/land-castle.jpg', thumb:'daily-ayah-img/thumbs/land-castle.jpg', accent:'#ffd9c8', head:0.03, ref:0.055, brand:0.955, ar:[0.075, 0.245], en:[0.74, 0.9], scrim:[[0, 0.15], [0.25, 0.25], [0.4, 0], [0.7, 0], [0.76, 0.3], [0.9, 0.4], [1, 0.4]], aw:0.74, ew:0.74 },
+  { id:'pw-makkah-dusk', name:'Makkah dusk', cat:'Phone wallpaper', file:'daily-ayah-img/pw-makkah-dusk.jpg', thumb:'daily-ayah-img/thumbs/pw-makkah-dusk.jpg', accent:'#ffe0b8', head:0.045, ref:0.07, nobrand:true, ar:[0.15, 0.29], en:[0.31, 0.5], scrim:[[0, 0.15], [0.3, 0.2], [0.5, 0], [1, 0]], aw:0.62, ew:0.5 },
+  { id:'pw-moon-arch', name:'Moon through the arch', cat:'Phone wallpaper', file:'daily-ayah-img/pw-moon-arch.jpg', thumb:'daily-ayah-img/thumbs/pw-moon-arch.jpg', accent:'#d8d4ff', head:0.115, ref:0.14, nobrand:true, ar:[0.16, 0.3], en:[0.44, 0.56], scrim:[[0.1, 0], [0.13, 0.3], [0.3, 0.3], [0.42, 0.1], [0.44, 0.35], [0.56, 0.35], [0.62, 0]], aw:0.5, ew:0.6 },
+  { id:'pw-palm-alley', name:'Palm alley dawn', cat:'Phone wallpaper', file:'daily-ayah-img/pw-palm-alley.jpg', thumb:'daily-ayah-img/thumbs/pw-palm-alley.jpg', accent:'#ffe3d0', head:0.22, ref:0.245, nobrand:true, ar:[0.28, 0.44], en:[0.78, 0.92], scrim:[[0.2, 0], [0.26, 0.3], [0.46, 0.3], [0.55, 0], [0.74, 0], [0.8, 0.4], [1, 0.5]], aw:0.45, ew:0.55 },
+  { id:'pw-mountain-lake', name:'Mountain lake stars', cat:'Phone wallpaper', file:'daily-ayah-img/pw-mountain-lake.jpg', thumb:'daily-ayah-img/thumbs/pw-mountain-lake.jpg', accent:'#cfe0ff', head:0.05, ref:0.075, nobrand:true, ar:[0.12, 0.28], en:[0.3, 0.44], scrim:[[0, 0.2], [0.45, 0.2], [0.5, 0]], aw:0.75, ew:0.72 },
+  { id:'pw-golden-mosque', name:'Golden mosque morning', cat:'Phone wallpaper', file:'daily-ayah-img/pw-golden-mosque.jpg', thumb:'daily-ayah-img/thumbs/pw-golden-mosque.jpg', accent:'#ffe9c0', head:0.04, ref:0.065, nobrand:true, ar:[0.1, 0.24], en:[0.26, 0.38], scrim:[[0, 0.4], [0.3, 0.3], [0.42, 0]], aw:0.72, ew:0.56 },
+  { id:'pw-porsche-snow', name:'Snow drive', cat:'Phone wallpaper', file:'daily-ayah-img/pw-porsche-snow.jpg', thumb:'daily-ayah-img/thumbs/pw-porsche-snow.jpg', accent:'#e6f2ff', head:0.045, ref:0.07, nobrand:true, ar:[0.1, 0.26], en:[0.28, 0.42], scrim:[[0, 0.4], [0.45, 0.35], [0.55, 0]], aw:0.6, ew:0.55 },
+  { id:'pw-gt3rs-sunset', name:'Coast road sunset', cat:'Phone wallpaper', file:'daily-ayah-img/pw-gt3rs-sunset.jpg', thumb:'daily-ayah-img/thumbs/pw-gt3rs-sunset.jpg', accent:'#ffe0f0', head:0.04, ref:0.065, nobrand:true, ar:[0.1, 0.26], en:[0.28, 0.4], scrim:[[0, 0.2], [0.4, 0.2], [0.5, 0]], aw:0.7, ew:0.66 },
+  { id:'pw-city-dusk', name:'City at dusk', cat:'Phone wallpaper', file:'daily-ayah-img/pw-city-dusk.jpg', thumb:'daily-ayah-img/thumbs/pw-city-dusk.jpg', accent:'#ffe0f5', head:0.04, ref:0.065, nobrand:true, ar:[0.1, 0.26], en:[0.28, 0.4], scrim:[[0, 0.12], [0.4, 0.15], [0.5, 0]], aw:0.7, ew:0.66 },
+  { id:'pw-plane-moon', name:'Flight to the moon', cat:'Phone wallpaper', file:'daily-ayah-img/pw-plane-moon.jpg', thumb:'daily-ayah-img/thumbs/pw-plane-moon.jpg', accent:'#ffe2cf', head:0.035, ref:0.06, nobrand:true, ar:[0.1, 0.28], en:[0.74, 0.9], scrim:[[0, 0.15], [0.3, 0.15], [0.4, 0], [0.7, 0], [0.76, 0.4], [1, 0.5]], aw:0.7, ew:0.72 },
+  { id:'pw-crescent-skyline', name:'Crescent skyline', cat:'Phone wallpaper', file:'daily-ayah-img/pw-crescent-skyline.jpg', thumb:'daily-ayah-img/thumbs/pw-crescent-skyline.jpg', accent:'#ffd9c0', head:0.06, ref:0.085, nobrand:true, ar:[0.22, 0.36], en:[0.57, 0.71], scrim:[[0, 0.1], [0.4, 0.15], [0.55, 0.25], [0.72, 0.1], [0.73, 0]], aw:0.7, ew:0.66 },
+  { id:'pw-lufthansa-sunset', name:'Sunset runway', cat:'Phone wallpaper', file:'daily-ayah-img/pw-lufthansa-sunset.jpg', thumb:'daily-ayah-img/thumbs/pw-lufthansa-sunset.jpg', accent:'#0e2a4a', head:0.05, ref:0.075, nobrand:true, ar:[0.1, 0.26], en:[0.28, 0.4], scrim:[], aw:0.7, ew:0.66, ink:"#0e2a4a", ink2:"#0e2a4a", shadow:"rgba(255,255,255,.55)" },
+  { id:'pw-la-palms', name:'Palms at twilight', cat:'Phone wallpaper', file:'daily-ayah-img/pw-la-palms.jpg', thumb:'daily-ayah-img/thumbs/pw-la-palms.jpg', accent:'#ffe0f0', head:0.04, ref:0.065, nobrand:true, ar:[0.09, 0.24], en:[0.26, 0.37], scrim:[[0, 0.12], [0.4, 0.15], [0.45, 0]], aw:0.7, ew:0.66 },
 ];
-const AYAH_CATS = ['Classic', 'Airplanes', 'Desert', 'Night', 'Landscapes'];
+const AYAH_CATS = ['Classic', 'Airplanes', 'Desert', 'Night', 'Landscapes', 'Phone wallpaper'];
 const ayahDesignById = (id) => AYAH_DESIGNS.find((d) => d.id === id) || AYAH_DESIGNS[0];
 const _ayahBgCache = {};
 function loadAyahBg(file){
@@ -1375,12 +1387,14 @@ async function ayahImagePhoto(a, d){
   let ey = ez0 + Math.max(0, (ezH - el.length * eh) / 2) + es;
   el.forEach((ln) => { ctx.fillText(ln, W / 2, ey); ey += eh; });
 
-  // brand
-  ctx.shadowBlur = 8;
-  ctx.fillStyle = BI; ctx.globalAlpha = .9; ctx.font = 'italic 32px "Instrument Serif", Georgia, serif';
-  ctx.fillText('Quran Maar', W / 2, H * d.brand - 22);
-  ctx.globalAlpha = .7; ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
-  ctx.fillText(SITE_HOST_PATH, W / 2, H * d.brand + 4);
+  // brand (left off the Phone wallpaper designs: they are clean wallpapers with no watermark)
+  if (!d.nobrand) {
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = BI; ctx.globalAlpha = .9; ctx.font = 'italic 32px "Instrument Serif", Georgia, serif';
+    ctx.fillText('Quran Maar', W / 2, H * d.brand - 22);
+    ctx.globalAlpha = .7; ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText(SITE_HOST_PATH, W / 2, H * d.brand + 4);
+  }
   ctx.globalAlpha = 1; ctx.shadowColor = 'transparent';
   return new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.93));
 }
