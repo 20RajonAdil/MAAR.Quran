@@ -1976,21 +1976,52 @@ const QM_TTS_LANG = {
 };
 let _qmSpeakToken = 0;
 function qmTtsSupported(){ return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window; }
-function qmPickVoice(code){
-  if (!qmTtsSupported()) return null;
+/* Rank voices so the natural-sounding ones win over the flat default: neural / natural / enhanced / premium
+   voices first, then Google and Apple's better voices; the old novelty and compact voices last. */
+function qmVoiceScore(v, want){
+  const n = (v.name || '').toLowerCase();
+  const l = (v.lang || '').toLowerCase().replace('_', '-');
+  let sc = 0;
+  if (l === want) sc += 30;
+  if (/natural|neural|online|premium|enhanced|studio|wavenet|siri/.test(n)) sc += 60;
+  if (/google/.test(n)) sc += 25;
+  if (/samantha|daniel|serena|karen|moira|ava\b|oliver|libby|sonia|ryan|aria|jenny|guy|arthur|stephanie|martha|tessa/.test(n)) sc += 18;
+  if (/compact|espeak|novelty|zarvox|whisper|bells|boing|trinoids|cellos|organ|bubbles|jester|albert|fred|junior|ralph|kathy|bahh|deranged|good news|hysterical|superstar|bad news/.test(n)) sc -= 120;
+  if (/\b(david|zira|mark)\b/.test(n)) sc -= 12;
+  if (v.localService) sc += 3;
+  return sc;
+}
+function qmVoicesFor(code){
+  if (!qmTtsSupported()) return [];
   const want = (QM_TTS_LANG[code] || code).toLowerCase();
   const base = want.split('-')[0];
   const voices = window.speechSynthesis.getVoices() || [];
-  if (!voices.length) return undefined; /* list not loaded yet: just try */
-  const same = voices.filter((v) => (v.lang || '').toLowerCase().replace('_', '-') === want);
-  const near = voices.filter((v) => (v.lang || '').toLowerCase().replace('_', '-').split('-')[0] === base);
-  const pool = same.length ? same : near;
-  if (!pool.length) return null;
-  return pool.find((v) => v.default) || pool.find((v) => v.localService) || pool[0];
+  return voices
+    .filter((v) => (v.lang || '').toLowerCase().replace('_', '-').split('-')[0] === base)
+    .sort((x, y) => qmVoiceScore(y, want) - qmVoiceScore(x, want));
+}
+function qmPickVoice(code){
+  if (!qmTtsSupported()) return null;
+  const all = window.speechSynthesis.getVoices() || [];
+  if (!all.length) return undefined; /* list not loaded yet: just try */
+  const saved = store.get('tr_voice_' + code);
+  if (saved) { const hit = all.find((v) => v.voiceURI === saved || v.name === saved); if (hit) return hit; }
+  const pool = qmVoicesFor(code);
+  return pool.length ? pool[0] : null;
+}
+/* Tidy the text before it is spoken so brackets, footnote marks and dashes are not read oddly. */
+function qmSpeechText(text){
+  return String(text || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[\[\]{}]/g, '')
+    .replace(/\s*[\u2014\u2013]\s*/g, ', ')
+    .replace(/\*+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 /* Long text is cut into sentence-sized pieces: Chrome silently stops a single long utterance after ~15 seconds. */
 function qmSpeechChunks(text){
-  const clean = String(text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const clean = qmSpeechText(text);
   if (!clean) return [];
   const sentences = (clean.match(/[^.!?\u061F\u06D4\u0964\u3002\uFF01\uFF1F;:]+[.!?\u061F\u06D4\u0964\u3002\uFF01\uFF1F;:]*\s*/g) || [clean]).map((t) => t.trim()).filter(Boolean);
   const out = [];
@@ -2031,7 +2062,8 @@ function qmSpeak(text, code, done){
     const u = new SpeechSynthesisUtterance(chunks[i++]);
     u.lang = (voice && voice.lang) || QM_TTS_LANG[code] || code;
     if (voice) u.voice = voice;
-    u.rate = 0.95;
+    const rate = parseFloat(store.get('tr_rate') || '0.92');
+    u.rate = rate >= 0.6 && rate <= 1.3 ? rate : 0.92;
     u.onend = next;
     u.onerror = (e) => { if (token !== _qmSpeakToken) return; if (e && (e.error === 'canceled' || e.error === 'interrupted')) return; done && done(voice === null ? 'novoice' : 'error'); };
     try { window.speechSynthesis.speak(u); } catch (e) { done && done('error'); }
@@ -2050,6 +2082,15 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   const [trAfter, setTrAfter] = useState(() => store.get('tr_after') === '1');
   const trAfterRef = useRef(trAfter); trAfterRef.current = trAfter;
   const [voiceNote, setVoiceNote] = useState('');
+  const [voicePop, setVoicePop] = useState(false);
+  const [voiceTick, setVoiceTick] = useState(0);
+  const [trRate, setTrRate] = useState(() => parseFloat(store.get('tr_rate') || '0.92') || 0.92);
+  useEffect(() => {
+    if (!qmTtsSupported()) return;
+    const bump = () => setVoiceTick((n) => n + 1);
+    window.speechSynthesis.addEventListener && window.speechSynthesis.addEventListener('voiceschanged', bump);
+    return () => { window.speechSynthesis.removeEventListener && window.speechSynthesis.removeEventListener('voiceschanged', bump); };
+  }, []);
   const langInfo = LANGUAGES.find((l) => l.edition === langEdition) || LANGUAGES[0];
   /* Full-screen reading mode: real Fullscreen API where the browser allows it (desktop, Android),
      otherwise a CSS full-viewport layout (iPhone Safari). Works for every surah. */
@@ -2155,6 +2196,13 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     if (speakId === a.numberInSurah) { stopAudio(); return; }
     stopAudio(); setVoiceNote('');
     speakTranslation(a, null);
+  }
+  function chooseVoice(uri){ store.set('tr_voice_' + langInfo.code, uri); setVoiceTick((n) => n + 1); }
+  function chooseRate(r){ setTrRate(r); store.set('tr_rate', String(r)); }
+  function testVoice(){
+    stopAudio(); setVoiceNote('');
+    const sample = ayahs && ayahs[0] ? ayahs[0] : { numberInSurah: 0, translation: BISMILLAH_EN };
+    speakTranslation(sample, null);
   }
   function setTrAfterSaved(v){ setTrAfter(v); store.set('tr_after', v ? '1' : ''); setVoiceNote(''); }
   useEffect(() => { if (!voiceNote) return; const t = setTimeout(() => setVoiceNote(''), 7000); return () => clearTimeout(t); }, [voiceNote]);
@@ -2295,6 +2343,29 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
             <${Icon} name=${playingWhole ? 'pause' : 'play'} size=${16} filled=${true} />
           </button>
           <div class="player-info">${voiceNote || (speakId ? `Reading the ${langInfo.label} translation\u2026` : `${reciter.name} — ${playingWhole ? 'playing full surah\u2026' : 'play full surah'}`)}</div>
+          ${voicePop ? (() => {
+            const list = qmVoicesFor(langInfo.code);
+            const cur = qmPickVoice(langInfo.code);
+            return html`
+              <div class="voice-pop" role="dialog" aria-label="Translation voice">
+                <div class="voice-pop-title">${langInfo.label} translation voice</div>
+                ${list.length ? html`
+                  <select class="select-pill" value=${(cur && cur.voiceURI) || ''} onChange=${(e) => chooseVoice(e.target.value)} aria-label="Voice">
+                    ${list.map((v) => html`<option key=${v.voiceURI || v.name} value=${v.voiceURI || v.name}>${v.name} (${v.lang})</option>`)}
+                  </select>
+                ` : html`<div class="voice-pop-hint">${qmTtsSupported() ? `No ${langInfo.label} voice found on this device yet.` : 'This browser cannot read text aloud.'}</div>`}
+                <label class="voice-pop-rate">Speed <input type="range" min="0.6" max="1.3" step="0.05" value=${trRate} onInput=${(e) => chooseRate(parseFloat(e.target.value))} aria-label="Speaking speed" /><b>${trRate.toFixed(2)}x</b></label>
+                <div class="voice-pop-row">
+                  <button class="tr-toggle on" onClick=${testVoice}>Test voice</button>
+                  <button class="tr-toggle" onClick=${() => setVoicePop(false)}>Close</button>
+                </div>
+                <div class="voice-pop-hint">Voices marked Natural, Neural, Enhanced or Premium sound best. More can be added in your device's text-to-speech or Spoken Content settings.</div>
+              </div>
+            `;
+          })() : null}
+          <button class="tr-toggle voice-btn" onClick=${() => setVoicePop(!voicePop)} aria-label="Choose the translation voice" aria-expanded=${voicePop} title="Choose the translation voice">
+            <${Icon} name="settings" size=${14} />
+          </button>
           <button class=${'tr-toggle' + (trAfter ? ' on' : '')} onClick=${() => setTrAfterSaved(!trAfter)} aria-pressed=${trAfter} title=${'Read the ' + langInfo.label + ' translation aloud after each Arabic verse'}>
             <${Icon} name="speak" size=${14} /><span>${langInfo.label}</span><b>${trAfter ? 'On' : 'Off'}</b>
           </button>
