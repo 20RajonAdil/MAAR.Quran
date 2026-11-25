@@ -2434,14 +2434,31 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   }
   /* playing audio (or the translation voice) turns the mic off so it can't hear itself */
   useEffect(() => { if (raOn && (playingId || playingWhole || speakId)) setRaOn(false); }, [playingId, playingWhole, speakId]);
-  /* follow the reader: when the ayah changes, glide the next one into the middle of the screen */
+  /* follow the reader: when the ayah changes, glide the next one into view. Done by hand (not
+     scrollIntoView smooth) because the browser cancels a smooth scroll that is still running
+     when the next one starts, which made long ayat sometimes not scroll at all. */
+  const raScrollAnim = useRef(0);
   useEffect(() => {
     if (!raOn || !ayahs || !ayahs[ra.idx]) return;
     const el = rowRefs.current[ayahs[ra.idx].numberInSurah];
-    if (el && el.scrollIntoView) {
-      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      try { el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
-    }
+    const body = document.querySelector('.reader-body');
+    if (!el || !body) return;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const br = body.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const rel = body.scrollTop + (er.top - br.top);
+    /* a tall ayah is lined up near the top so its first words are visible; others sit in the middle */
+    const goal = Math.max(0, er.height > body.clientHeight * 0.7 ? rel - 24 : rel - (body.clientHeight - er.height) / 2);
+    cancelAnimationFrame(raScrollAnim.current);
+    const from = body.scrollTop, dist = goal - from;
+    if (reduce || Math.abs(dist) < 2) { body.scrollTop = goal; return; }
+    const t0 = performance.now(), dur = Math.min(320, 140 + Math.abs(dist) * 0.2);
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / dur);
+      body.scrollTop = from + dist * (1 - Math.pow(1 - p, 3));
+      if (p < 1) raScrollAnim.current = requestAnimationFrame(step);
+    };
+    raScrollAnim.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raScrollAnim.current);
   }, [raOn, ra.idx]);
 
   const isBookmarked = (a) => bookmarks.some((b) => b.surah === surah.number && b.ayah === a.numberInSurah);

@@ -704,10 +704,26 @@
       rec.lang = 'ar-SA';
       rec.continuous = true;
       rec.interimResults = true;
-      rec.maxAlternatives = 1;
+      rec.maxAlternatives = 3;   // an unclear voice often has the right word as the 2nd or 3rd guess
       rec.onresult = (e) => {
         const parts = [];
-        for (let i = 0; i < e.results.length; i++) parts.push(e.results[i][0].transcript);
+        const cur = targets[idxRef.current] || [], nxt = targets[idxRef.current + 1] || [];
+        for (let i = 0; i < e.results.length; i++) {
+          const res = e.results[i];
+          let best = res[0].transcript;
+          if (res.length > 1) {
+            /* pick whichever guess lines up best with the ayah being read (or the one after) */
+            let bs = -1;
+            for (let a = 0; a < res.length; a++) {
+              const hw = normAr(res[a].transcript).split(' ').filter(Boolean);
+              if (!hw.length) continue;
+              const r1 = raAlign(cur, hw), r2 = nxt.length ? raAlign(nxt, hw) : { matched: 0, avg: 0 };
+              const sc = Math.max(r1.matched * r1.avg, r2.matched * r2.avg) - a * 0.01;
+              if (sc > bs) { bs = sc; best = res[a].transcript; }
+            }
+          }
+          parts.push(best);
+        }
         const flat = raFlatten(parts);
         if (consumed.current > flat.length) consumed.current = 0;
         flatLen.current = flat.length;
@@ -802,44 +818,87 @@
       .replace(/\u062D/g, '\u0647').replace(/[\u0639\u0621]/g, '\u0627')
       .replace(/(.)\1+/g, '$1');
   }
-  function raAlign(target0, heard0) {
-    const target = target0.map(phon), heard = heard0.map(phon);
-    const n = target.length;
-    const res = new Array(n).fill('pending');
-    let j = 0, matched = 0, lastK = -1, lastI = -1, firstI = -1, scoreSum = 0, real = 0, pairs = 0, letters = 0;
-    const need = (t) => (t.length <= 2 ? 1 : t.length <= 3 ? 0.66 : 0.7);
-    for (let i = 0; i < n; i++) {
-      const t = target[i];
-      if (!t) { res[i] = 'mark'; continue; }   // verse-end / pause signs: nothing to say
-      real++;
-      let best = -1, bs = 0, span = 1;
-      /* before the first match the reciter may have chatted first, so look anywhere;
-         after that allow a few heard words of slack (noise, repeated syllables) */
-      const limit = lastI < 0 ? heard.length : Math.min(heard.length, j + 5);
-      for (let k = j; k < limit; k++) {
-        let s = sim(t, heard[k]); let sp = 1;
-        /* the recogniser sometimes glues two spoken words together or splits one */
-        if (k + 1 < heard.length) {
-          const s2 = sim(t, heard[k] + heard[k + 1]);
-          if (s2 > s + 0.05) { s = s2; sp = 2; }
-        }
-        if (s > bs) { bs = s; best = k; span = sp; }
-      }
-      if (best >= 0 && bs >= need(t)) {
-        /* a real recitation produces words that sit side by side in the ayah; chat just
-           scatters a few common words ("min", "fi", "ma") across it */
-        if (lastI >= 0 && best === j) {
-          let gap = true;
-          for (let q = lastI + 1; q < i; q++) if (target[q]) { gap = false; break; }
-          if (gap) pairs++;
-        }
-        letters += t.length;
-        res[i] = 'ok'; matched++; scoreSum += bs;
-        j = best + span; lastK = j - 1; lastI = i;
-        if (firstI < 0) firstI = i;
+  /* Dictation-style word similarity: speech-to-text mangles unclear voices, so a word counts
+     when its overall spelling is close, OR its consonant skeleton is the same (vowels and
+     long-vowel letters are what the recogniser changes most), OR it starts and ends with the
+     same letters and is reasonably close in the middle. */
+  const WEAK = /[\u0627\u0648\u064A]/g;
+  function skel(w) { return w.length > 1 ? w.charAt(0) + w.slice(1).replace(WEAK, '') : w; }
+  const WS_CACHE = new Map();
+  function wsim(t, h) {
+    const key = t + '|' + h;
+    let v = WS_CACHE.get(key);
+    if (v !== undefined) return v;
+    v = wsim0(t, h);
+    if (WS_CACHE.size > 40000) WS_CACHE.clear();
+    WS_CACHE.set(key, v);
+    return v;
+  }
+  function wsim0(t, h) {
+    let s = sim(t, h);
+    if (s >= 1) return s;
+    if (t.length >= 3 && h.length >= 2) {
+      const st = skel(t), sh = skel(h);
+      if (st.length >= 2 && sh.length >= 2) {
+        if (st === sh) s = Math.max(s, 0.84);
+        else s = Math.max(s, 0.92 * sim(st, sh));
       }
     }
-    return { res, matched, real, lastK, lastI, pairs, letters, avg: matched ? scoreSum / matched : 0 };
+    if (t.length >= 4 && h.length >= 3 && t.charAt(0) === h.charAt(0) && t.charAt(t.length - 1) === h.charAt(h.length - 1)) {
+      s = Math.max(s, Math.min(0.74, 0.3 + sim(t, h)));
+    }
+    return s;
+  }
+  /* Best in-order pairing of the verse words with the words that were heard (weighted
+     longest-common-subsequence). Unlike a greedy left-to-right scan, one mangled word or a burst
+     of noise cannot throw the rest of a long ayah out of step. */
+  function raAlign(target0, heard0) {
+    const target = target0.map(phon), heard = heard0.map(phon);
+    const n = target.length, m = heard.length;
+    const res = new Array(n).fill('pending');
+    const realIdx = [];
+    for (let i = 0; i < n; i++) { if (target[i]) realIdx.push(i); else res[i] = 'mark'; }  // pause signs: nothing to say
+    const R = realIdx.length;
+    const need = (t) => (t.length <= 2 ? 1 : t.length <= 3 ? 0.66 : 0.68);
+    const W = m + 1;
+    const S = new Float32Array((R + 1) * W);
+    const C = new Int8Array((R + 1) * W);
+    for (let a = 1; a <= R; a++) {
+      const t = target[realIdx[a - 1]], nd = need(t);
+      for (let k = 1; k <= m; k++) {
+        let best = S[(a - 1) * W + k], c = 1;
+        const left = S[a * W + k - 1];
+        if (left > best) { best = left; c = 2; }
+        const s1 = wsim(t, heard[k - 1]);
+        if (s1 >= nd) { const v = S[(a - 1) * W + k - 1] + s1; if (v > best) { best = v; c = 3; } }
+        if (k >= 2 && s1 < nd) {
+          /* the recogniser sometimes glues two spoken words together */
+          const s2 = wsim(t, heard[k - 2] + heard[k - 1]);
+          if (s2 >= nd && s2 > s1 + 0.05) { const v = S[(a - 1) * W + k - 2] + s2; if (v > best) { best = v; c = 4; } }
+        }
+        S[a * W + k] = best; C[a * W + k] = c;
+      }
+    }
+    /* walk back to read off which words matched */
+    const hit = new Array(R).fill(null);
+    let a = R, k = m;
+    while (a > 0 && k > 0) {
+      const c = C[a * W + k];
+      if (c === 3) { hit[a - 1] = { start: k - 1, end: k - 1, s: wsim(target[realIdx[a - 1]], heard[k - 1]) }; a--; k--; }
+      else if (c === 4) { hit[a - 1] = { start: k - 2, end: k - 1, s: wsim(target[realIdx[a - 1]], heard[k - 2] + heard[k - 1]) }; a--; k -= 2; }
+      else if (c === 2) k--;
+      else a--;
+    }
+    let matched = 0, lastK = -1, lastI = -1, scoreSum = 0, pairs = 0, letters = 0, prev = null, firstX = -1, lastX = -1;
+    for (let x = 0; x < R; x++) {
+      const h = hit[x];
+      if (!h) { prev = null; continue; }
+      res[realIdx[x]] = 'ok'; matched++; scoreSum += h.s; letters += target[realIdx[x]].length;
+      if (prev && h.start === prev.end + 1) pairs++;   // real recitation = words side by side
+      lastK = Math.max(lastK, h.end); lastI = realIdx[x]; prev = h;
+      if (firstX < 0) firstX = x; lastX = x;
+    }
+    return { res, matched, real: R, lastK, lastI, pairs, letters, spanReal: firstX < 0 ? 0 : lastX - firstX + 1, avg: matched ? scoreSum / matched : 0 };
   }
   /* "enough of this ayah has been recited to move on" */
   function raSlack(real) {
@@ -847,13 +906,23 @@
        loses: allow roughly one word in six (never more than 12) once an ayah has 5+ words */
     return real >= 5 ? Math.min(12, Math.max(1, Math.floor(real / 6))) : 0;
   }
+  function raLastReal(r) {
+    for (let i = r.res.length - 1; i >= 0; i--) { if (r.res[i] !== 'mark') return i; }
+    return -1;
+  }
+  /* Anchor logic, like dictation: the ayah is done once enough of it was heard AND the closing
+     word has landed. Missing words in the middle no longer hold the page back. */
   function raComplete(r) {
     if (!r.real) return false;
-    if (r.matched < r.real - raSlack(r.real)) return false;
-    /* they must actually have reached the end, not just said the opening words */
-    let lastReal = -1;
-    for (let i = r.res.length - 1; i >= 0; i--) { if (r.res[i] !== 'mark') { lastReal = i; break; } }
-    return r.lastI >= 0 && r.lastI >= lastReal - 1;
+    const lastReal = raLastReal(r);
+    const lastHit = r.res[lastReal] === 'ok';
+    if (r.real <= 2) return r.matched === r.real;
+    if (r.real <= 4) return lastHit && r.matched >= r.real - 1;
+    /* the closing word (or the one before it) plus at least 60% of the ayah */
+    let prevReal = -1;
+    for (let i = lastReal - 1; i >= 0; i--) { if (r.res[i] !== 'mark') { prevReal = i; break; } }
+    const tail = lastHit || (prevReal >= 0 && r.res[prevReal] === 'ok' && r.real >= 8);
+    return tail && r.matched >= Math.ceil(r.real * 0.6);
   }
   /* reached the tail of the ayah even though some middle words were not heard */
   function raReachedEnd(r) {
@@ -865,7 +934,8 @@
   /* is this speech really recitation (and not a conversation)? */
   function raIsRecitation(r) {
     if (r.real === 1) return r.matched === 1;
-    return r.matched >= 2 && r.avg >= 0.72 && r.pairs >= 1 && r.letters >= 6;
+    /* matched words must be packed together in the ayah (real recitation), not scattered across it (chat) */
+    return r.matched >= 2 && r.avg >= 0.72 && r.pairs >= 1 && r.letters >= 6 && r.matched >= 0.5 * r.spanReal;
   }
 
   /* Collapse the recogniser's result list into one clean word list.

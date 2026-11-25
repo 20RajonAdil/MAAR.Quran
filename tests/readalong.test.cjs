@@ -58,8 +58,10 @@ x = run(A5, 'ياك نابد وياك نستاين');
 assert(x.done, 'ayn read as alif still completes');
 
 // 9. wrong words hold the page
-x = run(A7, 'صراط الذين كتب الله لكم بعد ذلك غير المغضوب عليهم ولا الضالين');
-assert(!x.done, 'several wrong words do not advance');
+x = run(A7, 'صراط الذين كتب الله لكم بعد ذلك غير المغضوب');
+assert(!x.done, 'wrong words and no ending do not advance');
+x = run(A7, 'كتب الله لكم بعد ذلك الضالين');
+assert(!x.done, 'only the last word heard does not advance');
 x = run(A5, 'اياك نعبد');
 assert(!x.done, 'half a short ayah does not advance');
 x = run(A5, 'اياك نعبد وسبحان ربي العظيم');
@@ -111,3 +113,24 @@ assert(sep.length === 7, 'separate results are kept');
 
 console.log('long-surah tests passed');
 
+// ---- unclear-voice / dictation-style leniency, Ar-Rahman ----
+const R13 = 'فَبِأَىِّ ءَالَآءِ رَبِّكُمَا تُكَذِّبَانِ';
+const R14 = 'خَلَقَ ٱلْإِنسَٰنَ مِن صَلْصَٰلٍ كَٱلْفَخَّارِ';
+x = run(R13, 'فباي الاء ربكما تكذبان');
+assert(x.done && x.rec, 'refrain, clear');
+x = run(R13, 'فباي ال ربكم تكذبن');
+assert(x.done, 'refrain with mumbled middle and ending still done');
+x = run(R13, 'باي الا ربكما تكذبا');
+assert(x.done, 'dropped first letter / last letter still done');
+x = run(R14, 'خلق الانسن من سلسال كافخار');
+assert(x.done, 'mumbled long-ish ayah still done');
+x = run(R14, 'خلق الانسان من');
+assert(!x.done, 'half of it is not done');
+x = run(R13, 'كيف حالك اليوم يا صديقي');
+assert(!x.done && !x.rec, 'chat against the refrain is ignored');
+// refrain twice in a row moves two ayat
+const TR = [R13, R14, R13].map(words);
+st = raStep(TR, 0, heard('فباي الاء ربكما تكذبان خلق الانسان من صلصال كالفخار'));
+assert(st.idx === 2, 'two ayat in one burst, unclear marks fine');
+
+console.log('dictation tests passed');
