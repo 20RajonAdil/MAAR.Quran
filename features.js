@@ -706,9 +706,12 @@
       rec.interimResults = true;
       rec.maxAlternatives = 1;
       rec.onresult = (e) => {
-        let t = '';
-        for (let i = 0; i < e.results.length; i++) t += ' ' + e.results[i][0].transcript;
-        setHeard(t.trim());
+        const parts = [];
+        for (let i = 0; i < e.results.length; i++) parts.push(e.results[i][0].transcript);
+        const flat = raFlatten(parts);
+        if (consumed.current > flat.length) consumed.current = 0;
+        flatLen.current = flat.length;
+        process(flat);
       };
       rec.onerror = (e) => {
         const c = e && e.error;
@@ -803,7 +806,7 @@
     const target = target0.map(phon), heard = heard0.map(phon);
     const n = target.length;
     const res = new Array(n).fill('pending');
-    let j = 0, matched = 0, lastK = -1, lastI = -1, firstI = -1, scoreSum = 0, real = 0;
+    let j = 0, matched = 0, lastK = -1, lastI = -1, firstI = -1, scoreSum = 0, real = 0, pairs = 0, letters = 0;
     const need = (t) => (t.length <= 2 ? 1 : t.length <= 3 ? 0.66 : 0.7);
     for (let i = 0; i < n; i++) {
       const t = target[i];
@@ -823,29 +826,111 @@
         if (s > bs) { bs = s; best = k; span = sp; }
       }
       if (best >= 0 && bs >= need(t)) {
+        /* a real recitation produces words that sit side by side in the ayah; chat just
+           scatters a few common words ("min", "fi", "ma") across it */
+        if (lastI >= 0 && best === j) {
+          let gap = true;
+          for (let q = lastI + 1; q < i; q++) if (target[q]) { gap = false; break; }
+          if (gap) pairs++;
+        }
+        letters += t.length;
         res[i] = 'ok'; matched++; scoreSum += bs;
         j = best + span; lastK = j - 1; lastI = i;
         if (firstI < 0) firstI = i;
       }
     }
-    return { res, matched, real, lastK, lastI, avg: matched ? scoreSum / matched : 0 };
+    return { res, matched, real, lastK, lastI, pairs, letters, avg: matched ? scoreSum / matched : 0 };
   }
   /* "enough of this ayah has been recited to move on" */
+  function raSlack(real) {
+    /* the recogniser swallows or mangles a few words, and the longer the ayah the more it
+       loses: allow roughly one word in six (never more than 12) once an ayah has 5+ words */
+    return real >= 5 ? Math.min(12, Math.max(1, Math.floor(real / 6))) : 0;
+  }
   function raComplete(r) {
     if (!r.real) return false;
-    /* every word must be there, give or take one in a longer ayah (two in a very long one),
-       because the recogniser itself sometimes swallows a small word */
-    const slack = r.real >= 13 ? 2 : r.real >= 5 ? 1 : 0;
-    if (r.matched < r.real - slack) return false;
+    if (r.matched < r.real - raSlack(r.real)) return false;
     /* they must actually have reached the end, not just said the opening words */
     let lastReal = -1;
     for (let i = r.res.length - 1; i >= 0; i--) { if (r.res[i] !== 'mark') { lastReal = i; break; } }
     return r.lastI >= 0 && r.lastI >= lastReal - 1;
   }
+  /* reached the tail of the ayah even though some middle words were not heard */
+  function raReachedEnd(r) {
+    if (!r.real || r.lastI < 0) return false;
+    let lastReal = -1;
+    for (let i = r.res.length - 1; i >= 0; i--) { if (r.res[i] !== 'mark') { lastReal = i; break; } }
+    return r.lastI >= lastReal - 1 && r.matched >= Math.ceil(r.real * 0.6);
+  }
   /* is this speech really recitation (and not a conversation)? */
   function raIsRecitation(r) {
     if (r.real === 1) return r.matched === 1;
-    return r.matched >= 2 && r.avg >= 0.72;
+    return r.matched >= 2 && r.avg >= 0.72 && r.pairs >= 1 && r.letters >= 6;
+  }
+
+  /* Collapse the recogniser's result list into one clean word list.
+     Chrome on Android re-sends the whole sentence in every result (each result starts with
+     the previous one), which used to duplicate words and shift the cursor. */
+  function raFlatten(transcripts) {
+    const parts = [];
+    for (let i = 0; i < transcripts.length; i++) {
+      const t = normAr(transcripts[i]);
+      if (!t) continue;
+      const prev = parts.length ? parts[parts.length - 1] : '';
+      if (prev && prev.indexOf(' ') > 0 && t.indexOf(prev) === 0) parts[parts.length - 1] = t;
+      else parts.push(t);
+    }
+    const flat = [];
+    parts.forEach((p) => p.split(' ').forEach((w) => { if (w) flat.push(w); }));
+    return flat;
+  }
+  /* One decision step. Pure (no React) so it can be tested.
+     Returns { idx, consumed, res, hearing, done }: the ayah the reciter is now on, how many
+     heard words were used up, the per-word marks to show, and whether this is recitation. */
+  function raStep(targets, cur0, heard0) {
+    let cur = cur0, heard = heard0.slice(), consumed = 0, guard = 0, hearing = false, res = null;
+    while (guard++ < 8) {
+      const tg = targets[cur];
+      if (!tg) break;
+      /* keep only a recent window of speech so old noise can't pile up */
+      const maxLen = tg.length * 2 + 8;
+      if (heard.length > maxLen) { consumed += heard.length - maxLen; heard = heard.slice(heard.length - maxLen); }
+      const r = raAlign(tg, heard);
+      let jumped = false;
+      /* Look ahead: has the reciter moved on to a later ayah? This must also work when the
+         current ayah was only partly recognised, otherwise a few mis-heard words in a long
+         ayah would freeze the page for good. Evidence for the next ayah must come from words
+         spoken AFTER what the current ayah already used. */
+      const progressed = r.matched < 2 || r.matched >= r.real * 0.5 || raReachedEnd(r);
+      if (progressed && !raComplete(r)) {
+        /* start 2 words back: the current ayah's matcher can grab the first word or two of
+           the next ayah as a stand-in for a word it never heard */
+        const from = r.matched >= 2 ? Math.max(0, r.lastK - 1) : 0;
+        const rest = heard.slice(from);
+        for (let k = 1; k <= 3 && cur + k < targets.length && rest.length; k++) {
+          const t2 = targets[cur + k];
+          const real2 = t2.filter(Boolean).length;
+          if (real2 < 2) continue;
+          const r2 = raAlign(t2, rest);
+          const needM = Math.min(3, real2);
+          if (r2.matched >= needM && r2.avg >= 0.78 && r2.matched >= Math.ceil(real2 * 0.5)) {
+            consumed += from; heard = rest; cur += k; jumped = true; break;
+          }
+        }
+      }
+      if (jumped) continue;
+      if (!raIsRecitation(r)) return { idx: cur, consumed, res: new Array(tg.length).fill('pending'), hearing: false, done: false };
+      hearing = true;
+      if (raComplete(r)) {
+        consumed += r.lastK + 1;
+        if (cur + 1 >= targets.length) return { idx: cur, consumed, res: r.res, hearing, done: true };
+        cur += 1; heard = heard.slice(r.lastK + 1); res = new Array(targets[cur].length).fill('pending');
+        if (!heard.length) break;
+        continue;   // leftover words may already belong to the next ayah
+      }
+      return { idx: cur, consumed, res: r.res, hearing, done: false };
+    }
+    return { idx: cur, consumed, res: res || new Array((targets[cur] || []).length).fill('pending'), hearing, done: false };
   }
 
   function ReadAlong({ ayahs, startIndex, jump, onFocus, onDone, onClose }) {
@@ -863,46 +948,18 @@
     const recRef = useRef(null);
     const alive = useRef(true);
     const restartTimer = useRef(0);
+    const fastEnds = useRef(0);
+    const wakeRef = useRef(null);
     const cb = useRef({}); cb.current = { onFocus, onDone, onClose };
 
     function process(flat) {
-      let guard = 0;
-      while (guard++ < 6) {
-        const cur = idxRef.current;
-        const tg = targets[cur];
-        if (!tg) break;
-        const maxLen = tg.length * 2 + 8;
-        if (flat.length - consumed.current > maxLen) consumed.current = flat.length - maxLen;
-        const heard = flat.slice(consumed.current);
-        let r = raAlign(tg, heard);
-        /* not reading this ayah? see if they skipped ahead (needs a solid 3+ word run) */
-        if (r.matched < 2) {
-          for (let k = 1; k <= 3 && cur + k < targets.length; k++) {
-            const t2 = targets[cur + k];
-            if (t2.filter(Boolean).length < 3) continue;
-            const r2 = raAlign(t2, heard);
-            if (r2.matched >= 3 && r2.avg >= 0.78 && r2.matched >= Math.ceil(r2.real * 0.5)) {
-              idxRef.current = cur + k; setIdx(cur + k); r = null; break;
-            }
-          }
-          if (r === null) continue;
-        }
-        if (!raIsRecitation(r)) {
-          cb.current.onFocus && cb.current.onFocus(cur, new Array(tg.length).fill('pending'));
-          setHearing(false);
-          return;
-        }
-        setHearing(true);
-        if (raComplete(r)) {
-          consumed.current += r.lastK + 1;
-          if (cur + 1 >= targets.length) { cb.current.onFocus && cb.current.onFocus(cur, r.res); cb.current.onDone && cb.current.onDone(); return; }
-          idxRef.current = cur + 1; setIdx(cur + 1);
-          cb.current.onFocus && cb.current.onFocus(cur + 1, new Array(targets[cur + 1].length).fill('pending'));
-          continue;   // leftover words may already belong to the next ayah
-        }
-        cb.current.onFocus && cb.current.onFocus(cur, r.res);
-        return;
-      }
+      const heard = flat.slice(consumed.current);
+      const out = raStep(targets, idxRef.current, heard);
+      consumed.current += out.consumed;
+      if (out.idx !== idxRef.current) { idxRef.current = out.idx; setIdx(out.idx); }
+      setHearing(out.hearing);
+      cb.current.onFocus && cb.current.onFocus(out.idx, out.res);
+      if (out.done) cb.current.onDone && cb.current.onDone();
     }
 
     function begin() {
@@ -937,11 +994,16 @@
         }
       };
       /* browsers end a listening session after a pause; quietly start the next one */
+      const startedAt = Date.now();
       rec.onend = () => {
         setHearing(false);
         if (!alive.current) return;
+        /* a session that dies straight away (offline, busy mic) must not spin in a tight
+           loop: back off 0.3s, 0.6s ... up to 3s; a healthy session resets the counter */
+        fastEnds.current = (Date.now() - startedAt < 1500) ? fastEnds.current + 1 : 0;
+        const wait = fastEnds.current ? Math.min(3000, 300 * fastEnds.current) : 40;
         clearTimeout(restartTimer.current);
-        restartTimer.current = setTimeout(begin, 40);
+        restartTimer.current = setTimeout(begin, wait);
       };
       recRef.current = rec;
       try { rec.start(); setErr(''); } catch (e) { setErr('Could not start the microphone.'); }
@@ -955,7 +1017,26 @@
     useEffect(() => {
       alive.current = true;
       begin();
-      return end;
+      /* keep the screen awake while reading: a sleeping phone silences the microphone */
+      const lock = () => {
+        try {
+          if (navigator.wakeLock && !wakeRef.current) {
+            navigator.wakeLock.request('screen').then((w) => {
+              wakeRef.current = w;
+              w.addEventListener('release', () => { wakeRef.current = null; });
+            }).catch(() => {});
+          }
+        } catch (e) { /* not supported */ }
+      };
+      lock();
+      const onVis = () => { if (document.visibilityState === 'visible') lock(); };
+      document.addEventListener('visibilitychange', onVis);
+      return () => {
+        document.removeEventListener('visibilitychange', onVis);
+        try { if (wakeRef.current) wakeRef.current.release(); } catch (e) { /* ignore */ }
+        wakeRef.current = null;
+        end();
+      };
     }, []);
     /* the person tapped an ayah: carry on from there */
     useEffect(() => {
@@ -982,6 +1063,6 @@
 
   window.QMX = {
     SkyClock, RevelationMap, SurahMedallion, WordGlow, CalligraphyWave, ReciteCheck, ReadAlong,
-    _test: { normAr, alignWords, phon, raAlign, raComplete, raIsRecitation, moonLitPath, makeAlt, skyKeys, skyAt, motifFor, MOTIFS },
+    _test: { normAr, alignWords, phon, raAlign, raComplete, raIsRecitation, raStep, raFlatten, raReachedEnd, raSlack, moonLitPath, makeAlt, skyKeys, skyAt, motifFor, MOTIFS },
   };
 })();

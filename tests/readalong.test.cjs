@@ -68,3 +68,46 @@ x = run(A7, 'الحمد لله رب العالمين الرحمن الرحيم �
 assert(!x.done, 'an entirely different ayah never advances');
 
 console.log('readalong tests passed');
+// ---- long-surah regressions (raStep / raFlatten) ----
+const { raStep, raFlatten } = window.QMX._test;
+const K255 = 'اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهُوَ الْعَلِيُّ الْعَظِيمُ';
+const K256 = 'لَا إِكْرَاهَ فِي الدِّينِ ۖ قَدْ تَّبَيَّنَ الرُّشْدُ مِنَ الْغَيِّ';
+const K257 = 'اللَّهُ وَلِيُّ الَّذِينَ آمَنُوا يُخْرِجُهُم مِّنَ الظُّلُمَاتِ إِلَى النُّورِ';
+const T = [K255, K256, K257].map(words);
+const full255 = 'الله لا اله الا هو الحي القيوم لا تاخذه سنة ولا نوم له ما في السماوات وما في الارض من ذا الذي يشفع عنده الا باذنه يعلم ما بين ايديهم وما خلفهم ولا يحيطون بشيء من علمه الا بما شاء وسع كرسيه السماوات والارض ولا يؤده حفظهما وهو العلي العظيم';
+
+// long ayah said cleanly moves on
+let st = raStep(T, 0, heard(full255));
+assert(st.idx === 1, 'long ayah said cleanly advances');
+
+// long ayah with several words the recogniser butchered still advances (was: stuck)
+const mangled = full255.replace('يشفع عنده','يشبه عندي').replace('ايديهم وما','اديهم و').replace('يحيطون','يحطون').replace('كرسيه','كرسي').replace('حفظهما','حفضما');
+st = raStep(T, 0, heard(mangled));
+assert(st.idx === 1, 'long ayah with 5+ mangled words still advances');
+
+// ayah only partly recognised, then the NEXT ayah starts: must follow, not freeze (the main bug)
+const partial = 'الله لا اله الا هو الحي القيوم لا تاخذه سنة ولا نوم له ما في السماوات وما في الارض من ذا الذي يشفع عنده يعلم ما بين ايديهم وما خلفهم ولا يحيطون بشيء من علمه وسع كرسيه السماوات والارض ولا يؤده حفظهما وهو العلي العظيم';
+const droppedTail = partial.split(' ').slice(0, -2).join(' ');  // lost "العلي العظيم"
+st = raStep(T, 0, heard(droppedTail + ' لا اكراه في الدين قد تبين الرشد'));
+assert(st.idx === 1, 'next ayah is followed even if the end of the previous one was not heard');
+
+// halfway through a long ayah: stays put and shows progress
+st = raStep(T, 0, heard('الله لا اله الا هو الحي القيوم لا تاخذه سنة ولا نوم'));
+assert(st.idx === 0 && st.hearing && !st.done, 'half a long ayah holds the page');
+
+// conversation never moves it
+st = raStep(T, 0, heard('كيف حالك اليوم هل ذهبت الى العمل من الصباح'));
+assert(st.idx === 0 && !st.hearing, 'chat is ignored on long ayah');
+
+// flows through two ayat in one burst
+st = raStep(T, 0, heard(full255 + ' لا اكراه في الدين قد تبين الرشد من الغي'));
+assert(st.idx === 2, 'two ayat in one burst advance twice');
+
+// Android duplicated transcripts: every result repeats the previous one
+const dup = raFlatten(['لا اكراه في', 'لا اكراه في الدين', 'لا اكراه في الدين قد تبين']);
+assert(dup.join(' ') === 'لا اكراه في الدين قد تبين', 'cumulative re-sent results collapse to one list');
+const sep = raFlatten(['لا اكراه في الدين', 'قد تبين الرشد']);
+assert(sep.length === 7, 'separate results are kept');
+
+console.log('long-surah tests passed');
+
