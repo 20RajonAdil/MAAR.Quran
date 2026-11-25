@@ -104,7 +104,22 @@
   .qmx-err{color:var(--danger);font-size:13px;text-align:center;margin:6px 0;line-height:1.6;}
   .qmx-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;}
   @media (prefers-reduced-motion:reduce){.qmx-star,.qmx-pulse,.qmx-flow,.qmx-mic.on::after{animation:none;}}
-  `;
+  
+  /* ---- Read along (hands-free: recite aloud, the page follows) ---- */
+  .ra-bar{display:flex;align-items:center;gap:10px;padding:9px 20px;border-top:1px solid var(--line-soft);background:var(--bg-raised);font-size:12.5px;color:var(--muted);}
+  .ra-dot{width:10px;height:10px;border-radius:50%;background:var(--gold);flex:none;box-shadow:0 0 0 0 rgba(180,140,60,.5);animation:raPulse 1.6s infinite;}
+  .ra-bar.paused .ra-dot{animation:none;opacity:.35;}
+  .ra-msg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ra-msg b{color:var(--ink);font-weight:600;}
+  .ra-bar .qmx-pillbtn{padding:6px 12px;flex:none;}
+  .ayah-row.is-reading{background:linear-gradient(90deg,rgba(var(--accent-rgb),.08),transparent);box-shadow:inset 3px 0 0 var(--gold);padding-left:14px;margin-left:-14px;padding-right:14px;margin-right:-14px;border-radius:0 12px 12px 0;}
+  .ayah-ar .ra-w{transition:color .25s,text-shadow .25s;opacity:.55;}
+  .ayah-ar .ra-w.ok{color:var(--gold);opacity:1;text-shadow:0 0 14px rgba(var(--accent-rgb),.28);}
+  .ayah-ar .ra-w.mark{opacity:1;}
+  @keyframes raPulse{0%{box-shadow:0 0 0 0 rgba(180,140,60,.45)}70%{box-shadow:0 0 0 9px rgba(180,140,60,0)}100%{box-shadow:0 0 0 0 rgba(180,140,60,0)}}
+  @media (max-width:520px){.ra-lbl{display:none}}
+  @media (prefers-reduced-motion:reduce){.ra-dot{animation:none}}
+`;
   (function injectStyles() {
     try {
       if (document.getElementById('qmx-style')) return;
@@ -759,8 +774,191 @@
     `;
   }
 
+
+  /* ===============================================================
+     6. READ ALONG
+     Hands-free reading: the microphone listens while the person
+     recites, the word being read lights up, and when the ayah is
+     finished the page scrolls to the next one by itself.
+
+     - Mistakes are fine: words are matched by sound-alike spelling
+       (edit distance), in order, and skipped words don't block it.
+     - Talking to someone else is ignored: speech only counts when at
+       least two words in a row line up with the ayah being read (a
+       lone matching word like "min" in a normal chat does nothing).
+     - If the reciter jumps ahead a few ayat, it follows them.
+     =============================================================== */
+  function raAlign(target, heard) {
+    const n = target.length;
+    const res = new Array(n).fill('pending');
+    let j = 0, matched = 0, lastK = -1, lastI = -1, firstI = -1, scoreSum = 0, real = 0;
+    const need = (t) => (t.length <= 2 ? 1 : t.length <= 3 ? 0.66 : 0.64);
+    for (let i = 0; i < n; i++) {
+      const t = target[i];
+      if (!t) { res[i] = 'mark'; continue; }   // verse-end / pause signs: nothing to say
+      real++;
+      let best = -1, bs = 0, span = 1;
+      /* before the first match the reciter may have chatted first, so look anywhere;
+         after that allow a few heard words of slack (noise, repeated syllables) */
+      const limit = lastI < 0 ? heard.length : Math.min(heard.length, j + 5);
+      for (let k = j; k < limit; k++) {
+        let s = sim(t, heard[k]); let sp = 1;
+        /* the recogniser sometimes glues two spoken words together or splits one */
+        if (k + 1 < heard.length) {
+          const s2 = sim(t, heard[k] + heard[k + 1]);
+          if (s2 > s + 0.05) { s = s2; sp = 2; }
+        }
+        if (s > bs) { bs = s; best = k; span = sp; }
+      }
+      if (best >= 0 && bs >= need(t)) {
+        res[i] = 'ok'; matched++; scoreSum += bs;
+        j = best + span; lastK = j - 1; lastI = i;
+        if (firstI < 0) firstI = i;
+      }
+    }
+    return { res, matched, real, lastK, lastI, avg: matched ? scoreSum / matched : 0 };
+  }
+  /* "enough of this ayah has been recited to move on" */
+  function raComplete(r) {
+    if (!r.real) return false;
+    const need = r.real <= 2 ? r.real : r.real <= 4 ? r.real - 1 : Math.ceil(r.real * 0.75);
+    if (r.matched < need) return false;
+    /* they must actually have reached the end, not just said the opening words */
+    let lastReal = -1;
+    for (let i = r.res.length - 1; i >= 0; i--) { if (r.res[i] !== 'mark') { lastReal = i; break; } }
+    return r.lastI >= 0 && r.lastI >= lastReal - 1;
+  }
+  /* is this speech really recitation (and not a conversation)? */
+  function raIsRecitation(r) {
+    if (r.real === 1) return r.matched === 1;
+    return r.matched >= 2 && r.avg >= 0.72;
+  }
+
+  function ReadAlong({ ayahs, startIndex, onFocus, onDone, onClose }) {
+    const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    const targets = useMemo(
+      () => ayahs.map((a) => String(a.text || '').split(/\s+/).filter(Boolean).map(normAr)),
+      [ayahs]
+    );
+    const [idx, setIdx] = useState(startIndex);
+    const [err, setErr] = useState('');
+    const [hearing, setHearing] = useState(false);
+    const idxRef = useRef(startIndex);
+    const consumed = useRef(0);
+    const recRef = useRef(null);
+    const alive = useRef(true);
+    const restartTimer = useRef(0);
+    const cb = useRef({}); cb.current = { onFocus, onDone, onClose };
+
+    function process(flat) {
+      let guard = 0;
+      while (guard++ < 6) {
+        const cur = idxRef.current;
+        const tg = targets[cur];
+        if (!tg) break;
+        const maxLen = tg.length * 2 + 8;
+        if (flat.length - consumed.current > maxLen) consumed.current = flat.length - maxLen;
+        const heard = flat.slice(consumed.current);
+        let r = raAlign(tg, heard);
+        /* not reading this ayah? see if they skipped ahead (needs a solid 3+ word run) */
+        if (r.matched < 2) {
+          for (let k = 1; k <= 3 && cur + k < targets.length; k++) {
+            const t2 = targets[cur + k];
+            if (t2.filter(Boolean).length < 3) continue;
+            const r2 = raAlign(t2, heard);
+            if (r2.matched >= 3 && r2.avg >= 0.78 && r2.matched >= Math.ceil(r2.real * 0.5)) {
+              idxRef.current = cur + k; setIdx(cur + k); r = null; break;
+            }
+          }
+          if (r === null) continue;
+        }
+        if (!raIsRecitation(r)) {
+          cb.current.onFocus && cb.current.onFocus(cur, new Array(tg.length).fill('pending'));
+          setHearing(false);
+          return;
+        }
+        setHearing(true);
+        if (raComplete(r)) {
+          consumed.current += r.lastK + 1;
+          if (cur + 1 >= targets.length) { cb.current.onFocus && cb.current.onFocus(cur, r.res); cb.current.onDone && cb.current.onDone(); return; }
+          idxRef.current = cur + 1; setIdx(cur + 1);
+          cb.current.onFocus && cb.current.onFocus(cur + 1, new Array(targets[cur + 1].length).fill('pending'));
+          continue;   // leftover words may already belong to the next ayah
+        }
+        cb.current.onFocus && cb.current.onFocus(cur, r.res);
+        return;
+      }
+    }
+
+    function begin() {
+      if (!SR || !alive.current) return;
+      const rec = new SR();
+      rec.lang = 'ar-SA';
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      consumed.current = 0;   // a fresh session starts its transcript from zero
+      rec.onresult = (e) => {
+        const flat = [];
+        for (let i = 0; i < e.results.length; i++) {
+          normAr(e.results[i][0].transcript).split(' ').forEach((w) => { if (w) flat.push(w); });
+        }
+        if (consumed.current > flat.length) consumed.current = 0;
+        process(flat);
+      };
+      rec.onerror = (e) => {
+        const c = e && e.error;
+        if (c === 'not-allowed' || c === 'service-not-allowed') {
+          alive.current = false;
+          setErr('Microphone permission is blocked. Allow it in your browser settings, then try again.');
+        } else if (c === 'network') {
+          setErr('Speech recognition needs an internet connection.');
+        } else if (c === 'audio-capture') {
+          alive.current = false;
+          setErr('No microphone was found.');
+        } else if (c !== 'no-speech' && c !== 'aborted') {
+          setErr('Speech recognition hiccup (' + c + ') — still trying.');
+        }
+      };
+      /* browsers end a listening session after a pause; quietly start the next one */
+      rec.onend = () => {
+        setHearing(false);
+        if (!alive.current) return;
+        clearTimeout(restartTimer.current);
+        restartTimer.current = setTimeout(begin, 250);
+      };
+      recRef.current = rec;
+      try { rec.start(); setErr(''); } catch (e) { setErr('Could not start the microphone.'); }
+    }
+    function end() {
+      alive.current = false;
+      clearTimeout(restartTimer.current);
+      try { if (recRef.current) { recRef.current.onend = null; recRef.current.abort(); } } catch (e) { /* ignore */ }
+    }
+
+    useEffect(() => {
+      alive.current = true;
+      begin();
+      return end;
+    }, []);
+
+    const ay = ayahs[idx];
+    return html`
+      <div class=${'ra-bar' + (hearing ? '' : ' paused')} role="status" aria-live="polite">
+        <span class="ra-dot" aria-hidden="true"></span>
+        <div class="ra-msg">
+          ${!SR
+            ? 'This browser has no speech recognition. Read along works in Chrome or Edge (Android or desktop).'
+            : err ? err
+            : html`Listening — read from ayah <b>${ay ? ay.numberInSurah : ''}</b>${hearing ? '' : ' · say the ayah aloud (other talk is ignored)'}`}
+        </div>
+        <button class="qmx-pillbtn" onClick=${() => { end(); onClose && onClose(); }}>Stop</button>
+      </div>
+    `;
+  }
+
   window.QMX = {
-    SkyClock, RevelationMap, SurahMedallion, WordGlow, CalligraphyWave, ReciteCheck,
-    _test: { normAr, alignWords, moonLitPath, makeAlt, skyKeys, skyAt, motifFor, MOTIFS },
+    SkyClock, RevelationMap, SurahMedallion, WordGlow, CalligraphyWave, ReciteCheck, ReadAlong,
+    _test: { normAr, alignWords, raAlign, raComplete, raIsRecitation, moonLitPath, makeAlt, skyKeys, skyAt, motifFor, MOTIFS },
   };
 })();

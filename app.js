@@ -2242,6 +2242,10 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   });
   const [noteAyah, setNoteAyah] = useState(null);
   const [reciteAyah, setReciteAyah] = useState(null);
+  /* Read along: hands-free mode, the mic follows the person reciting and the page scrolls on its own */
+  const [raOn, setRaOn] = useState(false);
+  const [raStart, setRaStart] = useState(0);
+  const [ra, setRa] = useState({ idx: 0, status: [] });
   const [reloadTick, setReloadTick] = useState(0);
   const [readProg, setReadProg] = useState(0);
   const audioRef = useRef(null);
@@ -2406,6 +2410,36 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     return () => clearTimeout(t);
   }, [status, surah.number]);
 
+  function toggleReadAlong(){
+    if (raOn) { setRaOn(false); return; }
+    if (!ayahs || !ayahs.length) return;
+    stopAudio();
+    /* begin at the first ayah showing at the top of the screen */
+    let start = 0;
+    const body = document.querySelector('.reader-body');
+    if (body) {
+      const top = body.getBoundingClientRect().top + 24;
+      for (let i = 0; i < ayahs.length; i++) {
+        const el = rowRefs.current[ayahs[i].numberInSurah];
+        if (el && el.getBoundingClientRect().bottom > top) { start = i; break; }
+      }
+    }
+    setRaStart(start);
+    setRa({ idx: start, status: [] });
+    setRaOn(true);
+  }
+  /* playing audio (or the translation voice) turns the mic off so it can't hear itself */
+  useEffect(() => { if (raOn && (playingId || playingWhole || speakId)) setRaOn(false); }, [playingId, playingWhole, speakId]);
+  /* follow the reader: when the ayah changes, glide the next one into the middle of the screen */
+  useEffect(() => {
+    if (!raOn || !ayahs || !ayahs[ra.idx]) return;
+    const el = rowRefs.current[ayahs[ra.idx].numberInSurah];
+    if (el && el.scrollIntoView) {
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      try { el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
+    }
+  }, [raOn, ra.idx]);
+
   const isBookmarked = (a) => bookmarks.some((b) => b.surah === surah.number && b.ayah === a.numberInSurah);
 
   return html`
@@ -2431,8 +2465,8 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
               <div class="bismillah-en">${BISMILLAH_EN}</div>
             </div>
           ` : null}
-          ${status === 'ready' ? ayahs.map((a) => html`
-            <div key=${a.numberInSurah} ref=${(el) => { rowRefs.current[a.numberInSurah] = el; }} class=${'ayah-row' + (playingId === a.numberInSurah ? ' is-playing' : '') + (speakId === a.numberInSurah ? ' is-speaking' : '')}>
+          ${status === 'ready' ? ayahs.map((a, ai) => html`
+            <div key=${a.numberInSurah} ref=${(el) => { rowRefs.current[a.numberInSurah] = el; }} class=${'ayah-row' + (playingId === a.numberInSurah ? ' is-playing' : '') + (speakId === a.numberInSurah ? ' is-speaking' : '') + (raOn && ra.idx === ai ? ' is-reading' : '')}>
               <div class="ayah-top">
                 <div class="ayah-actions">
                   <button class=${'mini-btn' + (playingId === a.numberInSurah ? ' active' : '')} onClick=${() => playingId === a.numberInSurah ? stopAudio() : playAyah(a)} aria-label="Play this ayah">
@@ -2453,12 +2487,21 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
                 </div>
                 <span class="ayah-badge">${a.numberInSurah}</span>
               </div>
-              <div class="ayah-ar">${playingId === a.numberInSurah ? html`<${QMXC('WordGlow')} text=${a.text} audioRef=${audioRef} active=${true} />` : a.text}</div>
+              <div class="ayah-ar">${playingId === a.numberInSurah ? html`<${QMXC('WordGlow')} text=${a.text} audioRef=${audioRef} active=${true} />` : (raOn && ra.idx === ai ? a.text.split(/\s+/).filter(Boolean).map((w, wi) => html`<span key=${wi} class=${'ra-w' + (ra.status[wi] === 'ok' ? ' ok' : ra.status[wi] === 'mark' ? ' mark' : '')}>${w} </span>`) : a.text)}</div>
               <div class="ayah-tr">${a.translation}</div>
             </div>
           `) : null}
         </div>
         <${QMXC('CalligraphyWave')} active=${!!playingId || playingWhole || !!speakId} />
+        ${raOn && ayahs ? html`
+          <${QMXC('ReadAlong')}
+            ayahs=${ayahs}
+            startIndex=${raStart}
+            onFocus=${(idx, st) => setRa({ idx, status: st })}
+            onDone=${() => setRaOn(false)}
+            onClose=${() => setRaOn(false)}
+          />
+        ` : null}
         <div class="reader-player">
           <button class="player-play" onClick=${() => playingWhole ? stopAudio() : playWholeSurah()} aria-label="Play full surah">
             <${Icon} name=${playingWhole ? 'pause' : 'play'} size=${16} filled=${true} />
@@ -2489,6 +2532,9 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
           </button>
           <button class=${'tr-toggle' + (trAfter ? ' on' : '')} onClick=${() => setTrAfterSaved(!trAfter)} aria-pressed=${trAfter} title=${'Read the ' + langInfo.label + ' translation aloud after each Arabic verse'}>
             <${Icon} name="speak" size=${14} /><span>${langInfo.label}</span><b>${trAfter ? 'On' : 'Off'}</b>
+          </button>
+          <button class=${'tr-toggle' + (raOn ? ' on' : '')} onClick=${toggleReadAlong} aria-pressed=${raOn} title="Read along: recite aloud and the page follows you, no scrolling needed">
+            <${Icon} name="mic" size=${14} /><span class="ra-lbl">Read along</span>
           </button>
           <${DownloadButton} reciter=${reciter} surah=${surah} isDone=${rdIsDone} />
         </div>
