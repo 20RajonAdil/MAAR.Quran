@@ -452,6 +452,7 @@ const ARABIC_FONTS = [
   { label:'Markazi Text', stack:"'Markazi Text',serif" },
   { label:'Cairo', stack:"'Cairo',sans-serif" },
   { label:'Rakkas', stack:"'Rakkas',cursive" },
+  { label:'Indo-Pak Quran (Kolkata print style)', stack:"'MAAR IndoPak','Lateef','Noto Naskh Arabic','Amiri',serif", lh:2.5 },
   { label:'Indo-Pak (Kolkata style)', stack:"'Noto Nastaliq Urdu','Lateef','Amiri',serif", lh:2.7 },
   { label:'Indo-Pak Naskh (bold, rounded)', stack:"'Lateef','Noto Naskh Arabic','Amiri',serif", lh:2.3, bold:true },
 ];

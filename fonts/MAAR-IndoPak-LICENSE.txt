@@ -1,0 +1,9 @@
+MAAR IndoPak is a modified version of "DigitalKhatt IndoPak"
+Copyright (c) 2024 Amine Anane, Copyright (c) 2024 Tarteel Inc.
+Source: https://github.com/quran8vs/IndoPak (fonts/2.ttf)
+
+Modification: extra Unicode mappings (U+06E1, U+06D7, U+06E4, U+06E0, U+06E7) pointing at existing
+glyphs so the standard Uthmani Quran text displays fully; font renamed "MAAR IndoPak".
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+http://scripts.sil.org/OFL  -  https://openfontlicense.org
