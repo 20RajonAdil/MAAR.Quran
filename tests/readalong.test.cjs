@@ -50,4 +50,21 @@ assert(x.done, 'chatter before the ayah does not block it');
 x = run(A5, 'اياك نعبد و اياك نستعين');
 assert(x.done, 'split word is fine');
 
+
+// 8. Tajweed slips (heavy/light letters, ayn as alif, stretched letters) still count
+x = run(A7, 'سراط الزين انعمت عليهم خير المقدوب عليهم ولا الدالين');
+assert(x.done, 'sound-alike Tajweed slips still complete');
+x = run(A5, 'ياك نابد وياك نستاين');
+assert(x.done, 'ayn read as alif still completes');
+
+// 9. wrong words hold the page
+x = run(A7, 'صراط الذين كتب الله لكم بعد ذلك غير المغضوب عليهم ولا الضالين');
+assert(!x.done, 'several wrong words do not advance');
+x = run(A5, 'اياك نعبد');
+assert(!x.done, 'half a short ayah does not advance');
+x = run(A5, 'اياك نعبد وسبحان ربي العظيم');
+assert(!x.done, 'a different ayah does not advance a short one');
+x = run(A7, 'الحمد لله رب العالمين الرحمن الرحيم مالك يوم الدين');
+assert(!x.done, 'an entirely different ayah never advances');
+
 console.log('readalong tests passed');

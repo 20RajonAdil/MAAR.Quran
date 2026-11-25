@@ -788,11 +788,23 @@
        lone matching word like "min" in a normal chat does nothing).
      - If the reciter jumps ahead a few ayat, it follows them.
      =============================================================== */
-  function raAlign(target, heard) {
+  /* Fold letters that are easy to blur when the Tajweed is off (th/s/sad, dhal/za/dha,
+     dad/dal, ta/ta-heavy, qaf/kaf, ha/ha-light, ayn/hamza/alif) and squash stretched
+     letters, so a Tajweed slip still lands on the right word. Genuinely different
+     words stay different. */
+  function phon(w) {
+    return String(w || '')
+      .replace(/[\u062B\u0635]/g, '\u0633').replace(/[\u0630\u0638]/g, '\u0632')
+      .replace(/\u0636/g, '\u062F').replace(/\u0637/g, '\u062A').replace(/\u0642/g, '\u0643')
+      .replace(/\u062D/g, '\u0647').replace(/[\u0639\u0621]/g, '\u0627')
+      .replace(/(.)\1+/g, '$1');
+  }
+  function raAlign(target0, heard0) {
+    const target = target0.map(phon), heard = heard0.map(phon);
     const n = target.length;
     const res = new Array(n).fill('pending');
     let j = 0, matched = 0, lastK = -1, lastI = -1, firstI = -1, scoreSum = 0, real = 0;
-    const need = (t) => (t.length <= 2 ? 1 : t.length <= 3 ? 0.66 : 0.64);
+    const need = (t) => (t.length <= 2 ? 1 : t.length <= 3 ? 0.66 : 0.7);
     for (let i = 0; i < n; i++) {
       const t = target[i];
       if (!t) { res[i] = 'mark'; continue; }   // verse-end / pause signs: nothing to say
@@ -821,8 +833,10 @@
   /* "enough of this ayah has been recited to move on" */
   function raComplete(r) {
     if (!r.real) return false;
-    const need = r.real <= 2 ? r.real : r.real <= 4 ? r.real - 1 : Math.ceil(r.real * 0.75);
-    if (r.matched < need) return false;
+    /* every word must be there, give or take one in a longer ayah (two in a very long one),
+       because the recogniser itself sometimes swallows a small word */
+    const slack = r.real >= 13 ? 2 : r.real >= 5 ? 1 : 0;
+    if (r.matched < r.real - slack) return false;
     /* they must actually have reached the end, not just said the opening words */
     let lastReal = -1;
     for (let i = r.res.length - 1; i >= 0; i--) { if (r.res[i] !== 'mark') { lastReal = i; break; } }
@@ -834,7 +848,7 @@
     return r.matched >= 2 && r.avg >= 0.72;
   }
 
-  function ReadAlong({ ayahs, startIndex, onFocus, onDone, onClose }) {
+  function ReadAlong({ ayahs, startIndex, jump, onFocus, onDone, onClose }) {
     const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
     const targets = useMemo(
       () => ayahs.map((a) => String(a.text || '').split(/\s+/).filter(Boolean).map(normAr)),
@@ -845,6 +859,7 @@
     const [hearing, setHearing] = useState(false);
     const idxRef = useRef(startIndex);
     const consumed = useRef(0);
+    const flatLen = useRef(0);
     const recRef = useRef(null);
     const alive = useRef(true);
     const restartTimer = useRef(0);
@@ -904,6 +919,7 @@
           normAr(e.results[i][0].transcript).split(' ').forEach((w) => { if (w) flat.push(w); });
         }
         if (consumed.current > flat.length) consumed.current = 0;
+        flatLen.current = flat.length;
         process(flat);
       };
       rec.onerror = (e) => {
@@ -925,7 +941,7 @@
         setHearing(false);
         if (!alive.current) return;
         clearTimeout(restartTimer.current);
-        restartTimer.current = setTimeout(begin, 250);
+        restartTimer.current = setTimeout(begin, 40);
       };
       recRef.current = rec;
       try { rec.start(); setErr(''); } catch (e) { setErr('Could not start the microphone.'); }
@@ -941,6 +957,13 @@
       begin();
       return end;
     }, []);
+    /* the person tapped an ayah: carry on from there */
+    useEffect(() => {
+      if (!jump || jump.i == null || !targets[jump.i]) return;
+      idxRef.current = jump.i; setIdx(jump.i);
+      consumed.current = flatLen.current;
+      cb.current.onFocus && cb.current.onFocus(jump.i, new Array(targets[jump.i].length).fill('pending'));
+    }, [jump && jump.n]);
 
     const ay = ayahs[idx];
     return html`
@@ -959,6 +982,6 @@
 
   window.QMX = {
     SkyClock, RevelationMap, SurahMedallion, WordGlow, CalligraphyWave, ReciteCheck, ReadAlong,
-    _test: { normAr, alignWords, raAlign, raComplete, raIsRecitation, moonLitPath, makeAlt, skyKeys, skyAt, motifFor, MOTIFS },
+    _test: { normAr, alignWords, phon, raAlign, raComplete, raIsRecitation, moonLitPath, makeAlt, skyKeys, skyAt, motifFor, MOTIFS },
   };
 })();

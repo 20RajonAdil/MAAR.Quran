@@ -2246,6 +2246,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   const [raOn, setRaOn] = useState(false);
   const [raStart, setRaStart] = useState(0);
   const [ra, setRa] = useState({ idx: 0, status: [] });
+  const [raJump, setRaJump] = useState({ i: null, n: 0 });
   const [reloadTick, setReloadTick] = useState(0);
   const [readProg, setReadProg] = useState(0);
   const audioRef = useRef(null);
@@ -2466,7 +2467,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
             </div>
           ` : null}
           ${status === 'ready' ? ayahs.map((a, ai) => html`
-            <div key=${a.numberInSurah} ref=${(el) => { rowRefs.current[a.numberInSurah] = el; }} class=${'ayah-row' + (playingId === a.numberInSurah ? ' is-playing' : '') + (speakId === a.numberInSurah ? ' is-speaking' : '') + (raOn && ra.idx === ai ? ' is-reading' : '')}>
+            <div key=${a.numberInSurah} ref=${(el) => { rowRefs.current[a.numberInSurah] = el; }} class=${'ayah-row' + (playingId === a.numberInSurah ? ' is-playing' : '') + (speakId === a.numberInSurah ? ' is-speaking' : '') + (raOn && ra.idx === ai ? ' is-reading' : '')} onClick=${raOn && ra.idx !== ai ? () => { setRa({ idx: ai, status: [] }); setRaJump((j) => ({ i: ai, n: j.n + 1 })); } : undefined}>
               <div class="ayah-top">
                 <div class="ayah-actions">
                   <button class=${'mini-btn' + (playingId === a.numberInSurah ? ' active' : '')} onClick=${() => playingId === a.numberInSurah ? stopAudio() : playAyah(a)} aria-label="Play this ayah">
@@ -2497,7 +2498,8 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
           <${QMXC('ReadAlong')}
             ayahs=${ayahs}
             startIndex=${raStart}
-            onFocus=${(idx, st) => setRa({ idx, status: st })}
+            jump=${raJump}
+            onFocus=${(idx, st) => setRa((p) => (p.idx === idx && p.status.length === st.length && p.status.every((v, k) => v === st[k]) ? p : { idx, status: st }))}
             onDone=${() => setRaOn(false)}
             onClose=${() => setRaOn(false)}
           />
