@@ -1976,7 +1976,7 @@ function SurahCard({ s, i, reciter, onOpen, isDone }){
   `;
 }
 
-function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, arabicFontIdx, setArabicFontIdx, bookmarks, toggleBookmark }){
+function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, arabicFontIdx, setArabicFontIdx, bookmarks, toggleBookmark, autoBookmark }){
   const [surahs, setSurahs] = useState([]);
   const [status, setStatus] = useState('loading');
   const [query, setQuery] = useState('');
@@ -2058,6 +2058,7 @@ function QuranSection({ reciterId, setReciterId, langEdition, setLangEdition, ar
           langEdition=${langEdition}
           bookmarks=${bookmarks}
           toggleBookmark=${toggleBookmark}
+          autoBookmark=${autoBookmark}
         />
       ` : null}
     </section>
@@ -2196,7 +2197,7 @@ function qmSpeak(text, code, done){
   next();
 }
 
-function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, toggleBookmark }){
+function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, toggleBookmark, autoBookmark }){
   const [ayahs, setAyahs] = useState(null);
   const [status, setStatus] = useState('loading');
   const [playingId, setPlayingId] = useState(null);
@@ -2430,6 +2431,7 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
     }
     setRaStart(start);
     setRa({ idx: start, status: [] });
+    raProg.current = false; raSaved.current = -1;   // a fresh session saves nothing until the person actually reads
     setRaOn(true);
   }
   /* playing audio (or the translation voice) turns the mic off so it can't hear itself */
@@ -2437,6 +2439,43 @@ function ReaderOverlay({ surah, onClose, reciterId, langEdition, bookmarks, togg
   /* follow the reader: when the ayah changes, glide the next one into view. Done by hand (not
      scrollIntoView smooth) because the browser cancels a smooth scroll that is still running
      when the next one starts, which made long ayat sometimes not scroll at all. */
+  /* Remember where the person stopped (Read along only): after 3 quiet minutes, when the page is closed
+     or hidden, or when they press Stop / leave the reader. Nothing is saved if they never read aloud. */
+  const raProg = useRef(false), raPos = useRef(0), raSaved = useRef(-1), raOnRef = useRef(false);
+  raOnRef.current = raOn; raPos.current = ra.idx;
+  useEffect(() => {
+    if (!raOn) return;
+    if (ra.idx !== raStart || (ra.status || []).indexOf('ok') >= 0) { raProg.current = true; raSaved.current = -1; }
+  }, [raOn, ra]);
+  const saveSpotRef = useRef(null);
+  saveSpotRef.current = () => {
+    if (!autoBookmark || !raProg.current || !ayahs || !ayahs[raPos.current]) return;
+    if (raSaved.current === raPos.current) return;
+    raSaved.current = raPos.current;
+    try { autoBookmark(surah, ayahs[raPos.current]); } catch (e) { /* storage unavailable */ }
+  };
+  useEffect(() => {
+    if (!raOn) return;
+    const t = setTimeout(() => saveSpotRef.current && saveSpotRef.current(), 3 * 60 * 1000);
+    return () => clearTimeout(t);
+  }, [raOn, ra]);
+  useEffect(() => {
+    const leave = () => { if (raOnRef.current && saveSpotRef.current) saveSpotRef.current(); };
+    const onVis = () => { if (document.visibilityState === 'hidden') leave(); };
+    window.addEventListener('pagehide', leave);
+    window.addEventListener('beforeunload', leave);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('pagehide', leave);
+      window.removeEventListener('beforeunload', leave);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+  /* Stop pressed, surah finished, or the reader closed while reading aloud */
+  useEffect(() => {
+    if (!raOn) return;
+    return () => { if (saveSpotRef.current) saveSpotRef.current(); };
+  }, [raOn]);
   const raScrollAnim = useRef(0);
   useEffect(() => {
     if (!raOn || !ayahs || !ayahs[ra.idx]) return;
@@ -3639,7 +3678,7 @@ function BookmarksDrawer({ open, onClose, bookmarks, remove, hadithBookmarks, re
           <div class="eyebrow" style=${{marginBottom:'10px'}}>Qur'an</div>
           ${bookmarks.map((b) => html`
             <div key=${`${b.surah}-${b.ayah}`} class="bm-item">
-              <div class="bm-top"><span>${b.surahName} ${b.surah}:${b.ayah}</span><button class="mini-btn" style=${{width:'24px',height:'24px'}} onClick=${() => remove(b)}><${Icon} name="close" size=${11} /></button></div>
+              <div class="bm-top"><span>${b.surahName} ${b.surah}:${b.ayah}${b.auto ? ' \u00B7 where you stopped' : ''}</span><button class="mini-btn" style=${{width:'24px',height:'24px'}} onClick=${() => remove(b)}><${Icon} name="close" size=${11} /></button></div>
               <div class="bm-text">${b.text}</div>
             </div>
           `)}
@@ -5190,6 +5229,17 @@ function App(){
       return next;
     });
   }, []);
+  /* Read along: remember where the person stopped. Only one "where you stopped" bookmark exists at a
+     time (the new one replaces the old), and a verse they bookmarked by hand is never touched.
+     Written straight to storage first, because on tab close there is no time for React to flush. */
+  const autoBookmark = useCallback((surah, ayah) => {
+    const cur = store.getArray('v5_bookmarks');
+    const manual = cur.some((b) => b.surah === surah.number && b.ayah === ayah.numberInSurah && !b.auto);
+    const next = cur.filter((b) => !b.auto);
+    if (!manual) next.unshift({ surah: surah.number, surahName: surah.englishName, ayah: ayah.numberInSurah, text: ayah.text, auto: true, at: Date.now() });
+    store.setJSON('v5_bookmarks', next);
+    setBookmarks(next);
+  }, []);
   const removeBookmark = useCallback((b) => {
     setBookmarks((prev) => { const next = prev.filter((x) => !(x.surah === b.surah && x.ayah === b.ayah)); store.setJSON('v5_bookmarks', next); return next; });
   }, []);
@@ -5215,7 +5265,7 @@ function App(){
       reciterId=${reciterId} setReciterId=${setReciterId}
       langEdition=${langEdition} setLangEdition=${setLangEdition}
       arabicFontIdx=${arabicFontIdx} setArabicFontIdx=${setArabicFontIdx}
-      bookmarks=${bookmarks} toggleBookmark=${toggleBookmark}
+      bookmarks=${bookmarks} toggleBookmark=${toggleBookmark} autoBookmark=${autoBookmark}
     />`;
   else if (tab === 'hadith') page = html`<${HadithSection} hadithBookmarks=${hadithBookmarks} toggleHadithBookmark=${toggleHadithBookmark} />`;
   else if (tab === 'videos') page = html`<${VideosSection} />`;
