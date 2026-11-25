@@ -41,8 +41,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="vendor/leaflet.css">
 <script src="customise.js?v=9"></script>
 <script src="update.js?v=1"></script>
@@ -421,7 +421,7 @@ html.os-on .nav{top:var(--os-h);}
 .mini-btn{width:30px;height:30px;border-radius:9px;background:var(--card);border:1px solid var(--line);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .2s,color .2s,background .2s;}
 .mini-btn:hover{border-color:var(--gold-dim);}
 .mini-btn.active{background:var(--gold);color:#f5f2ed;border-color:var(--gold);}
-.ayah-ar{font-family:var(--arabic-font);font-size:28px;line-height:2.15;text-align:right;direction:rtl;color:var(--ink);margin-bottom:10px;}
+.ayah-ar{font-family:var(--arabic-font);font-weight:var(--arabic-wt,400);font-size:28px;line-height:var(--arabic-lh,2.15);text-align:right;direction:rtl;color:var(--ink);margin-bottom:10px;}
 .ayah-tr{font-size:14px;line-height:1.7;color:var(--muted);}
 .reader-player{position:relative;padding:12px 20px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:12px;background:var(--bg-raised);}
 
@@ -1066,7 +1066,7 @@ html.os-on .nav{top:var(--os-h);}
 <script src="offline.js?v=3"></script>
 <script src="imagedl.js?v=1"></script>
 <script src="features.js?v=4"></script>
-<script src="app.js?v=69"></script>
+<script src="app.js?v=70"></script>
 
 <script>
 /* ---- Service worker registration + automatic updates ---------------

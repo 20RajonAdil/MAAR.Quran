@@ -18,7 +18,7 @@
    the Qur'an text either.
    ============================================================ */
 
-const SHELL_VERSION = 'v86';
+const SHELL_VERSION = 'v87';
 const DATA_VERSION  = 'v1';
 
 /* Inside the Android app (served from https://localhost) every page and script is already packaged in the APK and is
@@ -43,7 +43,7 @@ const SHELL_ASSETS = [
   './features.js?v=4',
   './customise.js?v=9',
   './update.js?v=1',
-  './app.js?v=69',
+  './app.js?v=70',
   './imagedl.js?v=1',
   './i18n.js?v=3',
   './i18n-data.js?v=2',
@@ -154,7 +154,7 @@ const SHELL_ASSETS = [
 /* Google Fonts stylesheet used by index.html. Every font file it points to
    is downloaded at install so all Arabic/Latin faces work offline, not only
    the ones already drawn on screen. */
-const FONT_CSS_URL = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&display=swap';
+const FONT_CSS_URL = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Amiri+Quran&family=Scheherazade+New:wght@400;700&family=Lateef:wght@400;700&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Harmattan:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Cairo:wght@400;600;700&family=Rakkas&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap';
 /* Small data files worth having before the first offline launch. */
 const DATA_PRECACHE = ['https://api.alquran.cloud/v1/surah'];
 

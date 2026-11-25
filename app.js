@@ -452,6 +452,8 @@ const ARABIC_FONTS = [
   { label:'Markazi Text', stack:"'Markazi Text',serif" },
   { label:'Cairo', stack:"'Cairo',sans-serif" },
   { label:'Rakkas', stack:"'Rakkas',cursive" },
+  { label:'Indo-Pak (Kolkata style)', stack:"'Noto Nastaliq Urdu','Lateef','Amiri',serif", lh:2.7 },
+  { label:'Indo-Pak Naskh (bold, rounded)', stack:"'Lateef','Noto Naskh Arabic','Amiri',serif", lh:2.3, bold:true },
 ];
 
 const HADITH_COLLECTIONS = [
@@ -5092,7 +5094,7 @@ function App(){
     try { publishPrayer(computePrayerTimesLocal(new Date(), geo.lat, geo.lon)); } catch {}
   }, [geo.status, geo.lat, geo.lon]);
 
-  useEffect(() => { document.documentElement.style.setProperty('--arabic-font', ARABIC_FONTS[arabicFontIdx]?.stack || ARABIC_FONTS[0].stack); }, [arabicFontIdx]);
+  useEffect(() => { const f = ARABIC_FONTS[arabicFontIdx] || ARABIC_FONTS[0]; const st = document.documentElement.style; st.setProperty('--arabic-font', f.stack); st.setProperty('--arabic-lh', String(f.lh || 2.15)); st.setProperty('--arabic-wt', f.bold ? '700' : '400'); }, [arabicFontIdx]);
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); }, [tab]);
   useEffect(() => {
     fetch(`${QURAN_API}/surah`).then(r => r.json()).then((j) => setSurahCount((j.data || []).length)).catch(() => {});
